@@ -41,7 +41,7 @@
     "moduleDetection": "force",
     "skipLibCheck": true,
     "esModuleInterop":true,
-    "moduleResolution":Nodenext,
+    //"moduleResolution":Nodenext,
   },
-  "excludes":["dist"]
+  "exclude":["dist"]
 }
