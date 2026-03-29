@@ -27,7 +27,7 @@ npm run dev
 ```
 ---
 
-# What you get instantly
+## What you get instantly
 
 A fully working Express authentication starter with:
 
@@ -51,7 +51,7 @@ Clean scalable folder structure
 
 ---
 
-# Why Authenik8?
+## Why Authenik8?
 
 Authentication systems usually require:
 
@@ -69,7 +69,7 @@ Authenik8 provides all of this out of the box so you can start building your API
 
 ---
 
-# Requirements
+## Requirements
 
 Node.js 18+
 
@@ -79,7 +79,7 @@ Redis (required for refresh tokens)
 
 ---
 
- Redis Setup
+ ## Redis Setup
  ```
 
 Local
@@ -116,7 +116,7 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
 
 ---
 
-📦 Powered by
+## Powered by
 
 authenik8-core
 
@@ -124,8 +124,8 @@ authenik8-core
 
 ---
 
-📁 Project Structure
-
+## Project Structure
+```
 my-app/
 ├── src/
 │   ├
@@ -135,10 +135,10 @@ my-app/
 ├── package.json
 └── tsconfig.json
 
-
+```
 ---
 
-📌 Notes
+## Notes
 
 Redis is required for refresh token handling
 
@@ -150,7 +150,7 @@ RBAC is included via middleware (e.g. requireAdmin)
 
 ---
 
-🧱 Roadmap
+## Roadmap
 
 OAuth providers (Google, GitHub)
 
