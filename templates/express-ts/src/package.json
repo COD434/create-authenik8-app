@@ -1,0 +1,17 @@
+
+  "name": "authenik8-app",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "authenik8-core": "^0.1.3",
+    "dotenv": "^16.0.0",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+  },
+  "type": "module"
+}
