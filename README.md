@@ -21,9 +21,9 @@
     npm install
     npm run dev
 
-   What you get instantly
+   ## What you get instantly
 
-    A fully working Express authentication starter with:
+     A fully working Express authentication starter with:
     
 - JWT authentication (access + refresh tokens)
     
@@ -36,9 +36,9 @@
     
 - Clean scalable folder structure
     - .env file generated automatically
-    
-     Why Authenik8?
-    Most auth setups require:
+    ---
+     ## Why Authenik8?
+     Most auth setups require:
     
 - manual JWT wiring
    
@@ -49,8 +49,8 @@
 - security edge cases
 
     ****Authenik8 removes that complexity and gives you a working auth system instantly****.
-
-     Requirements
+---
+     ## Requirements
     
 - Node.js 18+
    
@@ -58,30 +58,33 @@
 
   Redis Setup
     ```
-    Local
-    Bash
-    redis-server
+     Local
+     Bash
+     redis-server
+    
+     Docker
+     Bash
+     docker run -p 
+     6379:6379 redis
     ```
-    Docker
-    Bash
-    docker run -p 
-    6379:6379 redis
+    ---
+      ## Environment 
+     Variables
+     Automatically generated:
+    ```
+     Environment
+     JWT_SECRET=your-secret
+        REFRESH_SECRET=your-refresh-secret
     
-    Environment 
-    Variables
-    Automatically generated:
+     REDIS_HOST=127.0.0.1
+     REDIS_PORT=6379
+    ```
     
-    Environment
-    JWT_SECRET=your-secret
-    REFRESH_SECRET=your-refresh-secret
-
-    REDIS_HOST=127.0.0.1
-    REDIS_PORT=6379
+     ## Powered by
     
-    ## Powered by
-    
-    authenik8-core
-    🧱 Project Structure
+    *** authenik8-core***
+---
+     ## Project Structure
 ```
     my-app/
     ├── src/
