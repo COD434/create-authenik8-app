@@ -1,13 +1,3 @@
-Good catch — then your README should reflect that. Don’t undersell what you already built.
-
-Let’s fix it properly.
-
-
----
-
-✅ Updated npm README (with RBAC included)
-
-Replace your README with this version:
 
 # create-authenik8-app
 
@@ -34,10 +24,10 @@ cd my-app
 npm install
 npm run dev
 
-
+```
 ---
 
-## What you get instantly
+# What you get instantly
 
 A fully working Express authentication starter with:
 
@@ -61,7 +51,7 @@ Clean scalable folder structure
 
 ---
 
-🧠 Why Authenik8?
+# Why Authenik8?
 
 Authentication systems usually require:
 
@@ -79,7 +69,7 @@ Authenik8 provides all of this out of the box so you can start building your API
 
 ---
 
-Requirements
+# Requirements
 
 Node.js 18+
 
