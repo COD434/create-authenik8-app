@@ -25,6 +25,44 @@ const targetDir = path.join(process.cwd(), projectName);
 async function main() {
   console.log(chalk.blue.bold("\n🚀 Authenik8 App Generator\n"));
 
+  if (process.argv.includes("--help")) {
+  console.log(`
+Authenik8 CLI
+
+Usage:
+  create-authenik8-app <project-name>
+
+Options:
+  --help           Show this help message
+
+Features:
+  - Express backend (default)
+  - Optional Prisma ORM
+  - PostgreSQL (production)
+  - SQLite (quick start)
+  - Optional Git initialization
+
+Examples:
+  create-authenik8-app my-app
+`);
+  process.exit(0);
+}
+
+  console.log(chalk.gray(`
+Available options:
+
+  Frameworks:
+    - Express
+
+  Database (if Prisma enabled):
+    - PostgreSQL
+    - SQLite (quick start)
+
+  Features:
+    - Prisma ORM (optional)
+    - Git initialization (optional)
+`));
+
   // 🔥 PROMPTS
   const answers = await inquirer.prompt([
     {
@@ -38,6 +76,16 @@ async function main() {
       name: "usePrisma",
       message: "Use Prisma?",
       default: true,
+    },
+    {
+    type: "list",
+    name: "database",
+    message: "Choose database:",
+    choices:[
+    { name: "PostgreSQL", value: "postgresql" },
+    { name: "SQLite (quick start)", value: "sqlite" }
+  ],
+    when: (answers) => answers.usePrisma,
     },
     {
       type: "confirm",
@@ -80,24 +128,65 @@ const templatePath =
     const prismaSpinner = ora("Adding Prisma setup...").start();
 
     try {
-      await fs.copy(
-        path.join(__dirname, "../../templates"),
-        path.join(targetDir, "prisma")
-      );
-      prismaSpinner.succeed("Prisma configured");
-    } catch (err) {
-      prismaSpinner.fail("Failed to setup Prisma");
-    }
+    const dbType = answers.database.toLowerCase().includes("post")
+  ? "postgresql"
+  : "sqlite";
+
+    const prismaTemplatePath = path.join(
+      templateRoot,
+      `prisma/${dbType}`
+    );
+
+    // Copy prisma schema
+    await fs.copy(
+     path.join(prismaTemplatePath, "schema.prisma"),
+      path.join(targetDir, "prisma/schema.prisma")
+    );
+
+    // Copy env
+    await fs.copy(
+      path.join(prismaTemplatePath, ".env"),
+      path.join(targetDir, ".env")
+    );
+
+    const pkgPath = path.join(targetDir, "package.json");
+const pkg = await fs.readJson(pkgPath);
+
+    // Inject dependencies
+    pkg.dependencies = {
+      ...pkg.dependencies,
+      "@prisma/client": "^5.0.0",
+    };
+
+    pkg.devDependencies = {
+      ...pkg.devDependencies,
+      prisma: "^5.0.0",
+    };
+
+    // Add scripts
+    pkg.scripts = {
+      ...pkg.scripts,
+      "prisma:generate": "prisma generate",
+      "prisma:migrate": "prisma migrate dev",
+    };
+
+    prismaSpinner.succeed(`Prisma (${answers.database}) configured`);
+  } catch (err) {
+    prismaSpinner.fail("Failed to setup Prisma");
+    console.error(err);
   }
+}
 
   // 
-  const installSpinner = ora("Installing dependencies...").start();
+  const installSpinner = ora("Installing dependencies...(this may take a few minutes)").start();
 
   try {
     execSync("npm install", {
       cwd: targetDir,
       stdio: "ignore",
     });
+    
+
     installSpinner.succeed("Dependencies installed");
   } catch (err) {
     installSpinner.fail("Failed to install dependencies");

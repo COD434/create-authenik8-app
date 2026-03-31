@@ -1,9 +1,32 @@
 {
   "name": "create-authenik8-app",
-  "version": "1.0.0",
+  "version": "1.0.5",
+  "description":"Create production-ready backend APIs in seconds. Authenik8 scaffolds Express + Prisma projects with JWT authentication, database setup (PostgreSQL or SQLite), and scalable architecture out of the box.",
   "bin": {
     "create-authenik8-app": "dist/bin/index.js"
   },
+  "keywords": [
+  "cli",
+  "create-app",
+  "express",
+  "node",
+  "typescript",
+  "prisma",
+  "auth",
+  "authentication",
+  "scaffold",
+  "boilerplate",
+  "starter",
+  "backend",
+  "jwt",
+  "redis",
+  "api",
+  "nodejs-cli",
+  "project-generator",
+  "fullstack-backend"
+],
+  "license":"MIT",
+  "author":"Karabo Seeisa",
   "type": "module",
   "dependencies": {
     "authenik8-core": "^0.1.4",
