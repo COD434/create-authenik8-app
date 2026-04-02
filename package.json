@@ -1,6 +1,6 @@
 {
   "name": "create-authenik8-app",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description":"Create production-ready backend APIs in seconds. Authenik8 scaffolds Express + Prisma projects with JWT authentication, database setup (PostgreSQL or SQLite), and scalable architecture out of the box.",
   "bin": {
     "create-authenik8-app": "dist/bin/index.js"

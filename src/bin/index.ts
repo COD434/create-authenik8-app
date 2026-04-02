@@ -53,6 +53,7 @@ Available options:
 
   Frameworks:
     - Express
+    - Fastify(coming soon)
 
   Database (if Prisma enabled):
     - PostgreSQL
@@ -93,6 +94,12 @@ Available options:
       message: "Initialize git?",
       default: true,
     },
+    {
+  type: "confirm",
+  name: "usePasswordAuth",
+  message: "Include email/password authentication?",
+  default: true,
+},
   ]);
 
   // 🚫 Prevent overwrite
@@ -103,12 +110,23 @@ Available options:
 
   console.log(chalk.cyan("\n⚙️ Setting things up...\n"));
 
+
 const templateRoot = path.resolve(__dirname, "../../templates");
 
-const templatePath =
-  answers.framework === "Express"
-    ? path.join(templateRoot, "express-ts")
-    : path.join(templateRoot, "express-ts"); // fallback for now
+  if (answers.usePasswordAuth && !answers.usePrisma) {
+    console.log(
+      chalk.yellow("⚠️ Password auth requires Prisma. Enabling Prisma...")
+    );
+    answers.usePrisma = true;
+  }
+let templateName = "express-base";
+
+if (answers.usePasswordAuth && answers.usePrisma) {
+    templateName = "express-auth";
+  }
+
+const templatePath = path.join(templateRoot, templateName);
+
 
   // 📁 Create project (SPINNER)
   const createSpinner = ora("Creating project structure...").start();
@@ -123,13 +141,12 @@ const templatePath =
     process.exit(1);
   }
 
-
   if (answers.usePrisma) {
     const prismaSpinner = ora("Adding Prisma setup...").start();
 
     try {
-    const dbType = answers.database.toLowerCase().includes("post")
-  ? "postgresql"
+    const dbType = answers.database ===
+   "postgresql" ? "postgresql"
   : "sqlite";
 
     const prismaTemplatePath = path.join(
@@ -152,15 +169,16 @@ const templatePath =
     const pkgPath = path.join(targetDir, "package.json");
 const pkg = await fs.readJson(pkgPath);
 
+await fs.writeJson(pkgPath, pkg, { spaces: 2 });
     // Inject dependencies
     pkg.dependencies = {
       ...pkg.dependencies,
-      "@prisma/client": "^5.0.0",
+      "@prisma/client": "5.22.0",
     };
 
     pkg.devDependencies = {
       ...pkg.devDependencies,
-      prisma: "^5.0.0",
+      prisma: "5.22.0",
     };
 
     // Add scripts
@@ -183,7 +201,7 @@ const pkg = await fs.readJson(pkgPath);
   try {
     execSync("npm install", {
       cwd: targetDir,
-      stdio: "ignore",
+      stdio: "inherit",
     });
     
 
@@ -194,6 +212,38 @@ const pkg = await fs.readJson(pkgPath);
     process.exit(1);
   }
 
+  if (answers.usePrisma) {
+  const prismaGenSpinner = ora("Generating Prisma client...").start();
+
+  try {
+    execSync("npx prisma@5.22.0 generate", {
+      cwd: targetDir,
+      stdio: "inherit"
+    });
+
+    prismaGenSpinner.succeed("Prisma client generated");
+  } catch (err) {
+    prismaGenSpinner.fail("Failed to generate Prisma client");
+    console.error(err);
+  }
+}
+
+if (answers.usePasswordAuth) {
+    const authSpinner = ora("Installing password auth...").start();
+
+    try {
+      execSync("npm install argon2", {
+        cwd: targetDir,
+        stdio: "inherit",
+      });
+
+      authSpinner.succeed("Password auth ready (argon2)");
+    } catch (err) {
+      authSpinner.fail("Failed to install password auth");
+      console.error(err);
+      process.exit(1);
+    }
+}
   
   if (answers.useGit) {
     const gitSpinner = ora("Initializing git...").start();
@@ -219,6 +269,13 @@ Next steps:
 
 🔥 Your Authenik8 server is ready to go!
 `));
+console.log(`
+✔ Auth: ${answers.usePasswordAuth ? "JWT + Password" : "JWT only"}
+✔ Database: ${answers.usePrisma ? answers.database : "None"}
+✔ ORM: ${answers.usePrisma ? "Prisma" : "None"}
+`);
 }
+
+
 
 main();
