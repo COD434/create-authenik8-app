@@ -1,8 +1,10 @@
-Contributing to create-authenik8-app
+## Contributing to create-authenik8-app
+
 
 Thanks for your interest in contributing to Authenik8.
 
 This project is a CLI tool that generates production-ready authentication scaffolding for Node.js applications.
+
 ---
 ## Getting Started
 
@@ -41,39 +43,42 @@ If you're adding a new feature:
 
 1. Create a new branch
    ```
-      git checkout -b feature/your-feature-name
+ git checkout -b feature/your-feature-name
 ```
-      2. Implement changes
+ 2. Implement changes
 
-      3. Test locally using:
-         ```
-            npm run dev
+3. Test locally using:
 ```
-            4. Commit with a clear message
+npm run dev
+```
+4. Commit with a clear message
 
-            5. Push and open a merge request
+5. Push and open a merge request
+
 ---
  ## Reporting Issues
 
-            Use GitLab Issues to report bugs or request features.
+Use GitLab Issues to report bugs or request features.
 
-            Include:
+Include:
 
-    - Steps to reproduce
-    - Expected behavior
-    - Actual behavior
-    - Environment details
+ - Steps to reproduce
+ - Expected behavior
+ - Actual behavior
+ - Environment details
+
 ---
 ## Code Style
 
-    - Use TypeScript where applicable
-     - Prefer small reusable functions
-     - Keep CLI output clean and readable
+- Use TypeScript where applicable
+- Prefer small reusable functions
+- Keep CLI output clean and readable
+
 ---
 ## Security
 
-            If you discover a security vulnerability, do not open a public issue. Contact the maintainer directly.
+If you discover a security vulnerability, do not open a public issue. Contact the maintainer directly.
+
 ---
 ## License
-
-            By contributing, you agree that your contributions will be licensed under the same license as the project.
+By contributing, you agree that your contributions will be licensed under the same license as the project.
