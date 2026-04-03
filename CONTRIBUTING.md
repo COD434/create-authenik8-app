@@ -42,16 +42,16 @@ npm run dev
 If you're adding a new feature:
 
  1. Create a new branch
-   ```
+   
  git checkout -b     feature/your-feature-name
-    ```
+    
   
 2. Implement changes
 
 3. Test locally using:
-```
+
 npm run dev
-```
+
 4. Commit with a clear message
 
 5. Push and open a merge request
