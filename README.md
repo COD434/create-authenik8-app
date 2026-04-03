@@ -62,9 +62,10 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
   });
   ```
  ---
- # Requirements
- • Node.js 18+
- • Redis (required for refresh token storage)
+# Requirements
+
+• Node.js 18+
+• Redis (required for refresh token storage)
  ---
  Redis Setup
  Local:
@@ -77,7 +78,8 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
  docker run -p 6379:6379 redis
  ```
  ---
- # Environment Variables
+# Environment Variables
+
  Auto-generated during setup:
  Environment
  ```JWT_SECRET=your-secret
@@ -88,35 +90,44 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
  ```
  ---
 
- # Philosophy
- Authenik8 is built on a simple principle:
- Provide secure defaults
- Avoid unnecessary abstraction
- Keep full developer control
- Generate real production-ready structure
- It is not a full framework.
- It is a secure starting point for backend systems.
+# Philosophy
+
+Authenik8 is built on a simple principle:
+Provide secure defaults
+Avoid unnecessary abstraction
+Keep full developer control
+Generate real production-ready structure
+It is not a full framework.
+It is a secure starting point for backend systems.
  ---
 
- # What it avoids
- • No hidden framework magic
- • No forced architecture
- • No vendor lock-in
- • No incomplete auth templates
- • No over-engineering
- ---
+# What it avoids
 
- # Roadmap
- • OAuth (Google, GitHub)
- • Advanced RBAC (roles + permissions)
- • Docker templates
- •Fastify support
- • Production presets
- ---
- # Powered by
- authenik8-core
- ---
+• No hidden framework magic
+• No forced architecture
+• No vendor lock-in
+• No incomplete auth templates
+• No over-engineering
 
- # Why this exists
- Most backend projects lose time in authentication setup.
- Authenik8 standardizes that foundation so teams can move faster with consistent security patterns.
+---
+
+# Roadmap
+
+• OAuth (Google, GitHub)
+• Advanced RBAC (roles + permissions)
+• Docker templates
+•Fastify support
+• Production presets
+
+---
+
+# Powered by
+
+authenik8-core
+
+---
+
+# Why this exists
+
+Most backend projects lose time in authentication setup.
+Authenik8 standardizes that foundation so teams can move faster with consistent security patterns.
