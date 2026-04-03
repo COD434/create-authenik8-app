@@ -43,8 +43,9 @@ If you're adding a new feature:
 
  1. Create a new branch
    ```
- git checkout -b feature/your-feature-name
- . ```
+ git checkout -b     feature/your-feature-name
+    ```
+  
 2. Implement changes
 
 3. Test locally using:
