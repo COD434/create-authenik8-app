@@ -10,6 +10,28 @@
 </p>
 
 ---
+## Problems It Solves
+
+Real pain points that slow down backend development.
+
+01
+Setting up JWT auth from scratch is repetitive
+
+02
+Refresh token logic is often implemented incorrectly
+
+03
+Redis-backed sessions are complex to wire properly
+
+04
+Security middleware setup is inconsistent
+
+05
+Prisma setup takes time and configuration
+
+06
+Developers spend time on boilerplate instead of features
+---
 
 ##  Usage
 
@@ -21,7 +43,9 @@ npx create-authenik8-app my-app
 Then:
 
 cd my-app
-npm install
+
+redis-server --daemonize yes
+
 npm run dev
 
 ```
@@ -31,21 +55,21 @@ npm run dev
 
 A fully working Express authentication starter with:
 
-JWT authentication (access + refresh tokens)
+• JWT authentication (access + refresh tokens)
 
- Secure refresh token rotation
+• Secure refresh token rotation
 
- Redis-based token storage
+• Redis-based token storage
 
- Role-Based Access Control (RBAC)
+• Role-Based Access Control (RBAC)
 
-TypeScript setup
+• TypeScript setup
 
- Express server preconfigured
+• Express server preconfigured
 
-Clean scalable folder structure
+• Clean scalable folder structure
 
- .env file generated automatically
+• .env file generated automatically
 
 
 
@@ -55,20 +79,39 @@ Clean scalable folder structure
 
 Authentication systems usually require:
 
-manual JWT setup
+• manual JWT setup
 
-refresh token handling
+• refresh token handling
 
-Redis/session configuration
+• Redis/session configuration
 
-access control logic
+• access control logic
 
 
 Authenik8 provides all of this out of the box so you can start building your API immediately.
 
 
 ---
+## Philosophy
+→ Authenik8 is not a full framework
 
+→ It provides secure defaults, not business logic
+
+→ You remain in control of your application
+
+→ Designed for real-world backend systems
+---
+## What It Avoids
+✕ No over-engineered frameworks
+
+✕ No forced architecture
+
+✕ No hidden magic
+
+✕ No vendor lock-in
+
+✕ No incomplete or insecure auth examples
+---
 ## Requirements
 
 Node.js 18+
@@ -145,8 +188,6 @@ Redis is required for refresh token handling
 This CLI generates a starter project, not a full framework
 
 RBAC is included via middleware (e.g. requireAdmin)
-
-
 
 ---
 
