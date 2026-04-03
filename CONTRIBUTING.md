@@ -41,11 +41,11 @@ npm run dev
 
 If you're adding a new feature:
 
-1. Create a new branch
+ 1. Create a new branch
    ```
  git checkout -b feature/your-feature-name
-```
- 2. Implement changes
+ . ```
+2. Implement changes
 
 3. Test locally using:
 ```
@@ -56,7 +56,7 @@ npm run dev
 5. Push and open a merge request
 
 ---
- ## Reporting Issues
+## Reporting Issues
 
 Use GitLab Issues to report bugs or request features.
 
