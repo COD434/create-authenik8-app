@@ -6,7 +6,7 @@
 
 Scaffold secure Express authentication APIs in seconds
 
-![Authenik8 install demo]()
+![Authenik8 install demo](giffy-ezgif.com-video-to-gif-converter.gif)
 
 JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
 
