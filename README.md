@@ -66,12 +66,14 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
   });
   ```
  ---
-# Requirements
+ # Requirements
 
- • Node.js 18+
+• Node.js 18+
 
- • Redis (required for refresh token storage)
- ---
+• Redis (required for refresh token storage)
+
+---
+
  Redis Setup
  Local:
  ```Bash
@@ -116,9 +118,13 @@ Authenik8 is built on a simple principle:
 # What it avoids
 
 • No hidden framework magic
+
 • No forced architecture
+
 • No vendor lock-in
+
 • No incomplete auth templates
+
 • No over-engineering
 
 ---
