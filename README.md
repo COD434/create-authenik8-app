@@ -4,7 +4,7 @@
 
 # create-authenik8-app
 
-Scaffold secure Express authentication APIs in seconds
+Generate a production-ready Express backend with authentication, Prisma, PostgreSQL, and Redis in seconds
 
 ![Authenik8 install demo](giffy-ezgif.com-video-to-gif-converter.gif)
 
