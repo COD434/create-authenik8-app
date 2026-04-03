@@ -6,6 +6,8 @@
 
 Scaffold secure Express authentication APIs in seconds
 
+![Authenik8 install demo]()
+
 JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
 
 ---
