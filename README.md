@@ -10,6 +10,7 @@
 </p>
 
 ---
+
 ## Problems It Solves
 
 Real pain points that slow down backend development.
@@ -31,6 +32,7 @@ Prisma setup takes time and configuration
 
 06
 Developers spend time on boilerplate instead of features
+
 ---
 
 ##  Usage
@@ -100,6 +102,7 @@ Authenik8 provides all of this out of the box so you can start building your API
 → You remain in control of your application
 
 → Designed for real-world backend systems
+
 ---
 ## What It Avoids
 ✕ No over-engineered frameworks
@@ -111,7 +114,9 @@ Authenik8 provides all of this out of the box so you can start building your API
 ✕ No vendor lock-in
 
 ✕ No incomplete or insecure auth examples
+
 ---
+
 ## Requirements
 
 Node.js 18+
