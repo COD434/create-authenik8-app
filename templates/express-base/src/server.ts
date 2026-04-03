@@ -24,7 +24,7 @@ async function start() {
     res.json({ token });
   });
 
-  /
+
 
   app.get("/protected", async (req, res) => {
     const token = req.headers.authorization?.split(" ")[1];

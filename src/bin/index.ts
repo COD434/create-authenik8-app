@@ -4,6 +4,7 @@ import fs from "fs-extra";
 import path from "path";
 import chalk from "chalk";
 import inquirer from "inquirer";
+import { ExitPromptError } from "@inquirer/core";
 import ora from "ora";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
@@ -21,6 +22,7 @@ if (!projectName) {
 }
 
 const targetDir = path.join(process.cwd(), projectName);
+let projectCreated = false
 
 async function main() {
   console.log(chalk.blue.bold("\n🚀 Authenik8 App Generator\n"));
@@ -83,8 +85,8 @@ Available options:
     name: "database",
     message: "Choose database:",
     choices:[
-    { name: "PostgreSQL", value: "postgresql" },
-    { name: "SQLite (quick start)", value: "sqlite" }
+    { name: "PostgreSQL", value: "postgresql(recommended for auth)" },
+    { name: "SQLite (quick start, limited features)", value: "sqlite" }
   ],
     when: (answers) => answers.usePrisma,
     },
@@ -99,6 +101,8 @@ Available options:
   name: "usePasswordAuth",
   message: "Include email/password authentication?",
   default: true,
+  when: (answers) =>
+    answers.usePrisma && answers.database === "postgresql"
 },
   ]);
 
@@ -113,12 +117,7 @@ Available options:
 
 const templateRoot = path.resolve(__dirname, "../../templates");
 
-  if (answers.usePasswordAuth && !answers.usePrisma) {
-    console.log(
-      chalk.yellow("⚠️ Password auth requires Prisma. Enabling Prisma...")
-    );
-    answers.usePrisma = true;
-  }
+
 let templateName = "express-base";
 
 if (answers.usePasswordAuth && answers.usePrisma) {
@@ -133,6 +132,7 @@ const templatePath = path.join(templateRoot, templateName);
 
   try {
     await fs.copy(templatePath, targetDir);
+    projectCreated = true
     createSpinner.succeed("Project files created");
   } catch (err) {
     createSpinner.fail("Failed to create project");
@@ -188,20 +188,18 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
       "prisma:migrate": "prisma migrate dev",
     };
 
-    prismaSpinner.succeed(`Prisma (${answers.database}) configured`);
+    prismaSpinner.succeed(`Prisma (${dbType}) configured`);
   } catch (err) {
     prismaSpinner.fail("Failed to setup Prisma");
     console.error(err);
   }
-}
 
-  // 
   const installSpinner = ora("Installing dependencies...(this may take a few minutes)").start();
 
   try {
     execSync("npm install", {
       cwd: targetDir,
-      stdio: "inherit",
+      stdio: "ignore",
     });
     
 
@@ -228,13 +226,12 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
   }
 }
 
-if (answers.usePasswordAuth) {
     const authSpinner = ora("Installing password auth...").start();
 
     try {
       execSync("npm install argon2", {
         cwd: targetDir,
-        stdio: "inherit",
+        stdio: "ignore",
       });
 
       authSpinner.succeed("Password auth ready (argon2)");
@@ -258,6 +255,7 @@ if (answers.usePasswordAuth) {
       gitSpinner.fail("Git init failed");
     }
   }
+
   console.log(chalk.green.bold("\n🎉 Authenik8 app created successfully!\n"));
 
   console.log(chalk.white(`
@@ -275,7 +273,38 @@ console.log(`
 ✔ ORM: ${answers.usePrisma ? "Prisma" : "None"}
 `);
 }
+process.on("SIGINT", async () => {
+  console.log("\n👋 Authenik8 setup cancelled.");
+
+  if (projectCreated && fs.existsSync(targetDir)) {
+    await fs.remove(targetDir);
+    console.log("🧹 Cleaned up incomplete project.");
+  }
+
+  process.exit(0);
+});
+
+main().catch(async (err) => {
+  if (err instanceof ExitPromptError) {
+    console.log("\n👋 Authenik8 setup cancelled.");
+
+    if (projectCreated && fs.existsSync(targetDir)) {
+      await fs.remove(targetDir);
+      console.log("🧹 Cleaned up incomplete project.");
+    }
+
+    process.exit(0);
+  }
+
+  console.error("\n❌ Unexpected error:");
+  console.error(err);
+
+  if (projectCreated && fs.existsSync(targetDir)) {
+    await fs.remove(targetDir);
+    console.log("🧹 Cleaned up incomplete project.");
+
+  }
+  process.exit(1)
+})
 
 
-
-main();
