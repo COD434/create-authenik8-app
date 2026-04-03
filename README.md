@@ -1,4 +1,6 @@
 ![license](https://img.shields.io/badge/license-MIT-blue)
+![node](https://img.shields.io/badge/node-%3E%3D18-green)
+![status](https://img.shields.io/badge/status-active-brightgreen)
 # create-authenik8-app
 
 <p align="center">
