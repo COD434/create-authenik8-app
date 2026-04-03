@@ -47,9 +47,13 @@ npm run dev
 # Authentication Flow Included
 
 • Register / Login endpoints
+
 • Access token (JWT)
+
 • Refresh token rotation
+
 • Redis-backed session tracking
+
 • Protected routes via middleware
 
 ---
@@ -64,8 +68,9 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
  ---
 # Requirements
 
-• Node.js 18+
-• Redis (required for refresh token storage)
+ • Node.js 18+
+
+ • Redis (required for refresh token storage)
  ---
  Redis Setup
  Local:
@@ -90,16 +95,23 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
  ```
  ---
 
-# Philosophy
+ # Philosophy
 
 Authenik8 is built on a simple principle:
-Provide secure defaults
-Avoid unnecessary abstraction
-Keep full developer control
-Generate real production-ready structure
-It is not a full framework.
-It is a secure starting point for backend systems.
- ---
+
+•Provide secure defaults
+
+•Avoid unnecessary abstraction
+
+•Keep full developer control
+
+•Generate real production-ready structure
+
+•It is not a full framework...yet🙃.
+
+•It is a secure starting point for backend systems.
+
+---
 
 # What it avoids
 
@@ -113,10 +125,15 @@ It is a secure starting point for backend systems.
 
 # Roadmap
 
-• OAuth (Google, GitHub)
+• OAuth (Google, 
+GitHub)
+
 • Advanced RBAC (roles + permissions)
+
 • Docker templates
+
 •Fastify support
+
 • Production presets
 
 ---
