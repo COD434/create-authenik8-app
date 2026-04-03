@@ -1,4 +1,4 @@
-
+![license](https://img.shields.io/badge/license-MIT-blue)
 # create-authenik8-app
 
 <p align="center">
