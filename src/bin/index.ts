@@ -216,7 +216,7 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
   try {
     execSync("npx prisma@5.22.0 generate", {
       cwd: targetDir,
-      stdio: "inherit"
+      stdio: "ignore"
     });
 
     prismaGenSpinner.succeed("Prisma client generated");
