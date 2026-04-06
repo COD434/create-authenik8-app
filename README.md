@@ -4,6 +4,9 @@
 
 # create-authenik8-app
 
+Did create-Authenik8-app save you time?
+leave a ⭐
+
 Generate a production-ready Express backend with authentication, Prisma, PostgreSQL, and Redis in seconds
 
 ![Authenik8 install demo](giffy-ezgif.com-video-to-gif-converter.gif)
