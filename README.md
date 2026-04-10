@@ -4,18 +4,21 @@
 
 
 <p align="center">
-  <b><> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
+  <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
   </p>
 
 
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
+align="center">
+  <img src="./assets/giffy-ezgif.com-video-to-gif-converter.gif" width="600" />
+</p>
 ---
 
 ##  Usage
 
 Create a new project:
-``
+
 bash
 npx create-authenik8-app my-app
 
@@ -24,29 +27,29 @@ Then:
 cd my-app
 npm install
 npm run dev
-``
+
 
 ---
 
 ## What you get instantly
 
-A fully working Express authentication starter with:
+• A fully working Express authentication starter with:
 
-JWT authentication (access + refresh tokens)
+• JWT authentication (access + refresh tokens)
 
- Secure refresh token rotation
+•  Secure refresh token rotation
 
- Redis-based token storage
+• Redis-based token storage
 
- Role-Based Access Control (RBAC)
+• Role-Based Access Control (RBAC)
 
-TypeScript setup
+• TypeScript setup
 
- Express server preconfigured
+• Express server preconfigured
 
-Clean scalable folder structure
+• Clean scalable folder structure
 
- .env file generated automatically
+• .env file generated automatically
 
 
 
@@ -81,15 +84,15 @@ Redis (required for refresh tokens)
 ---
 
  ## Redis Setup
- ``
- Local
+ 
+Local
 
 redis-server
 
 Docker
 
 docker run -p 6379:6379 redis
-``
+
 
 ---
 
@@ -97,14 +100,14 @@ docker run -p 6379:6379 redis
 
 Generated automatically:
 
-``
+
 JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 
-``
+
 
 ---
 
