@@ -4,7 +4,7 @@
 
 
 <p align="center">
-  <b>Scaffold secure Express authentication APIs in seconds</b>
+  <b><> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
   </p>
 
 
@@ -25,6 +25,7 @@ cd my-app
 npm install
 npm run dev
 ``
+
 ---
 
 ## What you get instantly
@@ -80,7 +81,8 @@ Redis (required for refresh tokens)
 ---
 
  ## Redis Setup
- ``Local
+ ``
+ Local
 
 redis-server
 
@@ -88,13 +90,15 @@ Docker
 
 docker run -p 6379:6379 redis
 ``
+
 ---
 
 ## Environment Variables
 
 Generated automatically:
 
-``JWT_SECRET=your-secret
+``
+JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
 
 REDIS_HOST=127.0.0.1
@@ -150,6 +154,7 @@ The Identity Engine is responsible for:
 - Normalizing provider-specific user data into a unified schema
 
 This allows OAuth support to remain consistent regardless of provider complexity.
+
 ---
 
 ### Production Enhancements
@@ -158,17 +163,7 @@ This allows OAuth support to remain consistent regardless of provider complexity
 - Auto restart on crashes
 - Memory usage guardrails
 - Basic security middleware (helmet, rate limiting)
----
-📁 Project Structure
 
-my-app/
-├── src/
-│   ├
-│   ├
-│   └── server.ts
-├── .env
-├── package.json
-└── tsconfig.json
 
 
 ---
