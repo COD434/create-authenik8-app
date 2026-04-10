@@ -1,29 +1,9 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
 
-
-=======
-Good catch — then your README should reflect that. Don’t undersell what you already built.
-
-Let’s fix it properly.
->>>>>>> 5471da4 (Update file README.md)
-
-
----
-
-<<<<<<< HEAD
-=======
-✅ Updated npm README (with RBAC included)
-
-Replace your README with this version:
-
->>>>>>> 5471da4 (Update file README.md)
 # create-authenik8-app
 
 <p align="center">
   <b>Scaffold secure Express authentication APIs in seconds</b>
 </p>
-<<<<<<< HEAD
 
 <p align="center">
   JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
@@ -202,7 +182,7 @@ Production presets
   JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
 </p>
 
-<<<<<<< HEAD
+
     ---
 
     ## 📦 Install & Usage
@@ -372,15 +352,50 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
 ```
 
 ---
-
-📦 Powered by
+## Powered by
 
 authenik8-core
+---
+## Design Goal
+Authenik8 is not an auth library.
+It is an auth system generator.
+It removes setup time and enforces consistent backend security patterns by default.
+
+Authenik8 treats authentication as an identity resolution problem, not just a login system.
+
+At the core is an Identity Engine that ensures consistent user identity across:
+- credentials (email/password)
+- OAuth providers
+- future authentication strategies
+
+---
+
 
 
 
 ---
+## OAuth
+• Google
+• Github
+OAuth in Authenik8 is not a direct provider integration layer.
 
+It is implemented through an internal Identity Engine that sits inside `authenik8-core`.
+
+The Identity Engine is responsible for:
+- Resolving OAuth profiles into system identities
+- Handling login vs account linking flows
+- Preventing duplicate identity creation across providers
+- Normalizing provider-specific user data into a unified schema
+
+This allows OAuth support to remain consistent regardless of provider complexity.
+---
+### Production Enhancements
+
+- PM2 cluster mode support
+- Auto restart on crashes
+- Memory usage guardrails
+- Basic security middleware (helmet, rate limiting)
+---
 📁 Project Structure
 
 my-app/
@@ -408,8 +423,6 @@ RBAC is included via middleware (e.g. requireAdmin)
 ---
 
 🧱 Roadmap
-
-OAuth providers (Google, GitHub)
 
 Advanced RBAC (custom roles/permissions)
 
