@@ -15,8 +15,8 @@
 ##  Usage
 
 Create a new project:
-
-```bash
+``
+bash
 npx create-authenik8-app my-app
 
 Then:
@@ -24,7 +24,7 @@ Then:
 cd my-app
 npm install
 npm run dev
-
+``
 ---
 
 ## What you get instantly
@@ -51,7 +51,7 @@ Clean scalable folder structure
 
 ---
 
-🧠 Why Authenik8?
+## Why Authenik8?
 
 Authentication systems usually require:
 
@@ -79,38 +79,41 @@ Redis (required for refresh tokens)
 
 ---
 
- Redis Setup
- ```Local
+ ## Redis Setup
+ ``Local
 
 redis-server
 
 Docker
 
 docker run -p 6379:6379 redis
-
+``
 ---
 
- Environment Variables
+## Environment Variables
 
 Generated automatically:
 
-```JWT_SECRET=your-secret
+``JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
 
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 
+``
 
 ---
+
+
 
 ## RBAC Example
 
 Example of a protected route:
-```
+``
 app.get("/admin", auth.requireAdmin, (req, res) => {
   res.json({ message: "Admin only route" });
 });
-
+``
 
 ---
 ## Powered by
