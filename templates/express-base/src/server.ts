@@ -1,8 +1,8 @@
-import express from "express";
+import dotenv from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
+import { createApp } from "../app";
 
-const app = express();
-app.use(express.json());
+dotenv.config();
 
 async function start() {
   const auth = await createAuthenik8({
@@ -10,47 +10,27 @@ async function start() {
     refreshSecret: process.env.REFRESH_SECRET!,
   });
 
-  app.use(auth.helmet);
-  app.use(auth.rateLimit);
-
-  
-  app.get("/public", (req, res) => {
-    res.json({ message: "Public route" });
-  });
-
-  
-  app.get("/guest", async (req, res) => {
-    const token = await auth.guestToken({ role: "guest" });
-    res.json({ token });
-  });
-
-
-
-  app.get("/protected", async (req, res) => {
-    const token = req.headers.authorization?.split(" ")[1];
-
-    try {
-      const decoded = await auth.verifyToken(token);
-      res.json({ message: "Protected data", user: decoded });
-    } catch {
-      res.status(401).json({ error: "Unauthorized" });
-    }
-  });
-
-  
-  app.post("/refresh", async (req, res) => {
-    const tokens = await auth.refreshToken(req.body.refreshToken);
-    res.json(tokens);
-  });
-
-  // 🛡️ Admin route
-  app.get("/admin", auth.requireAdmin, (req, res) => {
-    res.json({ message: "Admin only" });
-  });
+  const app = createApp(auth);
 
   app.listen(3000, () => {
     console.log("🚀 Server running on http://localhost:3000");
   });
 }
+process.on("uncaughtException", (err) => {
+  console.error(" Uncaught Exception:", err);
+  process.exit(1);
+});
 
+process.on("unhandledRejection", (err) => {
+  console.error(" Unhandled Rejection:", err);
+  process.exit(1);
+});
+setInterval(() => {
+  const used = process.memoryUsage().heapUsed / 1024 / 1024;
+
+  if (used > 300) {
+    console.error(`Memory exceeded: ${used.toFixed(2)} MB`);
+    process.exit(1);
+  }
+}, 10000);
 start();
