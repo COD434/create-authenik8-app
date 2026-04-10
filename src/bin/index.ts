@@ -20,12 +20,124 @@ if (!projectName) {
   console.log(chalk.red("❌ Please provide a project name"));
   process.exit(1);
 }
+const isProduction = process.argv.includes("--production-ready");
 
 const targetDir = path.join(process.cwd(), projectName);
 let projectCreated = false
 
-async function main() {
-  console.log(chalk.blue.bold("\n🚀 Authenik8 App Generator\n"));
+
+
+
+
+
+                const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const cleanLogo = `
+
+ █████╗      █████╗
+██╔══██╗    ██╔══██╗
+███████║    ╚█████╔╝
+██╔══██║    ██╔══██╗
+██║  ██║    ╚█████╔╝
+╚═╝  ╚═╝     ╚════╝
+
+     A8
+Authenik8 CLI
+ Build  Faster
+ More , Secure
+`;
+const glitchFrames = [
+`
+       █████╗      █████╗
+      ██╔══██╗    ██▒▒▒▒██
+      ███████║    ╚█████╔╝
+      ██╔══██║    ██▒▒▒▒██
+      ██║  ██║    ╚█████╔╝
+      ╚═╝  ╚═╝     ╚════╝
+
+           A8
+      Authenik8 CLI
+
+      More
+`,
+`
+       ██▓▓██╗    ██▓▓██╗
+      ██▒▒██╔╝    ██▒▒██╔╝
+      ██▒▒▒▒██    ╚█████╔╝
+      ██▓▓██╔╝    ██▒▒██╗
+      ██▒▒██║     ╚█████╔╝
+      ╚═════╝      ╚════╝
+
+           A8
+      Authenik8 CLI
+             Faster
+`,
+`
+       ██▒▒██╗    ██▒▒██╗
+      ██▓▓██╔╝    ██▓▓██╔╝
+      ██▒▒▒▒██    ╚█████╔╝
+      ██▓▓██╔╝    ██▓▓██╗
+      ██▒▒██║     ╚█████╔╝
+      ╚═════╝      ╚════╝
+
+           A8
+      Authenik8 CLI
+      Build
+`,
+`
+       ██▓▓██╗    ██▓▓██╗
+      ██▒▒██╔╝    ██▒▒██╔╝
+      ██▒▒▒▒██    ╚█████╔╝
+      ██▓▓██╔╝    ██▒▒██╗
+      ██▒▒██║     ╚█████╔╝
+      ╚═════╝      ╚════╝
+
+           A8
+      Authenik8 CLI
+
+`
+];
+
+async function showBootLogo() {
+  console.clear();
+
+  const boot = ora("Initializing Authenik8 engine...").start();
+
+  // Phase 1: clean → unstable
+  console.clear();
+  console.log(chalk.cyan(cleanLogo));
+  await sleep(200);
+
+  // Phase 2: glitch burst (irregular feel)
+  for (let i = 0; i < 5; i++) {
+    console.clear();
+    const frame =
+      glitchFrames[Math.floor(Math.random() * glitchFrames.length)];
+    console.log(chalk.cyan(frame));
+    await sleep(120 + Math.random() * 120);
+  }
+
+  // Phase 3: stabilization flicker
+  for (let i = 0; i < 2; i++) {
+    console.clear();
+    console.log(chalk.cyan(cleanLogo));
+    await sleep(180);
+    console.clear();
+    console.log(chalk.gray(cleanLogo));
+    await sleep(120);
+  }
+
+  // Final render
+  console.clear();
+  console.log(chalk.cyan.bold(cleanLogo));
+
+  await sleep(800);
+  boot.succeed("Engine ready");
+}
+
+
+async function main(){
+	await showBootLogo();
 
   if (process.argv.includes("--help")) {
   console.log(`
@@ -35,14 +147,15 @@ Usage:
   create-authenik8-app <project-name>
 
 Options:
-  --help           Show this help message
-
+  --help              Show this help message
+  --production-ready  production mode
 Features:
   - Express backend (default)
   - Optional Prisma ORM
   - PostgreSQL (production)
   - SQLite (quick start)
   - Optional Git initialization
+  - Optional OAuth
 
 Examples:
   create-authenik8-app my-app
@@ -52,18 +165,23 @@ Examples:
 
   console.log(chalk.gray(`
 Available options:
+  Authentication setup:
+    • base (JWT only)
+    • auth (JWT + Password/Email auth)
+    • auth-oauth(JWT+ Password/Email + oauth)
 
   Frameworks:
-    - Express
-    - Fastify(coming soon)
+    • Express
+    • Fastify(coming soon)
 
   Database (if Prisma enabled):
-    - PostgreSQL
-    - SQLite (quick start)
+    • PostgreSQL
+    • SQLite (quick start)
 
   Features:
-    - Prisma ORM (optional)
-    - Git initialization (optional)
+    • Prisma ORM (optional)
+    • Git initialization (optional)
+    • OAuth + Auth
 `));
 
   // 🔥 PROMPTS
@@ -95,15 +213,16 @@ Available options:
       name: "useGit",
       message: "Initialize git?",
       default: true,
-    },
-    {
-  type: "confirm",
-  name: "usePasswordAuth",
-  message: "Include email/password authentication?",
-  default: true,
-  when: (answers) =>
-    answers.usePrisma && answers.database === "postgresql"
-},
+    },{
+  type: "list",
+  name: "authMode",
+  message: "Choose authentication setup:",
+  choices: [
+    { name: "JWT only (no auth routes)", value: "base" },
+    { name: "Email + Password Auth", value: "auth" },
+    { name: "Full Auth (Password + OAuth)", value: "auth-oauth" },
+  ],
+}
   ]);
 
   // 🚫 Prevent overwrite
@@ -117,12 +236,16 @@ Available options:
 
 const templateRoot = path.resolve(__dirname, "../../templates");
 
-
 let templateName = "express-base";
 
-if (answers.usePasswordAuth && answers.usePrisma) {
-    templateName = "express-auth";
-  }
+if (answers.authMode === "auth") {
+  templateName = "express-auth";
+}
+
+if (answers.authMode === "auth-oauth") {
+  templateName = "express-auth+";
+}
+
 
 const templatePath = path.join(templateRoot, templateName);
 
@@ -226,6 +349,22 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
   }
 }
 
+if (isProduction) {
+  const pm2Spinner = ora("Setting up production mode (PM2)...").start();
+
+  try {
+    execSync("npm install pm2", {
+      cwd: targetDir,
+      stdio: "ignore",
+    });
+
+    pm2Spinner.succeed("PM2 installed (production-ready)");
+  } catch (err) {
+    pm2Spinner.fail("Failed to install PM2");
+  }
+}
+if (answers.authMode !== "base") {
+
     const authSpinner = ora("Installing password auth...").start();
 
     try {
@@ -240,8 +379,8 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
       console.error(err);
       process.exit(1);
     }
-}
-  
+  }
+  }
   if (answers.useGit) {
     const gitSpinner = ora("Initializing git...").start();
 
@@ -258,20 +397,91 @@ await fs.writeJson(pkgPath, pkg, { spaces: 2 });
 
   console.log(chalk.green.bold("\n🎉 Authenik8 app created successfully!\n"));
 
+  if (isProduction) {
+  fs.appendFileSync(
+    path.join(targetDir, "README.md"),
+    `
+
+## 🚀 Production Mode
+
+This project is configured for production using PM2.
+
+### Start app in cluster mode:
+npm run pm2:start
+
+### View logs:
+npm run pm2:logs
+
+### Stop app:
+npm run pm2:stop
+
+`
+  );
+}
   console.log(chalk.white(`
 Next steps:
 
   cd ${projectName}
-  cp .env.example .env
+  redis-server --daemonize yes
   npm run dev
 
-🔥 Your Authenik8 server is ready to go!
-`));
-console.log(`
-✔ Auth: ${answers.usePasswordAuth ? "JWT + Password" : "JWT only"}
-✔ Database: ${answers.usePrisma ? answers.database : "None"}
-✔ ORM: ${answers.usePrisma ? "Prisma" : "None"}
+  Auth Features:
+  ${
+    answers.authMode === "base"
+      ? "✓ JWT only"
+      : answers.authMode === "auth"
+      ? "✓ Email + Password"
+      : "✓ Password + OAuth (Google/GitHub)"
+  }
+  
+
+🛠 Stack:
+  ✔ Express
+  ✔ ${answers.usePrisma ? (answers.database.includes("postgresql") ? "PostgreSQL" : "SQLite") : "No database"}
+  ✔ ${answers.usePrisma ? "Prisma ORM" : "No ORM"}
+
+📡 Endpoints:
+${
+  answers.authMode === "base"
+    ? `
+  GET    /public
+  GET    /guest
+  GET    /protected
+  POST   /refresh
+`
+    : answers.authMode === "auth"
+    ? `
+  POST   /auth/register
+  POST   /auth/login
+  POST   /auth/refresh
+  GET    /protected
+`
+    : `
+  POST   /auth/register
+  POST   /auth/login
+  POST   /auth/refresh
+  GET    /auth/google
+  GET    /auth/github
+  GET    /protected
+`}
+
+
+🔥 You're ready to build.
+			 `));
+
+if (isProduction) {
+  console.log(`
+🚀 Production Ready Enabled:
+
+✔ PM2 installed
+✔ Cluster mode enabled
+✔ Memory auto-restart (300MB)
+
+Run:
+  npm run pm2:start
 `);
+}
+
 }
 process.on("SIGINT", async () => {
   console.log("\n👋 Authenik8 setup cancelled.");

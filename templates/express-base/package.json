@@ -3,11 +3,14 @@
   "version": "1.0.5",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only ./src/server.ts",
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop authenik8-app",
+    "pm2:logs": "pm2 logs",
     "build": "tsc",
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "authenik8-core": "^0.1.5",
+    "authenik8-core": "^1.0.3",
     "dotenv": "^16.0.0",
     "express": "^4.18.2"
   },

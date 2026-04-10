@@ -1,161 +1,421 @@
-![license](https://img.shields.io/badge/license-MIT-blue)
-![node](https://img.shields.io/badge/node-%3E%3D18-green)
-![status](https://img.shields.io/badge/status-active-brightgreen)
+<<<<<<< HEAD
+<<<<<<< HEAD
 
+
+=======
+Good catch — then your README should reflect that. Don’t undersell what you already built.
+
+Let’s fix it properly.
+>>>>>>> 5471da4 (Update file README.md)
+
+
+---
+
+<<<<<<< HEAD
+=======
+✅ Updated npm README (with RBAC included)
+
+Replace your README with this version:
+
+>>>>>>> 5471da4 (Update file README.md)
 # create-authenik8-app
 
-Did create-Authenik8-app save you time?
-leave a ⭐
+<p align="center">
+  <b>Scaffold secure Express authentication APIs in seconds</b>
+</p>
+<<<<<<< HEAD
 
-Generate a production-ready Express backend with authentication, Prisma, PostgreSQL, and Redis in seconds
-
-![Authenik8 install demo](giffy-ezgif.com-video-to-gif-converter.gif)
-
-JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
-
----
-
-##  What is Authenik8?
-
-Authenik8 is a CLI tool that generates a production-ready authentication backend for Express applications.
-
-It removes the repetitive setup of authentication systems so you can focus on building features.
+<p align="center">
+  JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
+</p>
 
 ---
 
-##  Features
+## 📦 Usage
 
-- JWT authentication (access + refresh tokens)
-- Secure refresh token rotation
-- Redis-based session and token storage
-- Role-Based Access Control (RBAC)
-- TypeScript preconfigured
-- Express server setup included
-- Clean modular project structure
-- Environment variables auto-generated
-
----
-
-##  Quick Start
+Create a new project:
 
 ```bash
 npx create-authenik8-app my-app
-```
----
-then:
-```
+
+Then:
+
 cd my-app
-redis-server --daemonize yes
+npm install
 npm run dev
 ```
----
-# Authentication Flow Included
-
-• Register / Login endpoints
-
-• Access token (JWT)
-
-• Refresh token rotation
-
-• Redis-backed session tracking
-
-• Protected routes via middleware
 
 ---
 
-# RBAC Example
+## What you get instantly
 
-```TypeScript
+A fully working Express authentication starter with:
+
+JWT authentication (access + refresh tokens)
+
+Secure refresh token rotation
+
+Redis-based token storage
+
+Role-Based Access Control (RBAC)
+
+TypeScript setup
+
+Express server preconfigured
+
+Clean scalable folder structure
+
+.env file generated automatically
+
+
+
+---
+
+## Why Authenik8?
+
+Authentication systems usually require:
+
+manual JWT setup
+
+refresh token handling
+
+Redis/session configuration
+
+access control logic
+
+
+Authenik8 provides all of this out of the box so you can start building your API immediately.
+
+
+---
+
+## Requirements
+
+Node.js 18+
+
+Redis (required for refresh tokens)
+
+
+
+---
+
+## Redis Setup
+```
+
+Local
+
+redis-server
+
+Docker
+
+docker run -p 6379:6379 redis
+
+```
+---
+
+## Environment Variables
+
+Generated automatically:
+```
+JWT_SECRET=your-secret
+REFRESH_SECRET=your-refresh-secret
+
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+
+```
+---
+
+## RBAC Example
+```
+Example of a protected route:
+
 app.get("/admin", auth.requireAdmin, (req, res) => {
   res.json({ message: "Admin only route" });
-  });
-  ```
- ---
- # Requirements
+});
 
-• Node.js 18+
+```
+---
 
-• Redis (required for refresh token storage)
+📦 Powered by
+
+authenik8-core
+
+
+
+---
+
+## Project Structure
+```
+
+my-app/
+├── src/
+│   | 
+│   ├
+│   └── server.ts
+├── .env
+├── package.json
+└── tsconfig.json
+
+```
+---
+
+## Notes
+
+Redis is required for refresh token handling
+
+This CLI generates a starter project, not a full framework
+
+RBAC is included via middleware (e.g. requireAdmin)
+
+
+
+---
+
+ ## Roadmap
+
+OAuth providers (Google, GitHub)
+
+Advanced RBAC (custom roles/permissions)
+
+Docker templates
+
+Admin dashboard
+
+Production presets
+
+
+
+---
+# Create-authenik8-app
+=======
+# create-authenik8-app
+>>>>>>> 01efb21 (Update file README.md)
+
+<p align="center">
+  <b>Scaffold secure Express authentication APIs in seconds</b>
+  </p>
+=======
+>>>>>>> 5471da4 (Update file README.md)
+
+<p align="center">
+  JWT • Refresh Tokens • Redis • RBAC • TypeScript • Express
+</p>
+
+<<<<<<< HEAD
+    ---
+
+    ## 📦 Install & Usage
+
+    Create a new project:
+
+    ```bash
+    npx create-authenik8-app my-app
+
+    cd my-app
+    npm install
+    npm run dev
+
+    ## What you get instantly
+
+    A fully working Express authentication starter with:
+    JWT authentication (access + refresh tokens)
+    Secure refresh token rotation
+    Redis-based token storage
+     TypeScript setup
+    Express server preconfigured
+    Clean scalable folder structure
+    .env file generated automatically
+    ---
+    ##  Why Authenik8?
+    Most auth setups require:
+    manual JWT wiring
+    session or Redis configuration
+    refresh token logic
+    security edge cases
+    Authenik8 removes that complexity and gives you a working auth system instantly.
+    ---
+    ## Requirements
+    Node.js 18+
+    Redis (required for refresh tokens)
+    🧩 Redis Setup
+    ```
+    Local
+    Bash
+    redis-server
+    ```
+    Docker
+    Bash
+    docker run -p 
+    6379:6379 redis
+    ```
+    ## Environment 
+    Variables
+    Automatically generated:
+    ```
+    Environment
+    JWT_SECRET=your-secret
+    REFRESH_SECRET=your-refresh-secret
+
+    REDIS_HOST=127.0.0.1
+    REDIS_PORT=6379
+    ```
+    ## Powered by
+    ```
+    authenik8-core
+    🧱 Project Structure
+=======
+---
+
+##  Usage
+
+Create a new project:
+
+```bash
+npx create-authenik8-app my-app
+
+Then:
+
+cd my-app
+npm install
+npm run dev
+
+
+---
+
+## What you get instantly
+
+A fully working Express authentication starter with:
+
+JWT authentication (access + refresh tokens)
+
+ Secure refresh token rotation
+
+ Redis-based token storage
+
+ Role-Based Access Control (RBAC)
+
+TypeScript setup
+
+ Express server preconfigured
+
+Clean scalable folder structure
+
+ .env file generated automatically
+
+
+
+---
+
+🧠 Why Authenik8?
+
+Authentication systems usually require:
+
+manual JWT setup
+
+refresh token handling
+
+Redis/session configuration
+
+access control logic
+
+
+Authenik8 provides all of this out of the box so you can start building your API immediately.
+
+
+---
+
+Requirements
+
+Node.js 18+
+
+Redis (required for refresh tokens)
+
+
 
 ---
 
  Redis Setup
- Local:
- ```Bash
- redis-server
  ```
- Docker:
 
- ```Bash
- docker run -p 6379:6379 redis
- ```
- ---
-# Environment Variables
+Local
 
- Auto-generated during setup:
- Environment
- ```JWT_SECRET=your-secret
- REFRESH_SECRET=your-refresh-secret
+redis-server
 
- REDIS_HOST=127.0.0.1
- REDIS_PORT=6379
- ```
- ---
+Docker
 
- # Philosophy
+docker run -p 6379:6379 redis
+>>>>>>> d0dcbbf (feature:oauth + Pm2)
+```
+---
 
-Authenik8 is built on a simple principle:
+ Environment Variables
 
-•Provide secure defaults
+Generated automatically:
+```
+JWT_SECRET=your-secret
+REFRESH_SECRET=your-refresh-secret
 
-•Avoid unnecessary abstraction
-
-•Keep full developer control
-
-•Generate real production-ready structure
-
-•It is not a full framework...yet🙃.
-
-•It is a secure starting point for backend systems.
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+```
 
 ---
 
-# What it avoids
+RBAC Example
 
-• No hidden framework magic
-
-• No forced architecture
-
-• No vendor lock-in
-
-• No incomplete auth templates
-
-• No over-engineering
+Example of a protected route:
+```
+app.get("/admin", auth.requireAdmin, (req, res) => {
+  res.json({ message: "Admin only route" });
+});
+```
 
 ---
 
-# Roadmap
-
-• OAuth (Google, 
-GitHub)
-
-• Advanced RBAC (roles + permissions)
-
-• Docker templates
-
-•Fastify support
-
-• Production presets
-
----
-
-# Powered by
+📦 Powered by
 
 authenik8-core
 
+
+
 ---
 
-# Why this exists
+📁 Project Structure
 
-Most backend projects lose time in authentication setup.
-Authenik8 standardizes that foundation so teams can move faster with consistent security patterns.
+my-app/
+├── src/
+│   ├
+│   ├
+│   └── server.ts
+├── .env
+├── package.json
+└── tsconfig.json
+
+
+---
+
+📌 Notes
+
+Redis is required for refresh token handling
+
+This CLI generates a starter project, not a full framework
+
+RBAC is included via middleware (e.g. requireAdmin)
+
+
+
+---
+
+🧱 Roadmap
+
+OAuth providers (Google, GitHub)
+
+Advanced RBAC (custom roles/permissions)
+
+Docker templates
+
+Admin dashboard
+
+Production presets
+

@@ -1,6 +1,10 @@
 {
   "name": "create-authenik8-app",
+<<<<<<< HEAD
   "version": "2.0.1",
+=======
+  "version": "2.0.3",
+>>>>>>> d0dcbbf (feature:oauth + Pm2)
   "description":"Create production-ready backend APIs in seconds. Authenik8 scaffolds Express + Prisma projects with JWT authentication, database setup (PostgreSQL or SQLite), and scalable architecture out of the box.",
   "bin": {
     "create-authenik8-app": "dist/bin/index.js"
@@ -29,7 +33,7 @@
   "author":"Karabo Seeisa",
   "type": "module",
   "dependencies": {
-    "authenik8-core": "^0.1.4",
+    "authenik8-core": "^1.0.3",
     "chalk": "^5.6.2",
     "fs-extra": "^11.3.4",
     "inquirer": "^13.3.2",
