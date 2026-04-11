@@ -290,7 +290,6 @@ boot.succeed("Engine ready");
 //const isResume = process.argv.includes("--resume");
 
 async function main(){
-try{
 await showBootLogo();
 
 if (process.argv.includes("--help")) {
@@ -365,8 +364,8 @@ type: "list",
 name: "database",
 message: "Choose database:",
 choices:[
-{ name: "PostgreSQL", value: "postgresql" },
-{ name: "SQLite ", value: "sqlite" }
+{ name: "PostgreSQL", value: "postgresql(recommended for auth)" },
+{ name: "SQLite (quick start, limited features)", value: "sqlite" }
 ],
 when: (answers) => answers.usePrisma,
 default: state.database ?? "sqlite",
@@ -383,7 +382,7 @@ type: "list",
 name: "authMode",
 message: "Choose authentication setup:",
 choices: [
-{ name: "JWT only", value: "base" },
+{ name: "JWT only (no auth routes)", value: "base" },
 { name: "Email + Password Auth", value: "auth" },
 { name: "Full Auth (Password + OAuth)", value: "auth-oauth" },
 ],
@@ -486,7 +485,6 @@ spawnSync("npm",["install" ,"bcryptjs"], {
 
 }
 }
-if (answers.authMode !== "base") {
 const hashLib = getBestHashLib(); // or CLI decision
 
 await fs.writeFile(
@@ -505,7 +503,6 @@ cwd: targetDir,
 stdio: "ignore",
 });
 };
-}
 if (answers.usePrisma) {
 const prismaSpinner = ora("Adding Prisma setup...").start();
 
@@ -718,15 +715,7 @@ npm run pm2:start
 `);
 }
 
-}catch(err){
-console.error("Fatal error",err);
-process.exit(1)
 }
-}
-process.on("SIGINT", () => {
-  console.log("\n👋 Cancelled.");
-  process.exit(0);
-});
 
 main().catch(async (err) => {
 if (err instanceof ExitPromptError) {
@@ -739,7 +728,5 @@ if (projectCreated && fs.existsSync(targetDir)) {
 process.exit(0);
 
 }
-console.error("❌ Unexpected error:", err);
-  process.exit(1);
 })
 
