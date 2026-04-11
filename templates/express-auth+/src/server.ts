@@ -2,7 +2,7 @@ import express from "express";
 import passwordRoutes from "./auth/password.route";
 import oauthRoutes from "./auth/oauth.routes";
 import protectedRoutes from "./auth/protected.routes";
-import { initAuth } from "./auth";
+import { initAuth } from "./auth/auth";
 const app = express();
 app.use(express.json());
 
