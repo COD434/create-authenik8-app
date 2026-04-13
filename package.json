@@ -1,7 +1,7 @@
 {
   "name": "create-authenik8-app",
-  "version": "2.0.6",
-  "description": "Create production-ready backend APIs in seconds. Authenik8 scaffolds Express + Prisma projects with JWT authentication, database setup (PostgreSQL or SQLite), and scalable architecture out of the box.",
+  "version": "2.0.7",
+  "description": "Create production-ready backend APIs with a built-in identity engine. Authenik8 scaffolds Express + Prisma apps with JWT auth, refresh token rotation, account linking, Redis-backed security, and scalable architecture out of the box.",
   "bin": {
     "create-authenik8-app": "dist/bin/index.js"
   },
@@ -40,9 +40,12 @@
     "dist",
     "templates"
   ],
+  "scripts": {
+    "test:templates": "node --import tsx --test tests/template-servers.test.mjs"
+  },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
-    "@types/node": "^25.6.0"
+    "@types/node": "^25.5.2"
   }
 }

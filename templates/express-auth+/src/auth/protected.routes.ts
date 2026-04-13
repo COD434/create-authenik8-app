@@ -5,11 +5,11 @@ import { getAuth } from "./auth";
 const router = express.Router();
 
 
-router.get("/protected", (req, res) => {
+router.get("/protected", (req, res, next) => {
 
 	const auth = getAuth()
 
-  return auth.requireAdmin(req, res, next);
+   auth.requireAdmin(req, res, next);
 }, (req, res) => {
   res.json({ message: "Protected route" });
 });

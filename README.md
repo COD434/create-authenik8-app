@@ -13,6 +13,7 @@
 <p align="center">
   <img src="./assets/giffy-ezgif.com-video-to-gif-converter.gif" width="600" />
 </p>
+
 ---
 
 ##  Usage
