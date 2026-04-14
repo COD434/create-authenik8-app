@@ -1,5 +1,5 @@
 
-# Create-authenik8-app
+<h1 align="center">⚡ create-authenik8-app</h1>
 
 
 
@@ -7,12 +7,18 @@
   <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
   </p>
 
+  ![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)
+![Node](https://img.shields.io/badge/node-%3E=18-green)
+![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
+![Maintained](https://img.shields.io/badge/maintained-yes-success)
+
 
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
 <p align="center">
-  <img src="./assets/giffy-ezgif.com-video-to-gif-converter.gif" width="600" />
+  <img src="./assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif" width="600" />
 </p>
+
 
 ---
 
@@ -88,11 +94,7 @@ Redis (required for refresh tokens)
  
 Local
 
-redis-server
-
-Docker
-
-docker run -p 6379:6379 redis
+redis-server --daemomize yes
 
 
 ---
@@ -131,6 +133,7 @@ authenik8-core
 ---
 
 ## Design Goal
+
 Authenik8 is not an auth library.
 It is an auth system generator.
 It removes setup time and enforces consistent backend security patterns by default.
@@ -145,6 +148,7 @@ At the core is an Identity Engine that ensures consistent user identity across:
 ---
 
 ## OAuth
+
 • Google
 • Github
 OAuth in Authenik8 is not a direct provider integration layer.
@@ -186,11 +190,11 @@ RBAC is included via middleware (e.g. requireAdmin)
 
 ## Roadmap
 
-Advanced RBAC (custom roles/permissions)
+• Advanced RBAC (custom roles/permissions)
 
-Docker templates
+• webAuthn
 
-Admin dashboard
+• MFA
 
-Production presets
+• Production presets
 
