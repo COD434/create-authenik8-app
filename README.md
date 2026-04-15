@@ -25,14 +25,16 @@
 ##  Usage
 
 Create a new project:
-
+``
 bash
 npx create-authenik8-app my-app
-
+``
 Then:
 
 cd my-app
+
 redis-server --daemonize yes
+
 npm run dev
 
 
