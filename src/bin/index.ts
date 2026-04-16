@@ -7,10 +7,13 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { ExitPromptError } from "@inquirer/core";
 import ora from "ora";
-import { execSync } from "child_process";
+import { execSync,ChildProcess } from "child_process";
 import { fileURLToPath } from "url";
-import { spawnSync } from "child_process";
+import { spawnSync, spawn } from "child_process";
 import os from "os";
+
+const spinner = ora().start();
+const activeProcesses = new Set<ChildProcess>();
 
 type StepName =
 | "start"
@@ -24,6 +27,81 @@ type StepName =
 | "git-initialized"
 | "done";
 
+
+type RunOptions = {
+  cwd: string;
+  stdio:string;
+};
+
+export function run(cmd: string, args: string[], options: RunOptions):Promise<void> {
+	return new Promise((resolve, reject) => {
+    const child = spawn(cmd, args, {
+      cwd: options.cwd,
+      stdio: "ignore",
+    });
+    activeProcesses.add(child);
+
+
+  child.on("exit", (code) => {
+    activeProcesses.delete(child);
+
+  
+
+  if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`${cmd} exited with code ${code}`));
+      }
+    });
+
+  child.on("error", (err) => {
+    activeProcesses.delete(child);
+    reject(err)
+  });
+
+})
+}
+
+function killAllProcesses() {
+  for (const proc of activeProcesses) {
+    try {
+      proc.kill("SIGINT");
+    } catch {}
+  }
+
+  activeProcesses.clear();
+}
+
+
+function getCommand(cmd: string) {
+  const isWin = process.platform === "win32";
+
+  if (cmd === "npm") return isWin ? "npm.cmd" : "npm";
+  if (cmd === "npx") return isWin ? "npx.cmd" : "npx";
+  if (cmd === "git") return isWin ? "git.exe" : "git";
+
+  return cmd;
+}
+//make sure steps are completed
+function stepActuallyCompleted(step: StepName): boolean {
+  switch (step) {
+    case "deps-installed":
+      return fs.existsSync(path.join(targetDir, "node_modules"));
+    
+    case "prisma-generated":
+      return fs.existsSync(
+        path.join(targetDir, "node_modules/.prisma/client")
+      );
+
+    case "git-initialized":
+      return fs.existsSync(path.join(targetDir, ".git"));
+
+    default:
+      return true;
+  }
+}
+
+
 type CliState = {
 step: StepName;
 projectName: string;
@@ -35,9 +113,22 @@ authMode?: string;
 hashLib?: string;
 };
 
+const args = process.argv.slice(2);
+const projectNameArg = args.find(arg => !arg.startsWith("--"));
 
-let answers:any = {};
+//const projectNameArg = process.argv[2];
 
+if (!projectNameArg) {
+  console.log(chalk.red("❌ Please provide a project name"));
+  process.exit(1);
+}
+const projectName: string = projectNameArg;
+
+//let answers:any = {};
+let state:CliState ={
+step:"start",
+projectName,
+}
 
 const platform = os.platform();
 // 'linux' | 'darwin' | 'win32'
@@ -46,8 +137,9 @@ const isTermux =
 process.env.PREFIX?.includes("com.termux") ||
 process.env.TERMUX === "true";
 
+
 function getBestHashLib() {
-if (isTermux) return "bcryptjs"; // argon2 breaks here
+if (isTermux) return "bcryptjs";
 
 if (platform === "win32") return "bcryptjs";
 // avoids build tools issues for most users
@@ -90,19 +182,16 @@ return bcrypt.compare(password, hash);
 `;
 }
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const isProduction = args.includes("--production-ready");
+const isResume = args.includes("--resume");
 
-const projectName = process.argv[2];
 
-if (!projectName) {
-console.log(chalk.red("❌ Please provide a project name"));
-process.exit(1);
-}
-const isProduction = process.argv.includes("--production-ready");
-const isResume = process.argv.includes("--resume");
+const targetDir = path.resolve(process.cwd(), projectName);
 
-const targetDir = path.join(process.cwd(), projectName);
+
 let projectCreated = false
 
 const stepOrder: StepName[] = [
@@ -117,21 +206,33 @@ const stepOrder: StepName[] = [
 "git-initialized",
 "done",
 ];
-
-const stateFile = path.join(targetDir, ".authenik8-state.json");
+const stepLabels: Record<StepName, string> = {
+  start: "Starting",
+  prompts: "Collecting inputs",
+  "project-created": "Project scaffold",
+  "auth-installed": "Auth setup",
+  "prisma-configured": "Prisma setup",
+  "deps-installed": "Dependencies install",
+  "prisma-generated": "Prisma generate",
+  "production-configured": "Production setup",
+  "git-initialized": "Git init",
+  done: "Completed",
+};
+const globalStateDir = path.join(process.cwd(),".authenik8");
+const stateFile = path.join(globalStateDir, `${projectName}.json`);
 
 function hasReachedStep(currentStep: StepName, targetStep: StepName) {
 return stepOrder.indexOf(currentStep) >= stepOrder.indexOf(targetStep);
 }
 
-function saveState(step: StepName, extra: Partial<CliState> = {}) {
-fs.ensureDirSync(targetDir);
-fs.writeJsonSync(stateFile, {
-step,
-projectName,
-...answers,
-...extra,
-}, { spaces: 2 });
+//function saveState(step: StepName, extra: Partial<CliState> = {}) {
+function saveState(update:Partial<CliState>){
+state = { ...state, ...update }; 
+ 
+
+	fs.ensureDirSync(path.dirname(stateFile));
+	console.log("Saving state to:", stateFile);	
+fs.writeJsonSync(stateFile, state, { spaces: 2 });
 }
 
 function loadState(): CliState | null {
@@ -145,148 +246,186 @@ fs.removeSync(stateFile);
 }
 }
 
-function isInterruptedError(err: unknown) {
-return (
-typeof err === "object" &&
-err !== null &&
-"signal" in err &&
-((err as { signal?: string }).signal === "SIGINT" ||
-(err as { signal?: string }).signal === "SIGTERM")
-);
+function renderStep(current: StepName) {
+  console.clear();
+  renderHeader()
+
+  for (const step of stepOrder) {
+    const label = stepLabels[step];
+
+    if (step === "production-configured" && !isProduction) {
+    continue;
+  }
+
+    if (step === current) {
+      console.log(chalk.yellow(`⏳ ${label}...`));
+      break;
+    }
+
+    if (hasReachedStep(current, step)) {
+      console.log(chalk.green(`✔ ${label}`));
+    } else {
+      console.log(chalk.gray(`○ ${label}`));
+    }
+  }
+
+  console.log("");
 }
 
-function exitForInterrupt(err: unknown): never {
-if (isInterruptedError(err)) {
-throw err;
+function isInterruptedError(err: unknown) {  
+return (  
+typeof err === "object" &&  
+err !== null &&  
+"signal" in err &&  
+((err as { signal?: string }).signal === "SIGINT" ||  
+(err as { signal?: string }).signal === "SIGTERM")  
+);  
+}  
+
+async function exitForInterrupt(err: unknown) {  
+if (isInterruptedError(err)) {  
+throw err;  
 }
-
-console.error(err);
-process.exit(1);
 }
-
-async function cleanupIncompleteProject() {
-if (projectCreated && fs.existsSync(targetDir)) {
-  await fs.remove(targetDir);
-  console.log("🧹 Cleaned up incomplete project.");
-}
-}
-
-
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-const cleanLogo = `
-
-█████╗      █████╗
-██╔══██╗    ██╔══██╗
-███████║    ╚█████╔╝
-██╔══██║    ██╔══██╗
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-
-A8
-
-Authenik8 CLI
-Build  Faster
-More , Secure
-`;
-const glitchFrames = [
+async function cleanupIncompleteProject() {  
+if (projectCreated && fs.existsSync(targetDir)) {  
+  await fs.remove(targetDir);  
+  console.log("🧹 Cleaned up incomplete project.");  
+}  
+}  
+  
+  
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));  
+  
+const cleanLogo = `  
+  
+█████╗      █████╗  
+██╔══██╗    ██╔══██╗  
+███████║    ╚█████╔╝  
+██╔══██║    ██╔══██╗  
+██║  ██║    ╚█████╔╝  
+╚═╝  ╚═╝     ╚════╝  
+  
+A8  
+  
+Authenik8 CLI  
+Build  Faster  
+More , Secure  
+`;  
+const glitchFrames = [  
 `  
-█████╗      █████╗
-██╔══██╗    ██▒▒▒▒██
-███████║    ╚█████╔╝
-██╔══██║    ██▒▒▒▒██
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-
+█████╗      █████╗  
+██╔══██╗    ██▒▒▒▒██  
+███████║    ╚█████╔╝  
+██╔══██║    ██▒▒▒▒██  
+██║  ██║    ╚█████╔╝  
+╚═╝  ╚═╝     ╚════╝  
+  
 A8  
   Authenik8 CLI  
-
-  More
-`
+  
+  More  
+`  
 ,  
-`
-██▓▓██╗    ██▓▓██╗
-██▒▒██╔╝    ██▒▒██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▒▒██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
+`  
+██▓▓██╗    ██▓▓██╗  
+██▒▒██╔╝    ██▒▒██╔╝  
+██▒▒▒▒██    ╚█████╔╝  
+██▓▓██╔╝    ██▒▒██╗  
+██▒▒██║     ╚█████╔╝  
+╚═════╝      ╚════╝  
+  
 A8  
   Authenik8 CLI  
-         Faster
-`
+         Faster  
+`  
 ,  
-`
-██▒▒██╗    ██▒▒██╗
-██▓▓██╔╝    ██▓▓██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▓▓██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
+`  
+██▒▒██╗    ██▒▒██╗  
+██▓▓██╔╝    ██▓▓██╔╝  
+██▒▒▒▒██    ╚█████╔╝  
+██▓▓██╔╝    ██▓▓██╗  
+██▒▒██║     ╚█████╔╝  
+╚═════╝      ╚════╝  
+  
 A8  
   Authenik8 CLI  
-  Build
-`
+  Build  
+`  
 ,  
-`
-██▓▓██╗    ██▓▓██╗
-██▒▒██╔╝    ██▒▒██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▒▒██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
+`  
+██▓▓██╗    ██▓▓██╗  
+██▒▒██╔╝    ██▒▒██╔╝  
+██▒▒▒▒██    ╚█████╔╝  
+██▓▓██╔╝    ██▒▒██╗  
+██▒▒██║     ╚█████╔╝  
+╚═════╝      ╚════╝  
+  
 A8  
-  Authenik8 CLI
-
-`
-];
-
-async function showBootLogo() {
-console.clear();
-
-const boot = ora("Initializing Authenik8 engine...").start();
-
-// Phase 1: clean → unstable
-console.clear();
-console.log(chalk.cyan(cleanLogo));
-await sleep(200);
-
-// Phase 2: glitch burst (irregular feel)
-for (let i = 0; i < 5; i++) {
-console.clear();
-const frame =
-glitchFrames[Math.floor(Math.random() * glitchFrames.length)];
-console.log(chalk.cyan(frame));
-await sleep(120 + Math.random() * 120);
-}
-
-// Phase 3: stabilization flicker
-for (let i = 0; i < 2; i++) {
-console.clear();
-console.log(chalk.cyan(cleanLogo));
-await sleep(180);
-console.clear();
-console.log(chalk.gray(cleanLogo));
-await sleep(120);
-}
-
-// Final render
-console.clear();
-console.log(chalk.cyan.bold(cleanLogo));
-
-await sleep(800);
-boot.succeed("Engine ready");
-}
+  Authenik8 CLI  
+  
+`  
+];  
+ 
+function renderHeader() {
+  console.log(chalk.cyan.bold("Happy building \nAuthenik8 CLI"));
+  console.log(chalk.gray("────────────────────"));
+  console.log("");
+} 
+async function showBootLogo() {  
+console.clear();  
+  
+ spinner.text ="Initializing Authenik8 engine...";  
+  
+// Phase 1: clean → unstable  
+console.clear();  
+console.log(chalk.cyan(cleanLogo));  
+await sleep(200);  
+  
+// Phase 2: glitch burst (irregular feel)  
+for (let i = 0; i < 5; i++) {  
+console.clear();  
+const frame =  
+glitchFrames[Math.floor(Math.random() * glitchFrames.length)];  
+console.log(chalk.cyan(frame));  
+await sleep(120 + Math.random() * 120);  
+}  
+  
+// Phase 3: stabilization flicker  
+for (let i = 0; i < 2; i++) {  
+console.clear();  
+console.log(chalk.cyan(cleanLogo));  
+await sleep(180);  
+console.clear();  
+console.log(chalk.gray(cleanLogo));  
+await sleep(120);  
+}  
+  
+// Final render  
+console.clear();  
+console.log(chalk.cyan.bold(cleanLogo));  
+  
+await sleep(800);  
+spinner.succeed("Engine ready");  
+}  
+  
+  
+  
 
 async function main(){
 process.on("SIGINT", async () => {
-  console.log("\n👋 Authenik8 setup cancelled.");
-  await cleanupIncompleteProject();
+console.log("\n")
+spinner.stop(); 
+
+  killAllProcesses();
+
+  console.log(chalk.yellow("⏸ Setup interrupted."));
+  console.log(chalk.gray(`↻ Resume with: create-authenik8-app ${projectName} --resume`));
+
+
   process.exit(0);
 });
+
 
 try{
 await showBootLogo();
@@ -342,11 +481,15 @@ Features:
 • Prisma ORM (optional)
 • Git initialization (optional)
 • OAuth + Auth
+
+
 `));
 const savedState = loadState();
-let currentStep: StepName = "start";
+let currentStep:StepName = "start";
 
 if (!isResume && fs.existsSync(targetDir)) {
+
+
 if (savedState) {
 console.log(
 chalk.red(`❌ "${projectName}" already contains an incomplete Authenik8 setup. Run again with --resume.`)
@@ -356,27 +499,34 @@ console.log(chalk.red(`❌ Directory "${projectName}" already exists.`));
 }
 process.exit(1);
 }
+if (isResume || fs.existsSync(stateFile)) {
+  console.log(chalk.gray(`
+Resumable steps:
+✔ project scaffold
+✔ auth install
+✔ prisma setup
+✔ deps install
+✔ prisma generate
+✔ git init
+`));
+}
 
 if (isResume) {
+
 if (!savedState) {
 console.log(chalk.red(`❌ No saved setup state found for "${projectName}".`));
 process.exit(1);
-}
 
-answers = {
-framework: savedState.framework,
-usePrisma: savedState.usePrisma,
-database: savedState.database,
-useGit: savedState.useGit,
-authMode: savedState.authMode,
-};
-currentStep = savedState.step;
+}
+state = savedState;
+currentStep = state.step;
 
 console.log(
 chalk.yellow(`\n↻ Resuming setup for ${projectName} from "${currentStep}"...\n`)
 );
-} else {
-answers = await inquirer.prompt([
+  
+} else{
+	const promptAnswers = await inquirer.prompt([
 {
 type: "list",
 name: "framework",
@@ -420,7 +570,18 @@ choices: [
 default:  "base"
 }
 ]);
-saveState("prompts");
+//saveState({
+//...promptAnswers,
+//step:"prompts"});
+state = {
+    ...state,
+    ...promptAnswers,
+    step: "prompts"
+  };
+
+  saveState({
+    ...state
+  });
 currentStep = "prompts";
 }
 
@@ -431,27 +592,27 @@ process.exit(1);
 }
 }
 
-assertRequired(answers.framework, "framework");
-assertRequired(answers.authMode, "authMode");
+assertRequired(state.framework, "framework");
+assertRequired(state.authMode, "authMode");
 
-if (answers.usePrisma) {
-if (!answers.database) {
-answers.database = "sqlite";
+if (state.usePrisma) {
+if (!state.database) {
+state.database = "sqlite";
 }
-assertRequired(answers.database, "database");
+assertRequired(state.database, "database");
 }
 
-console.log(chalk.cyan("\n⚙️ Setting things up...\n"));
+console.log(chalk.cyan("\nSetting up your project\n"));
 
 const templateRoot = path.resolve(__dirname, "../../templates");
 
 let templateName = "express-base";
 
-if (answers.authMode === "auth") {
+if (state.authMode === "auth") {
 templateName = "express-auth";
 }
 
-if (answers.authMode === "auth-oauth") {
+if (state.authMode === "auth-oauth") {
 templateName = "express-auth+";
 }
 
@@ -459,18 +620,17 @@ const templatePath = path.join(templateRoot, templateName);
 
 // 📁 Create project (SPINNER)
 if (!hasReachedStep(currentStep, "project-created")) {
-const createSpinner = ora("Creating project structure...").start();
+renderStep("project-created")
 
 try {
 await fs.copy(templatePath, targetDir);
 projectCreated = true
 
-createSpinner.succeed("Project files created");
-saveState("project-created");
+saveState({step :"project-created"});
 currentStep = "project-created";
-
+renderStep(currentStep)
 } catch (err) {
-createSpinner.fail("Failed to create project");
+	
 console.error(err);
 
 process.exit(1);
@@ -483,40 +643,44 @@ console.log(chalk.gray("↷ Skipping project creation (already completed)"));
 let selectedHash = "bcryptjs"; // default safe fallback
 
 if (!hasReachedStep(currentStep, "auth-installed")) {
-if (answers.authMode !== "base") {
-const authSpinner = ora("Installing password auth...").start();
+if (state.authMode !== "base") {
+spinner.start("Installing password auth...")
 
 selectedHash = getBestHashLib();
-const installResult = spawnSync("npm" ,["install", selectedHash ],{
+try{
+const installResult =  await run(getCommand("npm") ,["install", selectedHash ],{
 cwd: targetDir,
 stdio: "ignore"
 });
 
-if (!installResult.error && installResult.status === 0) {
-authSpinner.succeed(`Password auth ready ${selectedHash}`);
-} else {
-if (selectedHash !== "bcryptjs") {
- authSpinner.warn(`${selectedHash} failed, falling back to bcryptjs`);
 
-const fallbackResult = spawnSync("npm",["install" ,"bcryptjs"], {  
+
+}catch{
+
+if (selectedHash !== "bcryptjs") {
+ spinner.warn(`${selectedHash} failed, falling back to bcryptjs`);
+
+const fallbackResult = await run(getCommand("npm"),["install" ,"bcryptjs"], {  
     cwd: targetDir,  
     stdio: "ignore",  
   });  
+spinner.stop();
 
-  if (!fallbackResult.error && fallbackResult.status === 0) {
   selectedHash = "bcryptjs";  
-  authSpinner.succeed("Password auth ready (bcryptjs fallback)");  
-  } else {
-  authSpinner.fail("Failed to install password auth");
+  renderStep("auth-installed"); 
+}else{
+  spinner.fail("Failed to install password auth");
   process.exit(1);
-  }
-} else {  
-  authSpinner.fail("Failed to install password auth");  
+   
+  spinner.fail("Failed to install password auth");  
   process.exit(1);  
 }
 }
 }
-if (answers.authMode !== "base") {
+renderStep("auth-installed")
+if (state.authMode !== "base") {
+
+spinner.start("Installing password auth...");
 const hashLib = selectedHash as "argon2" | "bcryptjs";
 
 await fs.writeFile(
@@ -524,20 +688,11 @@ path.join(targetDir, "src/utils/hash.ts"),
 generateHashModule(hashLib)
 );
 
-//const deps = [];
-
-//if (hashLib === "argon2") deps.push("argon2");
-//if (hashLib === "bcryptjs") deps.push("bcryptjs");
-
-//if (deps.length) {
-//execSync(`npm install ${deps.join(" ")}`, {
-//cwd: targetDir,
-//stdio: "ignore",
-//});
-//};
 }
-saveState("auth-installed", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"auth-installed", ...(state.authMode !== "base" && { hashLib: selectedHash })
+});
 currentStep = "auth-installed";
+renderStep(currentStep);
 } else {
 selectedHash = savedState?.hashLib ?? selectedHash;
 console.log(chalk.gray("↷ Skipping auth setup (already completed)"));
@@ -552,14 +707,14 @@ pkg.dependencies = {
 ioredis: "^5.8.1",
 };
 
-if (answers.usePrisma) {
-const prismaSpinner = ora("Adding Prisma setup...").start();
+if (state.usePrisma) {
+spinner.start("Adding Prisma setup...");
 
 try {  
-const dbType = answers.database ===
+const dbType = state.database ===
 
-"postgresql" ? "postgresql"
-: "sqlite";
+"postgresql" ? "postgresql" :
+ "sqlite";
 
 const prismaTemplatePath = path.join(  
   templateRoot,  
@@ -596,104 +751,117 @@ pkg.scripts = {
 };  
 await fs.writeJson(pkgPath, pkg, { spaces: 2 });
 
-prismaSpinner.succeed(`Prisma (${dbType}) configured`);
+spinner.succeed(`Prisma (${dbType}) configured`);
 
 } catch (err) {
-prismaSpinner.fail("Failed to setup Prisma");
+spinner.fail("Failed to setup Prisma");
 exitForInterrupt(err);
 }
-
 }
 
 await fs.writeJson(pkgPath, pkg, { spaces: 2 });
-saveState("prisma-configured", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+
+saveState({step:"prisma-configured", ...(state.authMode !== "base" && { hashLib: selectedHash })
+});
 currentStep = "prisma-configured";
+renderStep(currentStep)
 } else {
-console.log(chalk.gray("↷ Skipping Prisma/package setup (already completed)"));
+console.log(chalk.gray(" Skipping Prisma/package setup (already completed)"));
 }
 
-if (!hasReachedStep(currentStep, "deps-installed")) {
-const installSpinner = ora("Installing dependencies...(this may take a few minutes)").start();
+if(!hasReachedStep(currentStep, "deps-installed")) {
+renderStep("deps-installed")
+spinner.start("Installing dependencies...(this may take a few minutes)");
 
 try {
-execSync("npm install", {
+await run(getCommand("npm"),["install"], {
 cwd: targetDir,
 stdio: "ignore",
 });
 
-installSpinner.succeed("Dependencies installed");
+spinner.stop();
 
 } catch (err) {
-installSpinner.fail("Failed to install dependencies");
+spinner.fail("Failed to install dependencies");
 exitForInterrupt(err);
 }
-saveState("deps-installed", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"deps-installed", ...(state.authMode !== "base" && { hashLib: selectedHash })
+})
 currentStep = "deps-installed";
+renderStep(currentStep);
 } else {
-console.log(chalk.gray("↷ Skipping dependency install (already completed)"));
+await run(getCommand("npm"),["install"], {
+cwd: targetDir,
+stdio: "ignore",
+})
 }
 
 if (!hasReachedStep(currentStep, "prisma-generated")) {
-if (answers.usePrisma) {
-const prismaGenSpinner = ora("Generating Prisma client...").start();
+if (state.usePrisma) {
+	spinner.start("Generating Prisma client...");
 
 try {
-execSync("npx prisma@5.22.0 generate", {
+await run(getCommand("npx"), ["prisma@5.22.0", "generate"], {
 cwd: targetDir,
 stdio: "ignore"
 });
 
-prismaGenSpinner.succeed("Prisma client generated");
+spinner.stop();
 
 } catch (err) {
-prismaGenSpinner.fail("Failed to generate Prisma client");
+spinner.fail("Failed to generate Prisma client");
 exitForInterrupt(err);
 }
 }
-saveState("prisma-generated", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"prisma-generated", ...(state.authMode !== "base" && { hashLib: selectedHash })
+})
 currentStep = "prisma-generated";
+renderStep(currentStep)
 } else {
 console.log(chalk.gray("↷ Skipping Prisma client generation (already completed)"));
 }
 
 
 if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
-const pm2Spinner = ora("Setting up production mode (PM2)...").start();
+spinner.start("Setting up production mode (PM2)...");
 
 try {
-execSync("npm install pm2", {
+ await run(getCommand("npm"),["install pm2"], {
 cwd: targetDir,
 stdio: "ignore",
 });
 
-pm2Spinner.succeed("PM2 installed (production-ready)");
-
+spinner.stop();
 } catch (err) {
-pm2Spinner.fail("Failed to install PM2");
+spinner.fail("Failed to install PM2");
 exitForInterrupt(err);
 }
-saveState("production-configured", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"production-configured", ...(state.authMode !== "base" && { hashLib: selectedHash })
+})
 currentStep = "production-configured";
+renderStep(currentStep)
 }
 
 
 if (!hasReachedStep(currentStep, "git-initialized")) {
-if (answers.useGit) {
-const gitSpinner = ora("Initializing git...").start();
+if (state.useGit) {
+renderStep("git-Initialized");
 
 try {  
-  execSync("git init", {  
+   await run(getCommand("git"), ["init"], {  
     cwd: targetDir,  
     stdio: "ignore",  
   });  
-  gitSpinner.succeed("Git initialized");  
+  spinner.stop();
 } catch (err) {  
-  gitSpinner.fail("Git init failed");  
+  spinner.fail("Git init failed");  
 }
 
 }
-saveState("git-initialized", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"git-initialized",...(state.authMode !== "base" && { hashLib: selectedHash }),
+})
 currentStep = "git-initialized";
+renderStep("done")
 } else {
 console.log(chalk.gray("↷ Skipping git init (already completed)"));
 }
@@ -734,30 +902,30 @@ npm run dev
 
 Auth Features:
 ${
-answers.authMode === "base"
+state.authMode === "base"
 ? "✓ JWT only"
-: answers.authMode === "auth"
+: state.authMode === "auth"
 ? "✓ Email + Password"
 : "✓ Password + OAuth (Google/GitHub)"
 }
 
 🛠 Stack:
 ✔ Express
-✔ ${answers.usePrisma ? (answers.database === "postgresql"  ? "PostgreSQL" : "SQLite") : "No database"}
-✔ ${answers.usePrisma ? "Prisma ORM" : "No ORM"}
+✔ ${state.usePrisma ? (state.database === "postgresql"  ? "PostgreSQL" : "SQLite") : "No database"}
+✔ ${state.usePrisma ? "Prisma ORM" : "No ORM"}
 
 📡 API Routes:
 ${
-  answers.authMode === "base"
+  state.authMode === "base"
     ? `
   GET    /public
   GET    /guest
   GET    /protected
   POST   /refresh
 `
-    : answers.authMode === "auth"
+    : state.authMode === "auth"
     ? `
-  POST   /auth/register
+  POST   /auth/register	
   POST   /auth/login
   POST   /auth/refresh
   GET    /protected
@@ -788,22 +956,33 @@ Run:
 npm run pm2:start
 `);
 }
-saveState("done", answers.authMode !== "base" ? { hashLib: selectedHash } : {});
+saveState({step:"done", ...(state.authMode !== "base" && { hashLib: selectedHash }),
+})
 clearState();
 
 }catch(err){
+	if (err instanceof ExitPromptError) {
+    throw err;
+
 console.error("Fatal error",err);
 process.exit(1)
 }
 }
+}
 main().catch(async (err) => {
 if (err instanceof ExitPromptError) {
-console.log("\n👋 Authenik8 setup cancelled.");
+console.log("\n👋 Authenik8 setup cancelled.You can --resume later");
 
+killAllProcesses()
+await new Promise((r) => setTimeout(r, 300));
+
+console.log(chalk.bgYellow.black(" SETUP CANCELLED "));
+
+   
 await cleanupIncompleteProject();
 process.exit(0);
 }
-console.error(chalk.red("\n❌ Unexpected error:"), err);
+console.error(chalk.red("\n❌ Unexpected error:"),err);
  await cleanupIncompleteProject();
  process.exit(1);
 
