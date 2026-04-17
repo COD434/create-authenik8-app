@@ -1,9 +1,9 @@
 {
   "name": "create-authenik8-app",
-  "version": "2.0.7",
+  "version": "2.0.6",
   "description": "Create production-ready backend APIs with a built-in identity engine. Authenik8 scaffolds Express + Prisma apps with JWT auth, refresh token rotation, account linking, Redis-backed security, and scalable architecture out of the box.",
   "bin": {
-    "create-authenik8-app": "dist/bin/index.js"
+    "create-authenik8-app": "dist/index.js"
   },
   "keywords": [
     "cli",

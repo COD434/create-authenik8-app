@@ -231,7 +231,7 @@ state = { ...state, ...update };
  
 
 	fs.ensureDirSync(path.dirname(stateFile));
-	console.log("Saving state to:", stateFile);	
+	
 fs.writeJsonSync(stateFile, state, { spaces: 2 });
 }
 
@@ -845,7 +845,7 @@ renderStep(currentStep)
 
 if (!hasReachedStep(currentStep, "git-initialized")) {
 if (state.useGit) {
-renderStep("git-Initialized");
+renderStep("git-initialized");
 
 try {  
    await run(getCommand("git"), ["init"], {  
