@@ -15,7 +15,7 @@ import { createProject } from "./steps/createProject.js";
 import { installAuth } from "./steps/installAuth.js";
 import { configurePrisma } from "./steps/configurePrisma.js";
 import { installDependencies, generatePrismaClient } from "./steps/installDeps.js";
-import { configureProduction, initGit, appendProductionReadme } from "./steps/finalSetup.js";
+import { configureProduction, initGit, appendProductionReadme,resolveRuntime } from "./steps/finalSetup.js";
 import { printSummary } from "./utils/output.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,10 +73,10 @@ async function main() {
 Authenik8 CLI
 
 Usage:
-create-authenik8-app <project-name>
+npx create-authenik8-app <project-name>
 
 Options:
---resume            Resume project setup(in development)
+--resume            Resume project setup
 --help              Show this help message
 --production-ready  production mode
 
@@ -216,7 +216,7 @@ Resumable steps:
       currentStep = "deps-installed";
       renderStep(currentStep, isProduction);
     } else {
-      await run(getCommand("npm"), ["install"], { cwd: targetDir, stdio: "ignore" });
+      await run(getCommand("npm"), ["install"], { cwd: targetDir, stdio: "inherit" });
     }
 
     //  Prisma generate 
@@ -233,13 +233,18 @@ Resumable steps:
 
     //  Production setup
     if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
-      await configureProduction(targetDir);
+const state = getState();
+
+ const runtime = resolveRuntime(state.runtime);
+
+
+      await configureProduction(targetDir,projectName,runtime );
       saveState({ step: "production-configured", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
       currentStep = "production-configured";
       renderStep(currentStep, isProduction);
     }
 
-    // ── Git init ───────────────────────────────────────────────────────────────
+    // Git init
     if (!hasReachedStep(currentStep, "git-initialized")) {
       if (getState().useGit) {
         renderStep("git-initialized", isProduction);
@@ -252,7 +257,7 @@ Resumable steps:
       console.log(chalk.gray("↷ Skipping git init (already completed)"));
     }
 
-    // ── Done ───────────────────────────────────────────────────────────────────
+    //  Done 
     if (isProduction) {
       appendProductionReadme(targetDir, projectName);
     }

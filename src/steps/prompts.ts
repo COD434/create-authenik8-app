@@ -1,7 +1,9 @@
 import inquirer from "inquirer";
 import type { CliState } from "../lib/types.js";
+import {hasBun} from "./finalSetup.js"
 
-export async function runPrompts(state: CliState): Promise<Partial<CliState>> {
+export async function runPrompts(state:CliState): Promise<Partial<CliState>> {
+const bunAvailable = hasBun();	
   return inquirer.prompt([
     {
       type: "list",
@@ -44,5 +46,33 @@ export async function runPrompts(state: CliState): Promise<Partial<CliState>> {
       ],
       default: "base",
     },
-  ]);
+       {
+      type: "list",
+      name: "runtime",
+      message: "Choose runtime:",
+      choices: [
+        {
+          name: bunAvailable
+            ? "Bun (fast, no build step)"
+            : "Bun (not installed)",
+          value: "bun",
+          disabled: !bunAvailable && "Bun not found",
+        },
+        {
+          name: "Node (stable, widely supported)",
+          value: "node",
+        },
+      ],
+      when: () => true,
+      default: bunAvailable ? "bun" : "node"
+    },
+  ])
+  .then((result) => {
+    if (result.runtime === "bun" && !bunAvailable) {
+      result.runtime = "node";
+    }
+    return result;
+    console.log("Runtime:", result.runtime);
+  })  
+  
 }

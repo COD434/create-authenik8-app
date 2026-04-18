@@ -12,6 +12,7 @@ export type StepName =
 
 export type CliState = {
   step: StepName;
+  runtime?:"node"|"bun";
   projectName: string;
   framework?: string;
   usePrisma?: boolean;
