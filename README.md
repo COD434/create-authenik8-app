@@ -25,10 +25,12 @@
 ##  Usage
 
 Create a new project:
+
 ``
 bash
 npx create-authenik8-app my-app
 ``
+
 Then:
 
 cd my-app

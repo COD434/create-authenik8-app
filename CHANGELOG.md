@@ -115,3 +115,26 @@ into:
 - Hosted admin dashboard (future premium feature)
 
 ---
+18/04/2026
+
+Fix: Dependency install appearing to hang (Node runtime)
+
+Resolved an issue where dependency installation seemed to hang indefinitely when using the Node runtime.
+
+Cause
+
+The CLI executed "npm install" with "stdio: "ignore"", which suppressed all output. Since npm is verbose by default, this created the impression that the process was stuck while it was actually running normally.
+
+Fix
+
+Updated install step to use:
+
+stdio: "inherit"
+
+Result
+
+- Real-time install output is now visible
+- No more false “hang” during dependency installation
+- Consistent behavior between Node and Bun runtimes
+
+---
