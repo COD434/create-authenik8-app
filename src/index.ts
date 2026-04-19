@@ -101,6 +101,10 @@ Authentication setup:
 • auth (JWT + Password/Email auth)
 • auth-oauth(JWT+ Password/Email + oauth)
 
+Run time:
+• node
+• bun
+
 Frameworks:
 • Express
 • Fastify(coming soon)

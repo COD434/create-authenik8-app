@@ -50,6 +50,9 @@ ${
   GET    /protected
 `
 }
+✅ Done! Enjoying authenik8?
+⭐ Star us → github.com/COD434/create-authenik8-app
+💬 Drop feedback → github.com/COD434/create-authenik8-app/discussions
 
 🔥 You're ready to build.
 `));

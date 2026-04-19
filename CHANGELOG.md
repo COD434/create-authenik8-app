@@ -138,3 +138,15 @@ Result
 - Consistent behavior between Node and Bun runtimes
 
 ---
+
+19/04/2026
+
+addition: added a CTA to get feedback from developers
+
+This will help determin the direction of this tools and help to see what will be prioritized
+
+Result
+
+A better UX
+
+Better feedback loop

@@ -6,7 +6,7 @@ export async function installDependencies(targetDir: string): Promise<void> {
   try {
     await run(getCommand("npm"), ["install"], {
       cwd: targetDir,
-      stdio: "inheritt",
+      stdio: "inherit",
     });
     spinner.stop();
   } catch (err) {
