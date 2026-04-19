@@ -2,6 +2,8 @@
 <h1 align="center">⚡ create-authenik8-app</h1>
 
 
+if this saved you time, a ⭐ helps a lot
+
 
 <p align="center">
   <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
