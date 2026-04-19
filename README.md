@@ -173,6 +173,7 @@ At the heart of Authenik8 is the **Identity Engine** , a unified authentication 
 ### Why a dedicated Identity Engine?
 
 Traditional auth systems treat login as separate, isolated flows:
+
 • Email/password goes one way
 
 • Google OAuth another way
