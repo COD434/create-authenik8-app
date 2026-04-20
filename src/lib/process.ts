@@ -40,6 +40,8 @@ export function getCommand(cmd: string) {
   const isWin = process.platform === "win32";
   if (cmd === "npm") return isWin ? "npm.cmd" : "npm";
   if (cmd === "npx") return isWin ? "npx.cmd" : "npx";
+  if (cmd === "pnpm") return isWin ? "pnpm.cmd" : "pnpm";
+  if (cmd === "bun") return isWin ? "bun.exe" : "bun";
   if (cmd === "git") return isWin ? "git.exe" : "git";
   return cmd;
 }

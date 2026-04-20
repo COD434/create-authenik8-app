@@ -9,6 +9,25 @@ export function resolveTemplateName(authMode: string): string {
   return "express-base";
 }
 
+export function configurePackageJson(targetDir: string, usePrisma: boolean): void {
+  const pkgPath = path.join(targetDir, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+
+  if (!pkg.scripts.postinstall?.includes("prisma")) {
+      pkg.scripts.postinstall = "npx prisma@5.22.0 generate";
+    }
+
+  if (usePrisma) {
+    pkg.scripts ??= {};
+    pkg.scripts.postinstall = "npx prisma@5.22.0 generate";
+    pkg.scripts.dev = pkg.scripts.dev
+      ? `npx prisma@5.22.0 generate && ${pkg.scripts.dev}`
+      : "npx prisma@5.22.0 generate";
+  }
+
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+}
+
 export async function createProject(
   state: CliState,
   targetDir: string,

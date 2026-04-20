@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  template-modes:
+    name: ${{ matrix.mode }} mode
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: base
+            test_pattern: ^templates/express-base/src/server\.ts
+          - mode: auth
+            test_pattern: ^templates/express-auth/src/server\.ts
+          - mode: auth-oauth
+            test_pattern: ^templates/express-auth\+/src/server\.ts
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify ${{ matrix.mode }} mode
+        run: node --import tsx --test --test-name-pattern="${{ matrix.test_pattern }}" tests/template-servers.test.mjs

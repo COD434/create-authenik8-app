@@ -2,7 +2,7 @@ import inquirer from "inquirer";
 import type { CliState } from "../lib/types.js";
 import {hasBun} from "./finalSetup.js"
 
-export async function runPrompts(state:CliState): Promise<Partial<CliState>> {
+export async function runPrompts(state:CliState,isProduction: boolean): Promise<Partial<CliState>> {
 const bunAvailable = hasBun();	
   return inquirer.prompt([
     {
@@ -11,30 +11,7 @@ const bunAvailable = hasBun();
       message: "Choose framework:",
       choices: ["Express", "Fastify (coming soon)"],
       default: "Express",
-    },
-    {
-      type: "confirm",
-      name: "usePrisma",
-      message: "Use Prisma?",
-      default: true,
-    },
-    {
-      type: "list",
-      name: "database",
-      message: "Choose database:",
-      choices: [
-        { name: "PostgreSQL", value: "postgresql" },
-        { name: "SQLite ", value: "sqlite" },
-      ],
-      when: (answers) => answers.usePrisma,
-      default: "sqlite",
-    },
-    {
-      type: "confirm",
-      name: "useGit",
-      message: "Initialize git?",
-      default: true,
-    },
+    }, 
     {
       type: "list",
       name: "authMode",
@@ -46,6 +23,31 @@ const bunAvailable = hasBun();
       ],
       default: "base",
     },
+    {
+      type: "confirm",
+      name: "usePrisma",
+      message: "Use Prisma?",
+      default: true,
+     when: (answers) => answers.authMode === "base"
+    },
+    {
+      type: "list",
+      name: "database",
+      message: "Choose database:",
+      choices: [
+        { name: "PostgreSQL", value: "postgresql" },
+        { name: "SQLite ", value: "sqlite" },
+      ],
+      when: (answers) => answers.usePrisma || answers.authMode === "auth" || answers.authMode === "auth-oauth",
+      default: "sqlite",
+    },
+    {
+      type: "confirm",
+      name: "useGit",
+      message: "Initialize git?",
+      default: true,
+    },
+   
        {
       type: "list",
       name: "runtime",
@@ -63,7 +65,7 @@ const bunAvailable = hasBun();
           value: "node",
         },
       ],
-      when: () => true,
+      when: () => isProduction,
       default: bunAvailable ? "bun" : "node"
     },
   ])
@@ -72,7 +74,6 @@ const bunAvailable = hasBun();
       result.runtime = "node";
     }
     return result;
-    console.log("Runtime:", result.runtime);
   })  
   
 }

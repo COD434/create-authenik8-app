@@ -11,10 +11,10 @@ import { killAllProcesses, run, getCommand } from "./lib/process.js";
 import { showBootLogo, renderStep, spinner } from "./lib/ui.js";
 
 import { runPrompts } from "./steps/prompts.js";
-import { createProject } from "./steps/createProject.js";
+import { createProject,configurePackageJson } from "./steps/createProject.js";
 import { installAuth } from "./steps/installAuth.js";
 import { configurePrisma } from "./steps/configurePrisma.js";
-import { installDependencies, generatePrismaClient } from "./steps/installDeps.js";
+import { installDependencies,detectPackageManager } from "./steps/installDeps.js";
 import { configureProduction, initGit, appendProductionReadme,resolveRuntime } from "./steps/finalSetup.js";
 import { printSummary } from "./utils/output.js";
 
@@ -154,12 +154,19 @@ Resumable steps:
       currentStep = savedState.step;
       console.log(chalk.yellow(`\n↻ Resuming setup for ${projectName} from "${currentStep}"...\n`));
     } else {
-      const promptAnswers = await runPrompts(getState());
+      const promptAnswers = await runPrompts(getState(),isProduction);
       saveState({ ...promptAnswers, step: "prompts" });
       currentStep = "prompts";
     }
 
+    const raw = getState();
+if ((raw.authMode === "auth" || raw.authMode === "auth-oauth") && !raw.usePrisma) {
+  console.log(chalk.yellow("\n⚠ Auth and Auth+OAuth require Prisma — enabling automatically.\n"));
+  saveState({ usePrisma: true, database: raw.database ?? "sqlite" });
+}
+
     const state = getState();
+    const runtime = resolveRuntime(state.runtime);
 
     assertRequired(state.framework, "framework");
     assertRequired(state.authMode, "authMode");
@@ -191,7 +198,8 @@ Resumable steps:
     let selectedHash = "bcryptjs";
     if (!hasReachedStep(currentStep, "auth-installed")) {
       if (getState().authMode !== "base") {
-        selectedHash = await installAuth(targetDir);
+	      const pm = detectPackageManager();
+        selectedHash = await installAuth(targetDir,pm);
       }
       renderStep("auth-installed", isProduction);
       saveState({ step: "auth-installed", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
@@ -212,37 +220,29 @@ Resumable steps:
       console.log(chalk.gray("↷ Skipping Prisma/package setup (already completed)"));
     }
 
+    if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
+      await configureProduction(targetDir, projectName, runtime);
+    }
+
     //  Install deps
     if (!hasReachedStep(currentStep, "deps-installed")) {
       renderStep("deps-installed", isProduction);
+
+      configurePackageJson(targetDir, getState().usePrisma ?? false);
+
       await installDependencies(targetDir);
+
+
       saveState({ step: "deps-installed", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
       currentStep = "deps-installed";
       renderStep(currentStep, isProduction);
     } else {
-      await run(getCommand("npm"), ["install"], { cwd: targetDir, stdio: "inherit" });
-    }
-
-    //  Prisma generate 
-    if (!hasReachedStep(currentStep, "prisma-generated")) {
-      if (getState().usePrisma) {
-        await generatePrismaClient(targetDir);
-      }
-      saveState({ step: "prisma-generated", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
-      currentStep = "prisma-generated";
-      renderStep(currentStep, isProduction);
-    } else {
-      console.log(chalk.gray("↷ Skipping Prisma client generation (already completed)"));
+      //configurePackageJson(targetDir, getState().usePrisma ?? false);
+      await installDependencies(targetDir);
     }
 
     //  Production setup
     if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
-const state = getState();
-
- const runtime = resolveRuntime(state.runtime);
-
-
-      await configureProduction(targetDir,projectName,runtime );
       saveState({ step: "production-configured", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
       currentStep = "production-configured";
       renderStep(currentStep, isProduction);

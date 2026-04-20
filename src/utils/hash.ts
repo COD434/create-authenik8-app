@@ -1,15 +1,24 @@
 import os from "os";
+import type { PackageManager } from "../steps/installDeps.js";
+import { execSync } from "child_process";
 
 const platform = os.platform();
 
 const isTermux =
   process.env.PREFIX?.includes("com.termux") || process.env.TERMUX === "true";
 
-export function getBestHashLib(): string {
+export function getBestHashLib(pm:PackageManager): string {
+if (pm !== "npm") return "bcryptjs";
   if (isTermux) return "bcryptjs";
   if (platform === "win32") return "bcryptjs";
   if (platform === "darwin") return "argon2";
   if (platform === "linux") return "argon2";
+  try {
+      execSync("node-gyp --version", { stdio: "ignore" });
+      return "argon2";
+    } catch {
+      return "bcryptjs";
+    }
   return "bcryptjs";
 }
 

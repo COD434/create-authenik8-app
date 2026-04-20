@@ -7,66 +7,89 @@
 - Authentication Modes
   
   - "base" → JWT only (no auth routes)
+
   - "auth" → Email + Password authentication
+
   - "auth-oauth" → Full Auth (Password + OAuth: Google, GitHub)
 
 - OAuth Integration
   
   - Google OAuth support
+
   - GitHub OAuth support
+
   - Unified auth flow (JWT + OAuth tokens)
 
 - Production Mode ("--production-ready")
   
   - Integrated PM2 cluster mode
+
   - Auto scaling across CPU cores
+
   - Memory-based auto restart (300MB limit)
+
   - Production README instructions
 
 - CLI UX Improvements
   
   - Interactive authentication mode selection
+
   - Cleaner onboarding flow (inspired by modern CLIs)
+
   - Improved feature summaries after setup
 
 - Developer Experience
   
   - Automatic Prisma setup (PostgreSQL / SQLite)
+
   - Auto dependency installation
+
   - Argon2 password hashing integration
+
   - Redis-ready auth flow
 
 ---
 
- Improved
+ ### Improved
 
 - Refactored template selection logic (authMode-driven)
+
 - Cleaner endpoint output based on selected auth mode
+
 - Better stack summary (database + ORM detection)
+
 - Improved CLI structure for scalability
 
 ---
 
-Templates
+### Templates
 
 - "express-base" → minimal JWT setup
+
 - "express-auth" → password-based auth
+
 - "express-auth+" → full auth (password + OAuth)
 
 All templates now:
 
 - Follow cleaner structure
+
 - Are production-ready compatible
+
 - Support Redis + JWT flows
 
 ---
 
-Fixed
+### Fixed
 
 - Fixed incorrect template selection when combining auth options
+
 - Fixed CLI crash ("includes" on undefined)
+
 - Fixed incorrect auth feature output display
+
 - Fixed PM2 interpreter issues (forced Node runtime)
+
 - Fixed conditional Argon2 installation (only for auth modes)
 
 ---
@@ -79,23 +102,27 @@ Fixed
 
 ---
 
-Security
+### Security
 
 - JWT + Refresh token flow stabilized
+
 - Redis-backed token storage supported
+
 - Role-based middleware ("requireAdmin") integrated
 
 ---
 
- Notes
+ ### Notes
 
 - OAuth identity resolution handled internally in "authenik8-core"
+
 - CLI focuses on developer experience and rapid setup
+
 - Designed for both local development and production readiness
 
 ---
 
-Summary
+### Summary
 
 This release transforms Authenik8 CLI from:
 
@@ -107,11 +134,14 @@ into:
 
 ---
 
- Next (Planned)
+### Next (Planned)
 
 - Metrics & observability (Grafana integration)
+
 - Fastify template support
+
 - CLI onboarding enhancements
+
 - Hosted admin dashboard (future premium feature)
 
 ---
@@ -150,3 +180,63 @@ Result
 A better UX
 
 Better feedback loop
+
+---
+
+v2.1.0  --  Setup Time: 2 min -> 15 sec
+Released: April 2025
+
+Major performance overhaul to the CLI setup pipeline. Total install time reduced from approximately 2 minutes to 15 seconds through a combination of npm optimisation, removal of blocking steps, and consolidating package installation into a single pass.
+
+### What Changed
+
+```
+prisma generate
+Blocking CLI step (~60s)
+postinstall hook (non-blocking)
+```
+```
+Auth package install
+Separate npm install call per step
+Written to package.json, installed in one pass
+```
+```
+Prisma override for Auth/Auth+OAuth
+usePrisma could stay false
+Overridden before state snapshot, user notified
+```
+```
+postinstall script
+
+Static in template
+Written dynamically by configurePackageJson
+```
+```
+dev script guard
+None
+npx prisma@5.22.0 generate && dev server
+```
+
+---
+
+### Bug Fixes
+
+• Fixed usePrisma state snapshot being taken before auth mode override, causing Auth and Auth+OAuth templates to scaffold without Prisma
+
+• Fixed installAuth running npm install before package.json was fully configured, causing install failures
+
+• Fixed postinstall and dev script using global prisma binary instead of npx prisma@5.22.0
+
+• Fixed dead code in runPrompts where console.log appeared after a return statement
+
+• Fixed resume path not calling configurePackageJson before re-running npm install
+
+---
+
+### Notes
+
+• Prisma is now pinned to 5.22.0 across all scripts and dependencies to prevent breaking changes from upstream schema format changes
+
+• Auth and Auth+OAuth modes now automatically enable Prisma with a visible console warning rather than silently defaulting
+
+• npm ci requires package-lock.json to be committed and in sync; the CLI falls back to npm

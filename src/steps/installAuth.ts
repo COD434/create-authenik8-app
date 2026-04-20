@@ -3,34 +3,26 @@ import path from "path";
 import { run, getCommand, exitForInterrupt } from "../lib/process.js";
 import { getBestHashLib, generateHashModule } from "../utils/hash.js";
 import { spinner } from "../lib/ui.js";
+import type { PackageManager } from "./installDeps.js";
+
+
 
 export async function installAuth(
-  targetDir: string
+  targetDir: string,pm: PackageManager
 ): Promise<string> {
-  let selectedHash = getBestHashLib();
+  let selectedHash = getBestHashLib(pm);
+
 
   spinner.start("Installing password auth...");
 
-  try {
-    await run(getCommand("npm"), ["install", selectedHash], {
-      cwd: targetDir,
-      stdio: "ignore",
-    });
-  } catch {
-    if (selectedHash !== "bcryptjs") {
-      spinner.warn(`${selectedHash} failed, falling back to bcryptjs`);
-      await run(getCommand("npm"), ["install", "bcryptjs"], {
-        cwd: targetDir,
-        stdio: "ignore",
-      });
-      selectedHash = "bcryptjs";
-    } else {
-      spinner.fail("Failed to install password auth");
-      process.exit(1);
-    }
-  }
+  const pkgPath = path.join(targetDir, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+  
+  pkg.dependencies[selectedHash] = selectedHash === "argon2" ? "^0.31.2" : "^2.4.3";
+  
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
-  spinner.stop();
+spinner.stop();
 
   const hashLib = selectedHash as "argon2" | "bcryptjs";
   await fs.writeFile(

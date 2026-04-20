@@ -1,7 +1,7 @@
 {
   "name": "create-authenik8-app",
-  "version": "2.1.0",
-  "description": "Create production-ready backend APIs with a built-in identity engine. Authenik8 scaffolds Express + Prisma apps with JWT auth, refresh token rotation, account linking, Redis-backed security, and scalable architecture out of the box.",
+  "version": "2.1.2",
+  "description": "⚡ Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
   "bin": {
     "create-authenik8-app": "dist/index.js"
   },
@@ -48,5 +48,9 @@
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.5.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/username/repo-name.git"
   }
 }

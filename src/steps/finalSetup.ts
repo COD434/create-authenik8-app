@@ -5,6 +5,9 @@ import { spinner } from "../lib/ui.js";
 
 import { execSync } from "child_process";
 
+const PM2_VERSION = "^5.4.2";
+const TS_NODE_VERSION = "^10.9.2";
+
 export function hasBun(): boolean {
   try {
     execSync("bun --version", { stdio: "ignore" });
@@ -67,23 +70,25 @@ export function createPm2Config(targetDir: string, projectName: string,runtime: 
 
 
 export async function configureProduction(targetDir: string,projectName:string , runtime:"node"| "bun"): Promise<void> {
-  spinner.start("Setting up production mode (PM2)...");
-  try {
-    await run(getCommand("npm"), ["install", "pm2"], {
-      cwd: targetDir,
-      stdio: "inherit",
-    });
-    if (runtime === "node") {   
-      await run(getCommand("npm"), ["install", "ts-node"], { cwd: targetDir, stdio: "inherit" });
-    }
-    createPm2Config(targetDir, projectName,runtime);
+  const pkgPath = path.join(targetDir, "package.json");
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
-    spinner.stop();
-  } catch (err) {
-    spinner.fail("Failed to install PM2");
-    exitForInterrupt(err);
+  pkg.dependencies["pm2"] = PM2_VERSION;
+
+  
+  if (runtime === "node") {
+    pkg.dependencies["ts-node"] = TS_NODE_VERSION;
   }
-}
+  pkg.scripts["pm2:start"] = "npx pm2 start ecosystem.config.js";
+  pkg.scripts["pm2:stop"] = `npx pm2 stop ${projectName}`;
+  pkg.scripts["pm2:logs"] = "npx pm2 logs";
+
+  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+
+    createPm2Config(targetDir, projectName,runtime);
+  }
+  
+
 
 
 export async function initGit(targetDir: string): Promise<void> {
