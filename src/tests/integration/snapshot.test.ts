@@ -52,18 +52,28 @@ describe("generator snapshots", () => {
     const project = await generateProjectFixture(options);
 
     try {
-      const tree = await collectProjectTree(project.targetDir);
+	    const rawTree = await collectProjectTree(project.targetDir);
+
+      
       const files = await readProjectFiles(project.targetDir, keyFiles);
 
 
-	    const stableSnapshot = {
+	    const stableTree = rawTree
+          .filter((path) =>
+		   !path.includes("node_modules") && 
+          !path.endsWith(".env") && 
+          !path.endsWith(".env.example") && 
+          !path.includes("package-lock.json")
+		 ).sort();
+	const filesContent = await readProjectFiles(project.targetDir, keyFiles);
+
+	const snapshotData = {
         template: options.template,
-        tree: tree
-          .filter((path) => !path.includes("node_modules") && !path.includes(".env"))
-          .sort(),
-        files: files,
+        tree: stableTree,
+        keyFiles: filesContent,
       };
-      expect(stableSnapshot).toMatchSnapshot();
+
+      expect(snapshotData).toMatchSnapshot();
     } finally {
       await project.cleanup();
     }
