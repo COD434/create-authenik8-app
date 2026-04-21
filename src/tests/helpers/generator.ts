@@ -6,12 +6,12 @@ import { fileURLToPath } from "url";
 import fs from "fs-extra";
 import { vi } from "vitest";
 
-import type { CliState } from "../../src/lib/types.js";
-import { createProject, configurePackageJson } from "../../src/steps/createProject.js";
-import { configurePrisma } from "../../src/steps/configurePrisma.js";
-import { installAuth } from "../../src/steps/installAuth.js";
-import { configureProduction } from "../../src/steps/finalSetup.js";
-import * as hashUtils from "../../src/utils/hash.js";
+import type { CliState } from "../../lib/types.js";
+import { createProject, configurePackageJson } from "../../steps/createProject.js";
+import { configurePrisma } from "../../steps/configurePrisma.js";
+import { installAuth } from "../../steps/installAuth.js";
+import { configureProduction } from "../../steps/finalSetup.js";
+import * as hashUtils from "../../utils/hash.js";
 
 type TemplateKind = "base" | "auth" | "auth-oauth";
 
@@ -33,8 +33,9 @@ export type GenerateProjectOptions = {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "../..");
+const repoRoot = path.resolve(__dirname, "../../../");
 const templateRoot = path.join(repoRoot, "templates");
+console.log("Template root resolved to:", templateRoot);
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
 
 const templateToAuthMode: Record<TemplateKind, CliState["authMode"]> = {

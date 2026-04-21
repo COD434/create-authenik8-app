@@ -2,7 +2,7 @@
 
 exports[`generator snapshots > 'express-auth' folder tree and key files match the snapshot 1`] = `
 {
-  "files": {
+  "keyFiles": {
     "prisma/schema.prisma": "generator client {
   provider = "prisma-client-js"
 }
@@ -114,7 +114,7 @@ return bcrypt.compare(password, hash);
 
 exports[`generator snapshots > 'express-auth-oauth' folder tree and key files match the snapshot 1`] = `
 {
-  "files": {
+  "keyFiles": {
     "prisma/schema.prisma": "generator client {
   provider = "prisma-client-js"
 }
@@ -357,7 +357,7 @@ return bcrypt.compare(password, hash);
 
 exports[`generator snapshots > 'express-base' folder tree and key files match the snapshot 1`] = `
 {
-  "files": {
+  "keyFiles": {
     "app.ts": "import express from "express";
 import { createBaseRoutes } from "./routes/base.routes";
 
