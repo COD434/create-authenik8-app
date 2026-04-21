@@ -21,7 +21,7 @@ Security is a top priority for us.
 1. Go to the [Security tab](https://github.com/COD434/create-authenik8-app/security)
 2. Click **"Report a vulnerability"** (GitHub’s private reporting)
 
-You can also email **security@create-authenik8.app**.
+You can also email **authenik8@gmail.com**.
 
 ### What to include
 - Description of the issue and potential impact
