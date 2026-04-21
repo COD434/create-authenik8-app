@@ -42,42 +42,42 @@ const mockModules = vi.hoisted(() => {
   return state;
 });
 
-vi.mock("./lib/ui.js", () => ({
+vi.mock("../../src/lib/ui.js", () => ({
   showBootLogo: mockModules.showBootLogo,
   renderStep: mockModules.renderStep,
   spinner: mockModules.spinner,
 }));
 
-vi.mock("./steps/prompts.js", () => ({
+vi.mock("../../src/steps/prompts.js", () => ({
   runPrompts: mockModules.runPrompts,
 }));
 
-vi.mock("./steps/createProject.js", () => ({
+vi.mock("../../src/steps/createProject.js", () => ({
   createProject: mockModules.createProject,
   configurePackageJson: mockModules.configurePackageJson,
 }));
 
-vi.mock("./src/steps/installAuth.js", () => ({
+vi.mock("../../src/steps/installAuth.js", () => ({
   installAuth: mockModules.installAuth,
 }));
 
-vi.mock("./steps/configurePrisma.js", () => ({
+vi.mock("../../src/steps/configurePrisma.js", () => ({
   configurePrisma: mockModules.configurePrisma,
 }));
 
-vi.mock("./steps/installDeps.js", () => ({
+vi.mock("../../src/steps/installDeps.js", () => ({
   installDependencies: mockModules.installDependencies,
   detectPackageManager: mockModules.detectPackageManager,
 }));
 
-vi.mock("./steps/finalSetup.js", () => ({
+vi.mock("../../src/steps/finalSetup.js", () => ({
   configureProduction: mockModules.configureProduction,
   initGit: mockModules.initGit,
   appendProductionReadme: mockModules.appendProductionReadme,
   resolveRuntime: mockModules.resolveRuntime,
 }));
 
-vi.mock("./utils/output.js", () => ({
+vi.mock("../../src/utils/output.js", () => ({
   printSummary: mockModules.printSummary,
 }));
 
@@ -186,7 +186,7 @@ async function runCli(
 
   try {
     vi.resetModules();
-    await import("../../index.js");
+    await import("../../src/index.js");
   } catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("process.exit:")) {
       throw error;
