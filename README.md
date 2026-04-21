@@ -1,7 +1,7 @@
 
 <h1 align="center">⚡ create-authenik8-app</h1>
 
-examples:https://github.com/COD434/create-authenik8-app-example
+**See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
 if this saved you time, a ⭐ helps a lot
