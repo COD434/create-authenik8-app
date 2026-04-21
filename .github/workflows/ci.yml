@@ -12,6 +12,26 @@ jobs:
   template-modes:
     name: ${{ matrix.mode }} mode
     runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CLI Tests with Coverage
+        run: npm run test:coverage
+
+      - name: Run Template Server Tests
+        run: npm run test:templates
+
+
     strategy:
       fail-fast: false
       matrix:
