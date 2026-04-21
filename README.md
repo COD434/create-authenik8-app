@@ -1,6 +1,8 @@
 
 <h1 align="center">⚡ create-authenik8-app</h1>
 
+examples:https://github.com/COD434/create-authenik8-app-example
+
 
 if this saved you time, a ⭐ helps a lot
 
@@ -18,9 +20,8 @@ if this saved you time, a ⭐ helps a lot
 
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
-<p align="center">
-  <img src="./assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif" width="600" />
-</p>
+
+ ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif)
 
 
 ---
