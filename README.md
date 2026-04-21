@@ -16,7 +16,7 @@ if this saved you time, a ⭐ helps a lot
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 ![Maintained](https://img.shields.io/badge/maintained-yes-success)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
-
+[![Coverage](https://img.shields.io/badge/coverage-48%25-yellow)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
@@ -128,6 +128,14 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
   res.json({ message: "Admin only route" });
 });
 ```
+
+---
+
+### Testing
+
+- Full test suite with ``48%`` coverage (actively improving)
+
+- CI runs tests + coverage on every push and PR
 
 ---
 
