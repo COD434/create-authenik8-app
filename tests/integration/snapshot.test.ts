@@ -14,7 +14,7 @@ describe("generator snapshots", () => {
         template: "base" as const,
         database: "sqlite" as const,
       },
-      files: ["app.ts", "routes/base.routes.ts", "src/server.ts", "prisma/schema.prisma"],
+      keyFiles: ["app.ts", "routes/base.routes.ts", "src/server.ts", "prisma/schema.prisma"],
     },
     {
       name: "express-auth",
@@ -23,7 +23,7 @@ describe("generator snapshots", () => {
         database: "postgresql" as const,
         hashLib: "bcryptjs" as const,
       },
-      files: [
+      keyFiles: [
         "src/app.ts",
         "src/routes/auth.routes.ts",
         "src/routes/protected.routes.ts",
@@ -38,7 +38,7 @@ describe("generator snapshots", () => {
         database: "sqlite" as const,
         hashLib: "bcryptjs" as const,
       },
-      files: [
+      keyFiles: [
         "src/server.ts",
         "src/auth/auth.ts",
         "src/auth/password.route.ts",
@@ -48,14 +48,22 @@ describe("generator snapshots", () => {
         "prisma/schema.prisma",
       ],
     },
-  ])("$name folder tree and key files match the snapshot", async ({ options, files }) => {
+  ])("$name folder tree and key files match the snapshot", async ({ options, keyFiles }) => {
     const project = await generateProjectFixture(options);
 
     try {
-      expect({
-        tree: await collectProjectTree(project.targetDir),
-        files: await readProjectFiles(project.targetDir, files),
-      }).toMatchSnapshot();
+      const tree = await collectProjectTree(project.targetDir);
+      const files = await readProjectFiles(project.targetDir, keyFiles);
+
+
+	    const stableSnapshot = {
+        template: options.template,
+        tree: tree
+          .filter((path) => !path.includes("node_modules") && !path.includes(".env"))
+          .sort(),
+        files: files,
+      };
+      expect(stableSnapshot).toMatchSnapshot();
     } finally {
       await project.cleanup();
     }

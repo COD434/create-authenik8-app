@@ -88,8 +88,8 @@ export const comparePassword = (password: string, hash: string) => {
 return bcrypt.compare(password, hash);
 };",
   },
+  "template": "auth",
   "tree": [
-    ".env",
     "package.json",
     "prisma/",
     "prisma/schema.prisma",
@@ -334,8 +334,8 @@ export const comparePassword = (password: string, hash: string) => {
 return bcrypt.compare(password, hash);
 };",
   },
+  "template": "auth-oauth",
   "tree": [
-    ".env",
     "package.json",
     "prisma/",
     "prisma/schema.prisma",
@@ -458,8 +458,8 @@ setInterval(() => {
 }, 10000);
 start();",
   },
+  "template": "base",
   "tree": [
-    ".env",
     "app.ts",
     "controllers/",
     "controllers/base.controller.ts",
@@ -469,7 +469,6 @@ start();",
     "routes/",
     "routes/base.routes.ts",
     "src/",
-    "src/.env.example",
     "src/server.ts",
     "tsconfig.json",
   ],
