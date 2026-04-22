@@ -143,7 +143,7 @@ async function runCli(argv, options = {}) {
     process.argv = ["node", "src/index.ts", ...argv];
     try {
         vi.resetModules();
-        await import("../../src/index.ts");
+        await import("../../src/index.js");
     }
     catch (error) {
         if (!(error instanceof Error) || !error.message.startsWith("process.exit:")) {

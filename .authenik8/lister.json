@@ -1,9 +1,0 @@
-{
-  "step": "project-created",
-  "projectName": "lister",
-  "framework": "Express",
-  "usePrisma": true,
-  "database": "sqlite",
-  "useGit": true,
-  "authMode": "auth"
-}
