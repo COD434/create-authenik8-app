@@ -50,7 +50,8 @@ jobs:
       - name: Verify ${{ matrix.mode }} mode
         run: node --import tsx --test --test-name-pattern="${{ matrix.test_pattern }}" tests/template-servers.test.mjs
 
-        release:
+   
+  release:
     name: Semantic Release & Publish
     needs: template-modes          
     runs-on: ubuntu-latest
