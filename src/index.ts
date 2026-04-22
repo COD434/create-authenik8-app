@@ -18,6 +18,7 @@ import { installDependencies,detectPackageManager } from "./steps/installDeps.js
 import { configureProduction, initGit, appendProductionReadme,resolveRuntime } from "./steps/finalSetup.js";
 import { printSummary } from "./utils/output.js";
 
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -36,6 +37,39 @@ const targetDir = path.resolve(process.cwd(), projectName);
 const templateRoot = path.resolve(__dirname, "../templates");
 const globalStateDir = path.join(process.cwd(), ".authenik8");
 const stateFile = path.join(globalStateDir, `${projectName}.json`);
+//handles shutdown during resume
+let shuttingDown = false;
+
+const handleShutdown = async () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+
+  console.log("\n");
+  spinner.stop();
+  killAllProcesses();
+
+  console.log(chalk.yellow("⏸ Setup interrupted."));
+
+  
+  try {
+    const current = getState();
+    if (current && current.step && current.step !== "done") {
+      saveState({ ...current });
+    }
+  } catch (_) {}
+
+  console.log(chalk.gray(`↻ Resume anytime with:`));
+  console.log(chalk.cyan(`   npx create-authenik8-app ${projectName} --resume`));
+
+  process.exit(0);
+};
+
+process.prependListener('SIGINT', handleShutdown);
+process.prependListener('SIGTERM', handleShutdown);
+
+process.on('exit', () => {
+  killAllProcesses();
+});
 
 let projectCreated = false;
 
@@ -56,14 +90,14 @@ function assertRequired(value: any, name: string) {
 }
 
 async function main() {
-  process.on("SIGINT", async () => {
-    console.log("\n");
-    spinner.stop();
-    killAllProcesses();
-    console.log(chalk.yellow("⏸ Setup interrupted."));
-    console.log(chalk.gray(`↻ Resume with: create-authenik8-app ${projectName} --resume`));
-    process.exit(0);
-  });
+	//process.on("SIGINT", async () => {
+    //console.log("\n");
+    //spinner.stop();
+    //killAllProcesses();
+    //console.log(chalk.yellow("⏸ Setup interrupted."));
+   // console.log(chalk.gray(`↻ Resume with: create-authenik8-app ${projectName} --resume`));
+    //process.exit(0);
+  //});
 
   try {
     await showBootLogo();
@@ -238,7 +272,9 @@ if ((raw.authMode === "auth" || raw.authMode === "auth-oauth") && !raw.usePrisma
       renderStep(currentStep, isProduction);
     } else {
       //configurePackageJson(targetDir, getState().usePrisma ?? false);
-      await installDependencies(targetDir);
+      //await installDependencies(targetDir);
+	    console.log(chalk.gray("↷ Skipping dependency installation (already completed)"));
+
     }
 
     //  Production setup

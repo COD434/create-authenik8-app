@@ -41,9 +41,10 @@
     "isolatedModules": true,
     "noUncheckedSideEffectImports": true,
     "moduleDetection": "force",
-    "skipLibCheck": true,
+    "skipLibCheck": true
   },
-    "exclude": ["templates","dist","node_modules"],
+  "include": ["src/**/*"],
+    "exclude": ["templates","dist","node_modules"]
     
 
 }

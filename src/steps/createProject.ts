@@ -18,11 +18,10 @@ export function configurePackageJson(targetDir: string, usePrisma: boolean): voi
     }
 
   if (usePrisma) {
-    pkg.scripts ??= {};
-    pkg.scripts.postinstall = "npx prisma@5.22.0 generate";
-    pkg.scripts.dev = pkg.scripts.dev
-      ? `npx prisma@5.22.0 generate && ${pkg.scripts.dev}`
-      : "npx prisma@5.22.0 generate";
+   const currentDev = pkg.scripts.dev || "tsx watch src/index.ts";
+    if (!currentDev.includes("prisma@5.22.0 generate")) {
+      pkg.scripts.dev = `npx prisma@5.22.0 generate && ${currentDev}`;
+    }
   }
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
