@@ -240,3 +240,14 @@ npx prisma@5.22.0 generate && dev server
 • Auth and Auth+OAuth modes now automatically enable Prisma with a visible console warning rather than silently defaulting
 
 • npm ci requires package-lock.json to be committed and in sync; the CLI falls back to npm
+
+---
+
+## [Unreleased]
+
+### Chores
+- Increase test coverage from 47% to **80%**
+
+- Add comprehensive tests for `src/steps/prompts.ts` (interactive flow, auth modes, conditional prompts, Bun fallback, etc.)
+
+## [2.1.8] - 2026-04-23
