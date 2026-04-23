@@ -55,7 +55,7 @@ jobs:
     name: Semantic Release & Publish
     needs: template-modes          
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main' 
 
     permissions:
       contents: write
@@ -79,4 +79,5 @@ jobs:
       - name: Semantic Release + Publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npx semantic-release
