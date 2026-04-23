@@ -1,8 +1,6 @@
 
 <h1 align="center">⚡ create-authenik8-app</h1>
 
-**See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
-
 
 if this saved you time, a ⭐ helps a lot
 
@@ -22,6 +20,9 @@ if this saved you time, a ⭐ helps a lot
 
 
  ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif)
+
+
+**See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
 ---
