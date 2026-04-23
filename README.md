@@ -41,7 +41,7 @@ redis-server --daemonize yes
 
 npm run dev
 ```
-Your production-ready auth backend will be ready in 2min.
+Your production-ready auth backend will be ready in 50 seconds.
 
 ---
 
