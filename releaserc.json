@@ -8,7 +8,7 @@
       "@semantic-release/npm",
       {
         "npmPublish": true,
-        "publishCmd": "npm publish --provenance --access public"
+        "provenance": true
 
       }
     ],
