@@ -34,6 +34,7 @@
     "chalk": "^5.6.2",
     "fs-extra": "^11.3.4",
     "inquirer": "^13.3.2",
+    "node": "^22.14.0",
     "ora": "^9.3.0",
     "tsx": "^4.21.0"
   },
@@ -48,6 +49,7 @@
     "test:templates": "node --import tsx --test tests/template-servers.test.mjs"
   },
   "devDependencies": {
+    "@semantic-release/npm": "^13.1.5",
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.5.2",
@@ -57,5 +59,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/COD434/create-authenik8-app.git"
+  },
+  "overrides": {
+    "brace-expansion": ">=2.0.3",
+    "picomatch": ">=4.0.4"
   }
 }
