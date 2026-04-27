@@ -1,8 +1,13 @@
 
-<h1 align="center">⚡ create-authenik8-app</h1>
+<h1 align="center">✨ create-authenik8-app ✨</h1>
 
+<p align="center">
+  <i>Launch secure, production-ready authentication in seconds.</i>
+</p>
 
-if this saved you time, a ⭐ helps a lot
+<p align="center">
+  If this saved you time, a ⭐ helps a lot
+</p>
 
 
 <p align="center">
@@ -288,4 +293,3 @@ The Identity Engine is what makes Authenik8 feel like a coherent **authenticatio
 • MFA
 
 • Production presets
-
