@@ -17,6 +17,8 @@ jobs:
       id-token: write
       contents: read
       actions: read
+      pull-requests: read
+      
 
     steps:
       - name: "Checkout code"
@@ -30,4 +32,4 @@ jobs:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          repo_token: ${{ secrets.PAT_TOKEN }}
