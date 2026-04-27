@@ -14,9 +14,8 @@
   <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
   </p>
 
-  ![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)
 ![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
-[![OpenSSF Scorecard](https://img.shields.io/badge/OpenSSF-Scorecard-2b3137?logo=openssf)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
