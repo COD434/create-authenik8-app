@@ -10,7 +10,7 @@ if this saved you time, a ⭐ helps a lot
   </p>
 
   ![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)
-![Node](https://img.shields.io/badge/node-%3E=18-green)
+![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
 ![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
 ![Maintained](https://img.shields.io/badge/maintained-yes-success)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
@@ -134,7 +134,7 @@ app.get("/admin", auth.requireAdmin, (req, res) => {
 
 ### Testing
 
-- Full test suite with ``48%`` coverage (actively improving)
+- Full test suite with ``80%`` coverage (actively improving)
 
 - CI runs tests + coverage on every push and PR
 
@@ -161,7 +161,7 @@ This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 ---
 ## Powered by
 
-authenik8-core (v1.0.3) — battle-tested identity & token engine
+authenik8-core (v1.0.29)  battle-tested identity & token engine
 
 ---
 
