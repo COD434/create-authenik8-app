@@ -123,11 +123,3 @@ jobs:
 
 
 
-      - name: Upload tarball + attestation to GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TARBALL: ${{ steps.pack.outputs.tarball }}
-          BUNDLE: ${{ steps.attest.outputs.bundle }}
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          gh release upload "v${VERSION}" "${TARBALL}" "${BUNDLE}" --clobber
