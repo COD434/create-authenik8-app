@@ -102,6 +102,17 @@ jobs:
       - name: Get the version from package.json
         id: get_version
         run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+        - name: Generate tarball
+          id: pack
+          run: |
+            TARBALL=$(npm pack | tail -1)
+            echo "TARBALL=$TARBALL" >> $GITHUB_OUTPUT
+          echo "Tarball created: $TARBALL"
+          ls -la "$TARBALL" 
+
+      - name: List all files in workspace (debug)
+        run: ls -la
+
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
