@@ -73,7 +73,7 @@ Your production-ready auth backend will be ready in 50 seconds.
 
 ---
 
-## Why Authenik8?
+## Why create-authenik8-app
 
 Most developers waste days (or weeks) on:
 
@@ -84,7 +84,6 @@ Most developers waste days (or weeks) on:
 • Redis session configuration
 
 • Proper access control 
-
 
 Authenik8 provides all of this out of the box so you can start building your API immediately.
 
@@ -103,7 +102,6 @@ Bash
 
 redis-server --daemonize yes
 ```
-
 
 ---
 
