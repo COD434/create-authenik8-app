@@ -99,24 +99,21 @@ jobs:
         run: |
           npx semantic-release
 
-      - name: Get the version from package.json
-        id: get_version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: List all files in workspace (debug)
-        run: ls -la
-
-      - name: Attest build provenance
-        uses: actions/attest-build-provenance@v2
-        with:
-          subject-path: ${{ steps.pack.outputs.tarball}}
-
 
       - name: Pack tarball
         id: pack
         run: |
           TARBALL=$(npm pack --json | jq -r '.[0].filename')
           echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+
+
+      - name: Attest build provenance
+        id: attest
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.pack.outputs.tarball}}
+
+
 
 
       - name: Upload tarball + attestation to GitHub Release
@@ -126,4 +123,4 @@ jobs:
           VERSION=$(node -p "require('./package.json').version")
           gh release upload "v${VERSION}" \
             "${{ steps.pack.outputs.tarball }}" \
-            "${{ steps.attest.outputs.bundle
+            "${{ steps.attest.outputs.bundle }}"
