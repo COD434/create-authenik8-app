@@ -16,3 +16,18 @@ updates:
       interval: "weekly"
     commit-message:
       prefix: "ci"
+
+  - package-ecosystem: npm
+    directory: /templates/express-auth+
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /templates/express-auth
+    schedule:
+      interval: daily
+
+  - package-ecosystem: npm
+    directory: /templates/express-base
+    schedule:
+      interval: daily
