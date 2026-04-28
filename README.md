@@ -73,7 +73,7 @@ Your production-ready auth backend will be ready in 50 seconds.
 
 ---
 
-## Why Authenik8?
+## Why create-authenik8-app
 
 Most developers waste days (or weeks) on:
 
