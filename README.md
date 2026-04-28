@@ -103,7 +103,6 @@ Bash
 redis-server --daemonize yes
 ```
 
-
 ---
 
 ## Environment Variables
