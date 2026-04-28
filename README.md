@@ -85,7 +85,6 @@ Most developers waste days (or weeks) on:
 
 • Proper access control 
 
-
 Authenik8 provides all of this out of the box so you can start building your API immediately.
 
 
