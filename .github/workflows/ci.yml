@@ -95,4 +95,4 @@ jobs:
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: "./create-authenik8-app-${{ steps.get_version.outputs.VERSION }}.tgz"
+          subject-path: "./create-authenik8-app-${{ steps.get_version.outputs.VERSION }}.zip"
