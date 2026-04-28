@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "authenik8-core": "^1.0.3",
-    "express": "^4.19.2",
+    "express": "^5.2.1",
     "@prisma/client": "5.22.0"
   },
   "devDependencies": {
