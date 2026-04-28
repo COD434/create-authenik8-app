@@ -10,7 +10,7 @@
     "authenik8-core": "^1.0.3",
     "dotenv": "^16.0.0",
     "express": "^4.18.2",
-    "@prisma/client": "5.22.0"
+    "@prisma/client": "7.8.0"
   },
   "devDependencies": {
     "ts-node-dev": "^2.0.0",
