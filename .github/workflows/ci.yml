@@ -54,7 +54,7 @@ jobs:
       - name: Run Template Server Tests
         run: npm run test:templates
 
-
+     
       - name: Verify ${{ matrix.mode }} mode
         run: node --import tsx --test --test-name-pattern="${{ matrix.test_pattern }}" tests/template-servers.test.mjs
 
@@ -69,6 +69,7 @@ jobs:
       contents: write
       id-token: write
       packages: write
+      attestations: write
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -97,3 +98,11 @@ jobs:
           NPM_CONFIG_PROVENANCE: "true"
         
         run: npx semantic-release
+
+      - name: Get the version from package.json
+        id: get_version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "./create-authenik8-app-${{ steps.get_version.outputs.VERSION }}.zip"
