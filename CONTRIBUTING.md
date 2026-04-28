@@ -83,6 +83,11 @@ npm run dev
 • Avoid breaking changes unless discussed
 
 ---
+## Testing Changes
+
+Before opening a pull request, run the relevant test command from [TESTING.md](./TESTING.md). For template or CLI-flow changes, prefer focused tests that use temporary directories and stubs instead of real external services.
+
+---
 ## Adding Features
 
 If you're adding a new feature:
