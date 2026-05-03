@@ -77,6 +77,7 @@ describe("generator happy paths", () => {
         "src/server.ts",
         "src/auth/auth.ts",
         "src/auth/oauth.routes.ts",
+        "src/auth/password.controller.ts",
         "src/auth/password.route.ts",
         "ecosystem.config.js",
       ]);
@@ -84,9 +85,11 @@ describe("generator happy paths", () => {
       expect(pkg.dependencies.pm2).toBe("^5.4.2");
       expect(pkg.dependencies["ts-node"]).toBe("^10.9.2");
       expect(pkg.scripts["pm2:start"]).toBe("npx pm2 start ecosystem.config.js");
-      expect(files["src/auth/auth.ts"]).toContain('redirectUri: "http://localhost:3000/auth/google/callback"');
+      expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GOOGLE_REDIRECT_URI")');
+      expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GITHUB_REDIRECT_URI")');
       expect(files["src/auth/oauth.routes.ts"]).toContain('router.get("/github/callback"');
-      expect(files["src/auth/password.route.ts"]).toContain("generateRefreshToken");
+      expect(files["src/auth/password.route.ts"]).toContain("passwordController.login");
+      expect(files["src/auth/password.controller.ts"]).toContain("generateRefreshToken");
       expect(files["ecosystem.config.js"]).toContain('interpreter_args: "-r ts-node/register"');
     } finally {
       await project.cleanup();

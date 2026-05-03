@@ -4,7 +4,7 @@ export default defineConfig({
   test: {
     environment: "node",
     setupFiles: ["./tests/setup.ts"],
-    include: ["./tests/**/*.test.ts"],
+    include: ["./tests/**/*.test.ts", "./src/tests/**/*.test.ts"],
     fileParallelism: false,
     restoreMocks: true,
     clearMocks: true,
@@ -15,7 +15,7 @@ export default defineConfig({
       reporter: ["text", "json-summary","html"],
       reportsDirectory: "./coverage",
       include: ["src/**/*.ts"],
-      exclude: ["src/bin/**","src/**/*.d.ts", "tests/**"],
+      exclude: ["src/bin/**","src/**/*.d.ts", "tests/**", "src/tests/**"],
     },
   },
 });

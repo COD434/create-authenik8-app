@@ -14,7 +14,13 @@ describe("generator snapshots", () => {
         template: "base" as const,
         database: "sqlite" as const,
       },
-      keyFiles: ["app.ts", "routes/base.routes.ts", "src/server.ts", "prisma/schema.prisma"],
+      keyFiles: [
+        "app.ts",
+        "controllers/base.controller.ts",
+        "routes/base.routes.ts",
+        "src/server.ts",
+        "prisma/schema.prisma",
+      ],
     },
     {
       name: "express-auth",
@@ -25,6 +31,8 @@ describe("generator snapshots", () => {
       },
       keyFiles: [
         "src/app.ts",
+        "src/controllers/auth.controller.ts",
+        "src/controllers/protected.controller.ts",
         "src/routes/auth.routes.ts",
         "src/routes/protected.routes.ts",
         "src/utils/hash.ts",
@@ -41,8 +49,12 @@ describe("generator snapshots", () => {
       keyFiles: [
         "src/server.ts",
         "src/auth/auth.ts",
+        "src/auth/auth.middleware.ts",
+        "src/auth/oauth.controller.ts",
         "src/auth/password.route.ts",
+        "src/auth/password.controller.ts",
         "src/auth/oauth.routes.ts",
+        "src/auth/protected.controller.ts",
         "src/auth/protected.routes.ts",
         "src/utils/hash.ts",
         "prisma/schema.prisma",

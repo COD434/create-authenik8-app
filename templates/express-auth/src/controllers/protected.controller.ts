@@ -1,39 +1,9 @@
 import { Request, Response } from "express";
-import { getBearerToken, parseRefreshToken, sanitizeSessionResponse } from "../utils/security";
+import { sanitizeSessionResponse } from "../utils/security";
 
-export const createBaseController = (auth: any) => ({
-  publicRoute(req: Request, res: Response) {
-    res.json({ message: "Public route" });
-  },
-
-  async guest(req: Request, res: Response) {
-    const token = await auth.guestToken({ role: "guest" });
-    res.json({ token });
-  },
-
-  async protected(req: Request, res: Response) {
-    const token = getBearerToken(req.headers.authorization);
-
-    try {
-      const decoded = await auth.verifyToken(token);
-      res.json({ message: "Protected data", user: decoded });
-    } catch {
-      res.status(401).json({ error: "Unauthorized" });
-    }
-  },
-
-  async refresh(req: Request, res: Response) {
-    try {
-      const refreshToken = parseRefreshToken(req.body);
-      const tokens = await auth.refreshToken(refreshToken);
-      res.json(tokens);
-    } catch {
-      res.status(401).json({ error: "Invalid refresh token" });
-    }
-  },
-
-  admin(req: Request, res: Response) {
-    res.json({ message: "Admin only" });
+export const createProtectedController = () => ({
+  protected(req: Request, res: Response) {
+    res.json({ message: "Protected route" });
   },
 
   async listSessions(req: Request, res: Response) {

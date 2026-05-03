@@ -205,6 +205,13 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
 
       await writeModule(path.join(tempDir, "src/server.ts"), serverSource);
       await writeModule(
+        path.join(tempDir, "utils/security.ts"),
+        `export function requiredSecret(name) {
+  return process.env[name];
+}
+`,
+      );
+      await writeModule(
         path.join(tempDir, "app.ts"),
         `export function createApp(auth) {
   globalThis.__templateServerTestState.createAppCalls.push(auth);
@@ -218,14 +225,17 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
 `,
       );
 
-      process.env.JWT_SECRET = "jwt-secret";
-      process.env.REFRESH_SECRET = "refresh-secret";
+      process.env.JWT_SECRET = "jwt-secret-must-be-at-least-32-characters";
+      process.env.REFRESH_SECRET = "refresh-secret-must-be-at-least-32-characters";
 
       await importServer(path.join(tempDir, "src/server.ts"));
 
       assert.equal(state.dotenvConfigCalls, 1);
       assert.deepEqual(state.createAuthenik8Calls, [
-        { jwtSecret: "jwt-secret", refreshSecret: "refresh-secret" },
+        {
+          jwtSecret: "jwt-secret-must-be-at-least-32-characters",
+          refreshSecret: "refresh-secret-must-be-at-least-32-characters",
+        },
       ]);
       assert.equal(state.createAppCalls.length, 1);
       assert.equal(state.createAppCalls[0], globalThis.__templateServerAuthInstance);
@@ -263,6 +273,13 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
 
       await writeModule(path.join(tempDir, "src/server.ts"), serverSource);
       await writeModule(
+        path.join(tempDir, "src/utils/security.ts"),
+        `export function requiredSecret(name) {
+  return process.env[name];
+}
+`,
+      );
+      await writeModule(
         path.join(tempDir, "src/app.ts"),
         `export function createApp(auth) {
   globalThis.__templateServerTestState.createAppCalls.push(auth);
@@ -276,14 +293,17 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
 `,
       );
 
-      process.env.JWT_SECRET = "jwt-secret";
-      process.env.REFRESH_SECRET = "refresh-secret";
+      process.env.JWT_SECRET = "jwt-secret-must-be-at-least-32-characters";
+      process.env.REFRESH_SECRET = "refresh-secret-must-be-at-least-32-characters";
 
       await importServer(path.join(tempDir, "src/server.ts"));
 
       assert.equal(state.dotenvConfigCalls, 1);
       assert.deepEqual(state.createAuthenik8Calls, [
-        { jwtSecret: "jwt-secret", refreshSecret: "refresh-secret" },
+        {
+          jwtSecret: "jwt-secret-must-be-at-least-32-characters",
+          refreshSecret: "refresh-secret-must-be-at-least-32-characters",
+        },
       ]);
       assert.equal(state.createAppCalls.length, 1);
       assert.equal(state.createAppCalls[0], globalThis.__templateServerAuthInstance);
@@ -325,6 +345,12 @@ test("templates/express-auth+/src/server.ts initializes auth, mounts routes, and
         `export async function initAuth() {
   globalThis.__templateServerTestState.initAuthCalls += 1;
 }
+export function getAuth() {
+  return {
+    helmet: "helmet",
+    rateLimit: "rate-limit",
+  };
+}
 `,
       );
       await writeModule(
@@ -349,6 +375,8 @@ test("templates/express-auth+/src/server.ts initializes auth, mounts routes, and
       assert.equal(state.expressJsonCalls, 1);
       assert.deepEqual(state.appUseCalls, [
         ["json-middleware"],
+        ["helmet"],
+        ["rate-limit"],
         ["/auth", "password-routes"],
         ["/auth", "oauth-routes"],
         ["/", "protected-routes"],

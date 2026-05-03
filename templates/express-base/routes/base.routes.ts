@@ -11,6 +11,9 @@ export const createBaseRoutes = (auth: any) => {
   router.post("/refresh", controller.refresh);
 
   router.get("/admin", auth.requireAdmin, controller.admin);
+  router.get("/admin/sessions/:userId", auth.requireAdmin, controller.listSessions);
+  router.delete("/admin/sessions/:userId/:sessionId", auth.requireAdmin, controller.revokeSession);
+  router.delete("/admin/sessions/:userId", auth.requireAdmin, controller.revokeAllSessions);
 
   return router;
 };

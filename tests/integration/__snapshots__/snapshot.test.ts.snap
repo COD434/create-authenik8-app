@@ -47,13 +47,115 @@ import { createProtectedRoutes } from "./routes/protected.routes";
 export const createApp = (auth: any) => {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "16kb", strict: true }));
+
+  app.use(auth.helmet);
+  app.use(auth.rateLimit);
 
   app.use("/auth", createAuthRoutes(auth));
   app.use("/", createProtectedRoutes(auth));
 
   return app;
 };",
+    "src/controllers/auth.controller.ts": "import { Request, Response } from "express";
+import { AuthService } from "../services/auth.services";
+import { parseCredentials, parseRefreshToken } from "../utils/security";
+
+export const createAuthController = (auth: any) => ({
+  async register(req: Request, res: Response) {
+    try {
+      const { email, password } = parseCredentials(req.body);
+
+      const user = await AuthService.register(email, password);
+
+      res.json({ message: "User created", userId: user.id });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message || "Invalid registration request" });
+    }
+  },
+
+  async login(req: Request, res: Response) {
+    try {
+      const { email, password } = parseCredentials(req.body);
+
+      const user = await AuthService.login(email, password);
+
+      const accessToken = auth.signToken({
+        userId: user.id,
+        email: user.email,
+      });
+
+      const refreshToken = await auth.generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+      });
+
+      res.json({ accessToken, refreshToken });
+    } catch {
+      res.status(401).json({ error: "Invalid credentials" });
+    }
+  },
+
+  async refresh(req: Request, res: Response) {
+    try {
+      const refreshToken = parseRefreshToken(req.body);
+      const tokens = await auth.refreshToken(refreshToken);
+      res.json(tokens);
+    } catch {
+      res.status(401).json({ error: "Invalid refresh token" });
+    }
+  },
+});",
+    "src/controllers/protected.controller.ts": "import { Request, Response } from "express";
+import { sanitizeSessionResponse } from "../utils/security";
+
+export const createProtectedController = () => ({
+  protected(req: Request, res: Response) {
+    res.json({ message: "Protected route" });
+  },
+
+  async listSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      const sessions = await actions.listSessions(req.params.userId);
+      res.json({ sessions: sanitizeSessionResponse(sessions) });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    }
+  },
+
+  async revokeSession(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      res.json({ success: true, message: "Session revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    }
+  },
+
+  async revokeAllSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeAllSessions(req.params.userId);
+      res.json({ success: true, message: "All sessions revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    }
+  },
+});",
     "src/routes/auth.routes.ts": "import { Router } from "express";
 import { createAuthController } from "../controllers/auth.controller";
 
@@ -68,13 +170,16 @@ export const createAuthRoutes = (auth: any) => {
   return router;
 };",
     "src/routes/protected.routes.ts": "import { Router } from "express";
+import { createProtectedController } from "../controllers/protected.controller";
 
 export const createProtectedRoutes = (auth: any) => {
   const router = Router();
+  const controller = createProtectedController();
 
-  router.get("/protected", auth.requireAdmin, (req, res) => {
-    res.json({ message: "Protected route" });
-  });
+  router.get("/protected", auth.requireAdmin, controller.protected);
+  router.get("/admin/sessions/:userId", auth.requireAdmin, controller.listSessions);
+  router.delete("/admin/sessions/:userId/:sessionId", auth.requireAdmin, controller.revokeSession);
+  router.delete("/admin/sessions/:userId", auth.requireAdmin, controller.revokeAllSessions);
 
   return router;
 };",
@@ -97,6 +202,7 @@ return bcrypt.compare(password, hash);
     "src/app.ts",
     "src/controllers/",
     "src/controllers/auth.controller.ts",
+    "src/controllers/protected.controller.ts",
     "src/prisma/",
     "src/prisma/client.ts",
     "src/routes/",
@@ -107,6 +213,7 @@ return bcrypt.compare(password, hash);
     "src/services/auth.services.ts",
     "src/utils/",
     "src/utils/hash.ts",
+    "src/utils/security.ts",
     "tsconfig.json",
   ],
 }
@@ -147,8 +254,19 @@ model Session {
 
   createdAt DateTime @default(now())
 }",
+    "src/auth/auth.middleware.ts": "import { Request, Response, NextFunction } from "express";
+import { getAuth } from "./auth";
+
+export const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  getAuth().requireAdmin(req, res, next);
+};
+
+export const authMiddleware = (req: Request, res: Response, next: NextFunction) => {
+  getAuth().authenticateJWT(req, res, next);
+};",
     "src/auth/auth.ts": "import { createAuthenik8 } from "authenik8-core";
 import dotenv from "dotenv";
+import { requiredEnv, requiredSecret } from "../utils/security";
 
 dotenv.config();
 
@@ -158,19 +276,19 @@ let authInstance: any;
 
 export async function initAuth() {
   authInstance= await createAuthenik8({
-    jwtSecret: process.env.JWT_SECRET!,
-    refreshSecret: process.env.REFRESH_SECRET!,
+    jwtSecret: requiredSecret("JWT_SECRET"),
+    refreshSecret: requiredSecret("REFRESH_SECRET"),
 
     oauth: {
       google: {
-        clientId: process.env.GOOGLE_CLIENT_ID!,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-        redirectUri: "http://localhost:3000/auth/google/callback",
+        clientId: requiredEnv("GOOGLE_CLIENT_ID"),
+        clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
       },
       github: {
-        clientId: process.env.GITHUB_CLIENT_ID!,
-        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
-        redirectUri: "http://localhost:3000/auth/github/callback",
+        clientId: requiredEnv("GITHUB_CLIENT_ID"),
+        clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
       },
     },
   });
@@ -182,124 +300,212 @@ export function getAuth() {
   }
 
   return authInstance;
-}",
-    "src/auth/oauth.routes.ts": "import express from "express";
-import { auth } from "./auth";
+}
 
-const router = express.Router();
-
-// GOOGLE
-router.get("/google", (req, res) => {
-  auth.oauth?.google?.redirect(req, res);
-});
-
-router.get("/google/callback", async (req, res) => {
-  const result = await auth.oauth?.google?.handleCallback(req);
-
-  res.json({
-    provider: "google",
-    ...result,
-  });
-});
-
-// GITHUB
-router.get("/github", (req, res) => {
-  auth.oauth?.github?.redirect(req, res);
-});
-
-router.get("/github/callback", async (req, res) => {
-  const result = await auth.oauth?.github?.handleCallback(req);
-
-  res.json({
-    provider: "github",
-    ...result,
-  });
-});
-
-
-router.get("/google/link", (req, res) => {
-  auth.oauth?.google?.redirect(req, res, "link");
-});
-
-router.get("/github/link", (req, res) => {
-  auth.oauth?.github?.redirect(req, res, "link");
-});
-
-export default router;",
-    "src/auth/password.route.ts": "import { auth } from "./auth";
-import { prisma } from "../prisma/client";
-import { hashPassword, comparePassword } from "../utils/hash";
-import express from "express";
-
-const router = express.Router();
-
-router.post("/register", async (req, res) => {
-  const { email, password } = req.body;
-
-  const user = await prisma.user.create({
-    data: {
-      email,
-      password: await hashPassword(password),
+export const auth = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      return getAuth()[property as keyof ReturnType<typeof getAuth>];
     },
-  });
-
-  res.json({ message: "User created", userId: user.id });
-});
-
-router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  const user = await prisma.user.findUnique({ where: { email } });
-
-  if (!user || !(await comparePassword(password, user.password))) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
-
-  const accessToken = auth.signToken({
-    userId: user.id,
-    email: user.email,
-  });
-
-  const refreshToken = await auth.generateRefreshToken({
-    userId: user.id,
-    email: user.email,
-  });
-
-  res.json({ accessToken, refreshToken });
-});
-
-export default router;",
-    "src/auth/protected.routes.ts": "import express from "express";
+  },
+) as any;",
+    "src/auth/oauth.controller.ts": "import { Request, Response } from "express";
 import { getAuth } from "./auth";
 
+export const oauthController = {
+  googleRedirect(req: Request, res: Response) {
+    getAuth().oauth?.google?.redirect(req, res);
+  },
+
+  async googleCallback(req: Request, res: Response) {
+    const result = await getAuth().oauth?.google?.handleCallback(req);
+
+    res.json({
+      provider: "google",
+      ...result,
+    });
+  },
+
+  githubRedirect(req: Request, res: Response) {
+    getAuth().oauth?.github?.redirect(req, res);
+  },
+
+  async githubCallback(req: Request, res: Response) {
+    const result = await getAuth().oauth?.github?.handleCallback(req);
+
+    res.json({
+      provider: "github",
+      ...result,
+    });
+  },
+
+  googleLink(req: Request, res: Response) {
+    getAuth().oauth?.google?.redirect(req, res, "link");
+  },
+
+  githubLink(req: Request, res: Response) {
+    getAuth().oauth?.github?.redirect(req, res, "link");
+  },
+};",
+    "src/auth/oauth.routes.ts": "import express from "express";
+import { authMiddleware } from "./auth.middleware";
+import { oauthController } from "./oauth.controller";
 
 const router = express.Router();
 
+router.get("/google", oauthController.googleRedirect);
+router.get("/google/callback", oauthController.googleCallback);
+router.get("/github", oauthController.githubRedirect);
+router.get("/github/callback", oauthController.githubCallback);
+router.get("/google/link", authMiddleware, oauthController.googleLink);
+router.get("/github/link", authMiddleware, oauthController.githubLink);
 
-router.get("/protected", (req, res, next) => {
+export default router;",
+    "src/auth/password.controller.ts": "import { Request, Response } from "express";
+import { getAuth } from "./auth";
+import { prisma } from "../prisma/client";
+import { hashPassword, comparePassword } from "../utils/hash";
+import { parseCredentials } from "../utils/security";
 
-	const auth = getAuth()
+export const passwordController = {
+  async register(req: Request, res: Response) {
+    try {
+      const { email, password } = parseCredentials(req.body);
 
-   auth.requireAdmin(req, res, next);
-}, (req, res) => {
-  res.json({ message: "Protected route" });
-});
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({ error: "Email is already registered" });
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: await hashPassword(password),
+        },
+      });
+
+      res.json({ message: "User created", userId: user.id });
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message || "Invalid registration request" });
+    }
+  },
+
+  async login(req: Request, res: Response) {
+    try {
+      const { email, password } = parseCredentials(req.body);
+      const user = await prisma.user.findUnique({ where: { email } });
+
+      if (!user || !(await comparePassword(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const auth = getAuth();
+      const accessToken = auth.signToken({
+        userId: user.id,
+        email: user.email,
+      });
+
+      const refreshToken = await auth.generateRefreshToken({
+        userId: user.id,
+        email: user.email,
+      });
+
+      res.json({ accessToken, refreshToken });
+    } catch {
+      res.status(401).json({ error: "Invalid credentials" });
+    }
+  },
+};",
+    "src/auth/password.route.ts": "import express from "express";
+import { passwordController } from "./password.controller";
+
+const router = express.Router();
+
+router.post("/register", passwordController.register);
+router.post("/login", passwordController.login);
+
+export default router;",
+    "src/auth/protected.controller.ts": "import { Request, Response } from "express";
+import { sanitizeSessionResponse } from "../utils/security";
+
+export const protectedController = {
+  protected(req: Request, res: Response) {
+    res.json({ message: "Protected route" });
+  },
+
+  async listSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      const sessions = await actions.listSessions(req.params.userId);
+      res.json({ sessions: sanitizeSessionResponse(sessions) });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    }
+  },
+
+  async revokeSession(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      res.json({ success: true, message: "Session revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    }
+  },
+
+  async revokeAllSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeAllSessions(req.params.userId);
+      res.json({ success: true, message: "All sessions revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    }
+  },
+};",
+    "src/auth/protected.routes.ts": "import express from "express";
+import { adminMiddleware } from "./auth.middleware";
+import { protectedController } from "./protected.controller";
+
+const router = express.Router();
+
+router.get("/protected", adminMiddleware, protectedController.protected);
+router.get("/admin/sessions/:userId", adminMiddleware, protectedController.listSessions);
+router.delete("/admin/sessions/:userId/:sessionId", adminMiddleware, protectedController.revokeSession);
+router.delete("/admin/sessions/:userId", adminMiddleware, protectedController.revokeAllSessions);
 
 export default router;",
     "src/server.ts": "import express from "express";
 import passwordRoutes from "./auth/password.route";
 import oauthRoutes from "./auth/oauth.routes";
 import protectedRoutes from "./auth/protected.routes";
-import { initAuth } from "./auth/auth";
-const app = express();
-app.use(express.json());
-
-app.use("/auth", passwordRoutes);
-app.use("/auth", oauthRoutes);
-app.use("/", protectedRoutes);
+import { getAuth, initAuth } from "./auth/auth";
 
 async function start(){
-	await initAuth();
+		await initAuth();
+  const auth = getAuth();
+  const app = express();
+
+  app.use(express.json({ limit: "16kb", strict: true }));
+  app.use(auth.helmet);
+  app.use(auth.rateLimit);
+
+  app.use("/auth", passwordRoutes);
+  app.use("/auth", oauthRoutes);
+  app.use("/", protectedRoutes);
 
   app.listen(3000, () => {
     console.log("Auth system running on http://localhost:3000");
@@ -341,15 +547,20 @@ return bcrypt.compare(password, hash);
     "prisma/schema.prisma",
     "src/",
     "src/auth/",
+    "src/auth/auth.middleware.ts",
     "src/auth/auth.ts",
+    "src/auth/oauth.controller.ts",
     "src/auth/oauth.routes.ts",
+    "src/auth/password.controller.ts",
     "src/auth/password.route.ts",
+    "src/auth/protected.controller.ts",
     "src/auth/protected.routes.ts",
     "src/prisma/",
     "src/prisma/client.ts",
     "src/server.ts",
     "src/utils/",
     "src/utils/hash.ts",
+    "src/utils/security.ts",
     "tsconfig.json",
   ],
 }
@@ -364,7 +575,7 @@ import { createBaseRoutes } from "./routes/base.routes";
 export const createApp = (auth: any) => {
   const app = express();
 
-  app.use(express.json());
+  app.use(express.json({ limit: "16kb", strict: true }));
 
   app.use(auth.helmet);
   app.use(auth.rateLimit);
@@ -373,6 +584,86 @@ export const createApp = (auth: any) => {
 
   return app;
 };",
+    "controllers/base.controller.ts": "import { Request, Response } from "express";
+import { getBearerToken, parseRefreshToken, sanitizeSessionResponse } from "../utils/security";
+
+export const createBaseController = (auth: any) => ({
+  publicRoute(req: Request, res: Response) {
+    res.json({ message: "Public route" });
+  },
+
+  async guest(req: Request, res: Response) {
+    const token = await auth.guestToken({ role: "guest" });
+    res.json({ token });
+  },
+
+  async protected(req: Request, res: Response) {
+    const token = getBearerToken(req.headers.authorization);
+
+    try {
+      const decoded = await auth.verifyToken(token);
+      res.json({ message: "Protected data", user: decoded });
+    } catch {
+      res.status(401).json({ error: "Unauthorized" });
+    }
+  },
+
+  async refresh(req: Request, res: Response) {
+    try {
+      const refreshToken = parseRefreshToken(req.body);
+      const tokens = await auth.refreshToken(refreshToken);
+      res.json(tokens);
+    } catch {
+      res.status(401).json({ error: "Invalid refresh token" });
+    }
+  },
+
+  admin(req: Request, res: Response) {
+    res.json({ message: "Admin only" });
+  },
+
+  async listSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      const sessions = await actions.listSessions(req.params.userId);
+      res.json({ sessions: sanitizeSessionResponse(sessions) });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    }
+  },
+
+  async revokeSession(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      res.json({ success: true, message: "Session revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    }
+  },
+
+  async revokeAllSessions(req: Request, res: Response) {
+    try {
+      const actions = (req as any).adminActions;
+      if (!actions) {
+        return res.status(503).json({ success: false, message: "Session management unavailable" });
+      }
+
+      await actions.revokeAllSessions(req.params.userId);
+      res.json({ success: true, message: "All sessions revoked" });
+    } catch {
+      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    }
+  },
+});",
     "prisma/schema.prisma": "generator client {
   provider = "prisma-client-js"
 }
@@ -418,19 +709,23 @@ export const createBaseRoutes = (auth: any) => {
   router.post("/refresh", controller.refresh);
 
   router.get("/admin", auth.requireAdmin, controller.admin);
+  router.get("/admin/sessions/:userId", auth.requireAdmin, controller.listSessions);
+  router.delete("/admin/sessions/:userId/:sessionId", auth.requireAdmin, controller.revokeSession);
+  router.delete("/admin/sessions/:userId", auth.requireAdmin, controller.revokeAllSessions);
 
   return router;
 };",
     "src/server.ts": "import dotenv from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
+import { requiredSecret } from "../utils/security";
 
 dotenv.config();
 
 async function start() {
   const auth = await createAuthenik8({
-    jwtSecret: process.env.JWT_SECRET!,
-    refreshSecret: process.env.REFRESH_SECRET!,
+    jwtSecret: requiredSecret("JWT_SECRET"),
+    refreshSecret: requiredSecret("REFRESH_SECRET"),
   });
 
   const app = createApp(auth);
@@ -471,6 +766,8 @@ start();",
     "src/",
     "src/server.ts",
     "tsconfig.json",
+    "utils/",
+    "utils/security.ts",
   ],
 }
 `;
