@@ -2,3 +2,7 @@ node_modules
 dist
 .env
 *.log
+coverage/
+src/tests/**/*.js
+src/tests/**/*.d.ts
+src/tests/**/*.js.map

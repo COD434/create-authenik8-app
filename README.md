@@ -1,23 +1,31 @@
 
-<h1 align="center">⚡ create-authenik8-app</h1>
+<h1 align="center">✨ create-authenik8-app ✨</h1>
 
+<p align="center">
+  <i>Launch secure, production-ready authentication in seconds.</i>
+</p>
+
+<p align="center">
+  If this saved you time, a ⭐ helps a lot
+</p>
 
 
 <p align="center">
   <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
   </p>
 
-  ![TypeScript](https://img.shields.io/badge/TypeScript-ready-blue)
-![Node](https://img.shields.io/badge/node-%3E=18-green)
-![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)
-![Maintained](https://img.shields.io/badge/maintained-yes-success)
-
+![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
+![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
+[![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
-<p align="center">
-  <img src="./assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif" width="600" />
-</p>
+
+ ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif)
+
+
+**See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
 ---
@@ -26,15 +34,17 @@
 
 Create a new project:
 
+```
 bash
 npx create-authenik8-app my-app
 
-Then:
-
 cd my-app
-redis-server --daemonize yes
-npm run dev
 
+redis-server --daemonize yes
+
+npm run dev
+```
+Your production-ready auth backend will be ready in 50 seconds.
 
 ---
 
@@ -42,9 +52,9 @@ npm run dev
 
 • A fully working Express authentication starter with:
 
-• JWT authentication (access + refresh tokens)
+• JWT authentication (access + refresh tokens) with secure rotation
 
-•  Secure refresh token rotation
+• Secure refresh token rotation
 
 • Redis-based token storage
 
@@ -58,22 +68,22 @@ npm run dev
 
 • .env file generated automatically
 
+• Production extras (PM2 cluster, Helmet, rate limiting, memory guards)
 
 
 ---
 
-## Why Authenik8?
+## Why create-authenik8-app
 
-Authentication systems usually require:
+Most developers waste days (or weeks) on:
 
-manual JWT setup
+• Manual JWT setup
 
-refresh token handling
+• Secure refresh token handling
 
-Redis/session configuration
+• Redis session configuration
 
-access control logic
-
+• Proper access control 
 
 Authenik8 provides all of this out of the box so you can start building your API immediately.
 
@@ -82,20 +92,16 @@ Authenik8 provides all of this out of the box so you can start building your API
 
 ## Requirements
 
-Node.js 18+
+• Node.js 18+
 
-Redis (required for refresh tokens)
+• Redis (required for refresh tokens & security features)
 
+Redis (Local)
+```
+Bash
 
-
----
-
- ## Redis Setup
- 
-Local
-
-redis-server --daemomize yes
-
+redis-server --daemonize yes
+```
 
 ---
 
@@ -103,86 +109,172 @@ redis-server --daemomize yes
 
 Generated automatically:
 
+The CLI generates these automatically:
 
+```
 JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
-
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-
+```
 
 
 ---
-
 
 
 ## RBAC Example
 
 Example of a protected route:
-``
+```
 app.get("/admin", auth.requireAdmin, (req, res) => {
   res.json({ message: "Admin only route" });
 });
-``
+```
+
+---
+
+### Testing
+
+- Full test suite with ``80%`` coverage (actively improving)
+
+- CI runs tests + coverage on every push and PR
+
+---
+
+## How It Works (Key Concept)
+
+Authenik8 is not just another auth library.
+It is an auth system generator.
+At its core is the Identity Engine ``(authenik8-core)`` that treats authentication as an
+
+# identity resolution problem:
+
+• Unifies credentials (email/password) + OAuth providers
+
+• Prevents duplicate identities
+
+• Handles account linking intelligently
+
+• Normalizes data across providers
+
+This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 
 ---
 ## Powered by
 
-authenik8-core
+authenik8-core (v1.0.29)  battle-tested identity & token engine
 
 ---
 
-## Design Goal
+## Production Enhancements
 
-Authenik8 is not an auth library.
-It is an auth system generator.
-It removes setup time and enforces consistent backend security patterns by default.
+• PM2 cluster mode + auto-restart
 
-Authenik8 treats authentication as an identity resolution problem, not just a login system.
+• Memory usage guardrails
 
-At the core is an Identity Engine that ensures consistent user identity across:
-- credentials (email/password)
-- OAuth providers
-- future authentication strategies
+• Security middleware (Helmet, rate limiting, etc.)
 
 ---
 
-## OAuth
+## The Identity Engine
 
-• Google
-• Github
-OAuth in Authenik8 is not a direct provider integration layer.
-
-It is implemented through an internal Identity Engine that sits inside `authenik8-core`.
-
-The Identity Engine is responsible for:
-- Resolving OAuth profiles into system identities
-- Handling login vs account linking flows
-- Preventing duplicate identity creation across providers
-- Normalizing provider-specific user data into a unified schema
-
-This allows OAuth support to remain consistent regardless of provider complexity.
+At the heart of Authenik8 is the **Identity Engine** , a unified authentication core built into `authenik8-core`.
 
 ---
 
-### Production Enhancements
+### Why a dedicated Identity Engine?
 
-- PM2 cluster mode support
-- Auto restart on crashes
-- Memory usage guardrails
-- Basic security middleware (helmet, rate limiting)
+Traditional auth systems treat login as separate, isolated flows:
+
+• Email/password goes one way
+
+• Google OAuth another way
+
+• GitHub yet another
+
+This leads to duplicate accounts, inconsistent data, fragile linking logic, and security gaps.
+
+The **Identity Engine** solves this by treating authentication as an **identity resolution problem** instead of just credential validation.
+
+---
+
+### What the Identity Engine does
+
+• **Unified Identity Resolution**  
+  It intelligently resolves any login method (credentials, OAuth, or future strategies) into a single, consistent user identity in your system.
+
+• **Smart Account Linking**  
+  Automatically detects when a user already exists (via email or other signals) and offers secure linking instead of creating duplicates.
+
+• **Profile Normalization**  
+  Converts provider-specific data (Google profile, GitHub profile, etc.) into your app’s clean, unified user schema.
+
+• **Secure Token Lifecycle Management**  
+  Handles JWT access + refresh tokens with rotation, JTI-based replay protection, and Redis-backed stateful control.
+
+- **Consistent Security Layer**  
+  Applies the same high-security rules (rate limiting, IP awareness, session controls) across all authentication methods.
+
+---
+
+### OAuth Through the Identity Engine
+
+OAuth (Google, GitHub, and more coming) is **not** implemented as direct Passport.js-style routes. Instead:
+
+1. The provider callback is received
+
+2. The Identity Engine resolves/normalizes the profile
+
+3. It decides: login existing user, link to existing account, or create new identity
+
+4. Returns consistent tokens and user data
+
+This design makes adding new providers or authentication methods much cleaner and more secure.
+
+---
+
+## Authenik8 vs Passport.js
+
+| Aspect                    | **Authenik8**                                      | **Passport.js**                          |
+|---------------------------|----------------------------------------------------|------------------------------------------|
+| **Purpose**               | Full auth system generator                         | Authentication middleware                |
+| **Setup Time**            | \~30 seconds (complete project)                     | Hours to days                            |
+| **JWT + Refresh Tokens**  | Secure rotation + replay protection built-in       | Manual implementation required           |
+| **OAuth**                 | Unified via Identity Engine (smart linking)       | Separate strategies per provider         |
+| **RBAC**                  | Built-in middleware                                | Not included                             |
+| **Production Features**   | PM2, Helmet, rate limiting, memory guards          | None (you add them)                      |
+| **Identity Management**   | Centralized Identity Engine                        | None                                     |
+| **Flexibility**           | Medium (opinionated & extensible)                  | Very high                                |
+| **Best For**              | Fast, secure, consistent backends                  | Maximum customization                    |
 
 
+Passport.js is a great flexible tool, but it leaves you to build secure JWT, refresh logic, OAuth linking, and RBAC yourself.
+Authenik8 gives you a complete, production-ready authentication system from day one.
+
+
+---
+
+### Benefits for you
+
+• No more duplicate user headaches
+
+• Consistent security behavior across all login methods
+
+• Easier future-proofing (MFA, WebAuthn, enterprise SSO, etc.)
+
+• Cleaner, more maintainable codebase in your generated project
+
+The Identity Engine is what makes Authenik8 feel like a coherent **authentication system** rather than a collection of routes and middleware.
 
 ---
 
 ## Notes
 
-Redis is required for refresh token handling
+• This generates a starter project, not a full framework
 
-This CLI generates a starter project, not a full framework
+• Redis is mandatory for security features
 
-RBAC is included via middleware (e.g. requireAdmin)
+• authenik8-core is closed-source for security reasons (implementation details)
 
 
 

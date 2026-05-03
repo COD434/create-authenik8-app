@@ -1,0 +1,476 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`generator snapshots > 'express-auth' folder tree and key files match the snapshot 1`] = `
+{
+  "keyFiles": {
+    "prisma/schema.prisma": "generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      Role     @default(USER)
+  verified  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  Session[]
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
+}",
+    "src/app.ts": "import express from "express";
+import { createAuthRoutes } from "./routes/auth.routes";
+import { createProtectedRoutes } from "./routes/protected.routes";
+
+export const createApp = (auth: any) => {
+  const app = express();
+
+  app.use(express.json());
+
+  app.use("/auth", createAuthRoutes(auth));
+  app.use("/", createProtectedRoutes(auth));
+
+  return app;
+};",
+    "src/routes/auth.routes.ts": "import { Router } from "express";
+import { createAuthController } from "../controllers/auth.controller";
+
+export const createAuthRoutes = (auth: any) => {
+  const router = Router();
+  const controller = createAuthController(auth);
+
+  router.post("/register", controller.register);
+  router.post("/login", controller.login);
+  router.post("/refresh", controller.refresh);
+
+  return router;
+};",
+    "src/routes/protected.routes.ts": "import { Router } from "express";
+
+export const createProtectedRoutes = (auth: any) => {
+  const router = Router();
+
+  router.get("/protected", auth.requireAdmin, (req, res) => {
+    res.json({ message: "Protected route" });
+  });
+
+  return router;
+};",
+    "src/utils/hash.ts": "import bcrypt from "bcryptjs";
+
+export const hashPassword = (password: string) => {
+return bcrypt.hash(password, 10);
+};
+
+export const comparePassword = (password: string, hash: string) => {
+return bcrypt.compare(password, hash);
+};",
+  },
+  "template": "auth",
+  "tree": [
+    "package.json",
+    "prisma/",
+    "prisma/schema.prisma",
+    "src/",
+    "src/app.ts",
+    "src/controllers/",
+    "src/controllers/auth.controller.ts",
+    "src/prisma/",
+    "src/prisma/client.ts",
+    "src/routes/",
+    "src/routes/auth.routes.ts",
+    "src/routes/protected.routes.ts",
+    "src/server.ts",
+    "src/services/",
+    "src/services/auth.services.ts",
+    "src/utils/",
+    "src/utils/hash.ts",
+    "tsconfig.json",
+  ],
+}
+`;
+
+exports[`generator snapshots > 'express-auth-oauth' folder tree and key files match the snapshot 1`] = `
+{
+  "keyFiles": {
+    "prisma/schema.prisma": "generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String     @default("USER")
+  verified  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  Session[]
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}",
+    "src/auth/auth.ts": "import { createAuthenik8 } from "authenik8-core";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+let authInstance: any;
+
+
+
+export async function initAuth() {
+  authInstance= await createAuthenik8({
+    jwtSecret: process.env.JWT_SECRET!,
+    refreshSecret: process.env.REFRESH_SECRET!,
+
+    oauth: {
+      google: {
+        clientId: process.env.GOOGLE_CLIENT_ID!,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+        redirectUri: "http://localhost:3000/auth/google/callback",
+      },
+      github: {
+        clientId: process.env.GITHUB_CLIENT_ID!,
+        clientSecret: process.env.GITHUB_CLIENT_SECRET!,
+        redirectUri: "http://localhost:3000/auth/github/callback",
+      },
+    },
+  });
+
+}
+export function getAuth() {
+  if (!authInstance) {
+    throw new Error("Auth not initialized. Call initAuth() first.");
+  }
+
+  return authInstance;
+}",
+    "src/auth/oauth.routes.ts": "import express from "express";
+import { auth } from "./auth";
+
+const router = express.Router();
+
+// GOOGLE
+router.get("/google", (req, res) => {
+  auth.oauth?.google?.redirect(req, res);
+});
+
+router.get("/google/callback", async (req, res) => {
+  const result = await auth.oauth?.google?.handleCallback(req);
+
+  res.json({
+    provider: "google",
+    ...result,
+  });
+});
+
+// GITHUB
+router.get("/github", (req, res) => {
+  auth.oauth?.github?.redirect(req, res);
+});
+
+router.get("/github/callback", async (req, res) => {
+  const result = await auth.oauth?.github?.handleCallback(req);
+
+  res.json({
+    provider: "github",
+    ...result,
+  });
+});
+
+
+router.get("/google/link", (req, res) => {
+  auth.oauth?.google?.redirect(req, res, "link");
+});
+
+router.get("/github/link", (req, res) => {
+  auth.oauth?.github?.redirect(req, res, "link");
+});
+
+export default router;",
+    "src/auth/password.route.ts": "import { auth } from "./auth";
+import { prisma } from "../prisma/client";
+import { hashPassword, comparePassword } from "../utils/hash";
+import express from "express";
+
+const router = express.Router();
+
+router.post("/register", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await prisma.user.create({
+    data: {
+      email,
+      password: await hashPassword(password),
+    },
+  });
+
+  res.json({ message: "User created", userId: user.id });
+});
+
+router.post("/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || !(await comparePassword(password, user.password))) {
+    return res.status(401).json({ error: "Invalid credentials" });
+  }
+
+  const accessToken = auth.signToken({
+    userId: user.id,
+    email: user.email,
+  });
+
+  const refreshToken = await auth.generateRefreshToken({
+    userId: user.id,
+    email: user.email,
+  });
+
+  res.json({ accessToken, refreshToken });
+});
+
+export default router;",
+    "src/auth/protected.routes.ts": "import express from "express";
+import { getAuth } from "./auth";
+
+
+const router = express.Router();
+
+
+router.get("/protected", (req, res, next) => {
+
+	const auth = getAuth()
+
+   auth.requireAdmin(req, res, next);
+}, (req, res) => {
+  res.json({ message: "Protected route" });
+});
+
+export default router;",
+    "src/server.ts": "import express from "express";
+import passwordRoutes from "./auth/password.route";
+import oauthRoutes from "./auth/oauth.routes";
+import protectedRoutes from "./auth/protected.routes";
+import { initAuth } from "./auth/auth";
+const app = express();
+app.use(express.json());
+
+app.use("/auth", passwordRoutes);
+app.use("/auth", oauthRoutes);
+app.use("/", protectedRoutes);
+
+async function start(){
+	await initAuth();
+
+  app.listen(3000, () => {
+    console.log("Auth system running on http://localhost:3000");
+  });
+}
+
+start();
+process.on("uncaughtException", (err) => {
+  console.error(" Uncaught Exception:", err);
+  process.exit(1); 
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error(" Unhandled Rejection:", err);
+  process.exit(1);
+});
+setInterval(() => {
+  const used = process.memoryUsage().heapUsed / 1024 / 1024;
+
+  if (used > 300) {
+    console.error(\` Memory exceeded: \${used.toFixed(2)} MB\`);
+    process.exit(1);
+  }
+}, 10000);",
+    "src/utils/hash.ts": "import bcrypt from "bcryptjs";
+
+export const hashPassword = (password: string) => {
+return bcrypt.hash(password, 10);
+};
+
+export const comparePassword = (password: string, hash: string) => {
+return bcrypt.compare(password, hash);
+};",
+  },
+  "template": "auth-oauth",
+  "tree": [
+    "package.json",
+    "prisma/",
+    "prisma/schema.prisma",
+    "src/",
+    "src/auth/",
+    "src/auth/auth.ts",
+    "src/auth/oauth.routes.ts",
+    "src/auth/password.route.ts",
+    "src/auth/protected.routes.ts",
+    "src/prisma/",
+    "src/prisma/client.ts",
+    "src/server.ts",
+    "src/utils/",
+    "src/utils/hash.ts",
+    "tsconfig.json",
+  ],
+}
+`;
+
+exports[`generator snapshots > 'express-base' folder tree and key files match the snapshot 1`] = `
+{
+  "keyFiles": {
+    "app.ts": "import express from "express";
+import { createBaseRoutes } from "./routes/base.routes";
+
+export const createApp = (auth: any) => {
+  const app = express();
+
+  app.use(express.json());
+
+  app.use(auth.helmet);
+  app.use(auth.rateLimit);
+
+  app.use("/", createBaseRoutes(auth));
+
+  return app;
+};",
+    "prisma/schema.prisma": "generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  role      String     @default("USER")
+  verified  Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions  Session[]
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  expiresAt    DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}",
+    "routes/base.routes.ts": "import { Router } from "express";
+import { createBaseController } from "../controllers/base.controller";
+
+export const createBaseRoutes = (auth: any) => {
+  const router = Router();
+  const controller = createBaseController(auth);
+
+  router.get("/public", controller.publicRoute);
+  router.get("/guest", controller.guest);
+  router.get("/protected", controller.protected);
+  router.post("/refresh", controller.refresh);
+
+  router.get("/admin", auth.requireAdmin, controller.admin);
+
+  return router;
+};",
+    "src/server.ts": "import dotenv from "dotenv";
+import { createAuthenik8 } from "authenik8-core";
+import { createApp } from "../app";
+
+dotenv.config();
+
+async function start() {
+  const auth = await createAuthenik8({
+    jwtSecret: process.env.JWT_SECRET!,
+    refreshSecret: process.env.REFRESH_SECRET!,
+  });
+
+  const app = createApp(auth);
+
+  app.listen(3000, () => {
+    console.log("🚀 Server running on http://localhost:3000");
+  });
+}
+process.on("uncaughtException", (err) => {
+  console.error(" Uncaught Exception:", err);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error(" Unhandled Rejection:", err);
+  process.exit(1);
+});
+setInterval(() => {
+  const used = process.memoryUsage().heapUsed / 1024 / 1024;
+
+  if (used > 300) {
+    console.error(\`Memory exceeded: \${used.toFixed(2)} MB\`);
+    process.exit(1);
+  }
+}, 10000);
+start();",
+  },
+  "template": "base",
+  "tree": [
+    "app.ts",
+    "controllers/",
+    "controllers/base.controller.ts",
+    "package.json",
+    "prisma/",
+    "prisma/schema.prisma",
+    "routes/",
+    "routes/base.routes.ts",
+    "src/",
+    "src/server.ts",
+    "tsconfig.json",
+  ],
+}
+`;
