@@ -22,9 +22,12 @@ export function parseCredentials(body: unknown) {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
+  const atIndex = normalizedEmail.indexOf("@");
+  const dotIndex = normalizedEmail.lastIndexOf(".");
 
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-    throw new Error("A valid email is required");
+
+  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 ||dotIndex === normalizedEmail.length - 1 ) {
+	  throw new Error("A valid email is required");
   }
 
   if (password.length < 8 || password.length > 1024) {

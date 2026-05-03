@@ -96,8 +96,19 @@ const randomBody = (random: () => number) => {
   };
 };
 
-const isValidEmail = (value: unknown) =>
-  typeof value === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim().toLowerCase());
+const isValidEmail = (value: unknown) =>{
+  if (typeof value !== "string") return false;
+  const normalized = value.trim().toLowerCase();
+  const atIndex = normalized.indexOf("@");
+  const dotIndex = normalized.lastIndexOf(".");
+
+  return (
+    atIndex >= 1 &&
+    atIndex === normalized.lastIndexOf("@") &&
+    dotIndex >= atIndex + 2 &&
+    dotIndex < normalized.length - 1
+  );
+};
 
 const isValidPassword = (value: unknown) =>
   typeof value === "string" && value.length >= 8 && value.length <= 1024;
