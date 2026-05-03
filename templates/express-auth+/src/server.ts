@@ -2,16 +2,20 @@ import express from "express";
 import passwordRoutes from "./auth/password.route";
 import oauthRoutes from "./auth/oauth.routes";
 import protectedRoutes from "./auth/protected.routes";
-import { initAuth } from "./auth/auth";
-const app = express();
-app.use(express.json());
-
-app.use("/auth", passwordRoutes);
-app.use("/auth", oauthRoutes);
-app.use("/", protectedRoutes);
+import { getAuth, initAuth } from "./auth/auth";
 
 async function start(){
-	await initAuth();
+		await initAuth();
+  const auth = getAuth();
+  const app = express();
+
+  app.use(express.json({ limit: "16kb", strict: true }));
+  app.use(auth.helmet);
+  app.use(auth.rateLimit);
+
+  app.use("/auth", passwordRoutes);
+  app.use("/auth", oauthRoutes);
+  app.use("/", protectedRoutes);
 
   app.listen(3000, () => {
     console.log("Auth system running on http://localhost:3000");

@@ -1,13 +1,14 @@
 import dotenv from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
+import { requiredSecret } from "../utils/security";
 
 dotenv.config();
 
 async function start() {
   const auth = await createAuthenik8({
-    jwtSecret: process.env.JWT_SECRET!,
-    refreshSecret: process.env.REFRESH_SECRET!,
+    jwtSecret: requiredSecret("JWT_SECRET"),
+    refreshSecret: requiredSecret("REFRESH_SECRET"),
   });
 
   const app = createApp(auth);

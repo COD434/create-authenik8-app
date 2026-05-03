@@ -1,13 +1,25 @@
 import { Request, Response } from "express";
-import { AuthService } from "../services/auth.services";
-import { parseCredentials, parseRefreshToken } from "../utils/security";
+import { getAuth } from "./auth";
+import { prisma } from "../prisma/client";
+import { hashPassword, comparePassword } from "../utils/hash";
+import { parseCredentials } from "../utils/security";
 
-export const createAuthController = (auth: any) => ({
+export const passwordController = {
   async register(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);
 
-      const user = await AuthService.register(email, password);
+      const existingUser = await prisma.user.findUnique({ where: { email } });
+      if (existingUser) {
+        return res.status(400).json({ error: "Email is already registered" });
+      }
+
+      const user = await prisma.user.create({
+        data: {
+          email,
+          password: await hashPassword(password),
+        },
+      });
 
       res.json({ message: "User created", userId: user.id });
     } catch (err) {
@@ -18,9 +30,13 @@ export const createAuthController = (auth: any) => ({
   async login(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);
+      const user = await prisma.user.findUnique({ where: { email } });
 
-      const user = await AuthService.login(email, password);
+      if (!user || !(await comparePassword(password, user.password))) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
 
+      const auth = getAuth();
       const accessToken = auth.signToken({
         userId: user.id,
         email: user.email,
@@ -36,14 +52,4 @@ export const createAuthController = (auth: any) => ({
       res.status(401).json({ error: "Invalid credentials" });
     }
   },
-
-  async refresh(req: Request, res: Response) {
-    try {
-      const refreshToken = parseRefreshToken(req.body);
-      const tokens = await auth.refreshToken(refreshToken);
-      res.json(tokens);
-    } catch {
-      res.status(401).json({ error: "Invalid refresh token" });
-    }
-  },
-});
+};

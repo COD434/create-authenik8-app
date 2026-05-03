@@ -1,43 +1,14 @@
 import express from "express";
-import { auth } from "./auth";
+import { authMiddleware } from "./auth.middleware";
+import { oauthController } from "./oauth.controller";
 
 const router = express.Router();
 
-// GOOGLE
-router.get("/google", (req, res) => {
-  auth.oauth?.google?.redirect(req, res);
-});
-
-router.get("/google/callback", async (req, res) => {
-  const result = await auth.oauth?.google?.handleCallback(req);
-
-  res.json({
-    provider: "google",
-    ...result,
-  });
-});
-
-// GITHUB
-router.get("/github", (req, res) => {
-  auth.oauth?.github?.redirect(req, res);
-});
-
-router.get("/github/callback", async (req, res) => {
-  const result = await auth.oauth?.github?.handleCallback(req);
-
-  res.json({
-    provider: "github",
-    ...result,
-  });
-});
-
-
-router.get("/google/link", (req, res) => {
-  auth.oauth?.google?.redirect(req, res, "link");
-});
-
-router.get("/github/link", (req, res) => {
-  auth.oauth?.github?.redirect(req, res, "link");
-});
+router.get("/google", oauthController.googleRedirect);
+router.get("/google/callback", oauthController.googleCallback);
+router.get("/github", oauthController.githubRedirect);
+router.get("/github/callback", oauthController.githubCallback);
+router.get("/google/link", authMiddleware, oauthController.googleLink);
+router.get("/github/link", authMiddleware, oauthController.githubLink);
 
 export default router;

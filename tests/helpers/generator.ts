@@ -176,6 +176,9 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
     rateLimit(req, res, next) {
       if (typeof next === "function") next();
     },
+    authenticateJWT(req, res, next) {
+      if (typeof next === "function") next();
+    },
     requireAdmin(req, res, next) {
       if (typeof next === "function") next();
     },
@@ -228,6 +231,7 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
   return {
     get() {},
     post() {},
+    delete() {},
     use() {},
   };
 }
@@ -331,12 +335,14 @@ await import(${JSON.stringify(entryImportPath)});
       env: {
         ...process.env,
         NODE_ENV: "test",
-        JWT_SECRET: "test-jwt-secret",
-        REFRESH_SECRET: "test-refresh-secret",
+        JWT_SECRET: "test-jwt-secret-must-be-at-least-32-characters",
+        REFRESH_SECRET: "test-refresh-secret-must-be-at-least-32-characters",
         GOOGLE_CLIENT_ID: "google-client-id",
         GOOGLE_CLIENT_SECRET: "google-client-secret",
+        GOOGLE_REDIRECT_URI: "https://example.com/auth/google/callback",
         GITHUB_CLIENT_ID: "github-client-id",
         GITHUB_CLIENT_SECRET: "github-client-secret",
+        GITHUB_REDIRECT_URI: "https://example.com/auth/github/callback",
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
