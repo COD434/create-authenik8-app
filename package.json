@@ -1,6 +1,6 @@
 {
   "name": "create-authenik8-app",
-  "version": "2.3.5",
+  "version": "2.4.0",
   "description": "⚡ Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
   "bin": {
     "create-authenik8-app": "dist/index.js"
