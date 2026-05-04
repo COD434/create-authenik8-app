@@ -61,6 +61,6 @@
     "url": "https://github.com/COD434/create-authenik8-app.git"
   },
   "overrides": {
-    "brace-expansion": "3.0.2"
+    "brace-expansion": "1.1.13"
   }
 }
