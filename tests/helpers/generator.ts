@@ -29,6 +29,7 @@ export type GenerateProjectOptions = {
   usePrisma?: boolean;
   productionRuntime?: "node" | "bun";
   hashLib?: "argon2" | "bcryptjs";
+  oauthProviders?: string[];
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -82,6 +83,7 @@ export async function generateProjectFixture(
     database: options.database ?? "sqlite",
     useGit: false,
     runtime: options.productionRuntime,
+    oauthProviders: options.oauthProviders,
   };
 
   await createProject(state, targetDir, templateRoot);

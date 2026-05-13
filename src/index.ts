@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from "fs-extra";
+import  fs from "fs-extra";
 import path from "path";
 import chalk from "chalk";
 import { ExitPromptError } from "@inquirer/core";
@@ -34,7 +34,7 @@ const projectName: string = projectNameArg;
 const isProduction = args.includes("--production-ready");
 const isResume = args.includes("--resume");
 const targetDir = path.resolve(process.cwd(), projectName);
-const templateRoot = path.resolve(__dirname, "../templates");
+const templateRoot = path.resolve(__dirname, "../../templates");
 const globalStateDir = path.join(process.cwd(), ".authenik8");
 const stateFile = path.join(globalStateDir, `${projectName}.json`);
 //handles shutdown during resume

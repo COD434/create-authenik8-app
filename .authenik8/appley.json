@@ -1,0 +1,9 @@
+{
+  "step": "prompts",
+  "projectName": "appley",
+  "framework": "Express",
+  "authMode": "base",
+  "usePrisma": true,
+  "database": "sqlite",
+  "useGit": true
+}

@@ -1,0 +1,13 @@
+{
+  "step": "prompts",
+  "projectName": "appy",
+  "framework": "Express",
+  "authMode": "auth-oauth",
+  "oauthProviders": [
+    "google",
+    "github"
+  ],
+  "database": "sqlite",
+  "useGit": true,
+  "usePrisma": true
+}

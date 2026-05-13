@@ -20,6 +20,7 @@ export type CliState = {
   useGit?: boolean;
   authMode?: string;
   hashLib?: string;
+  oauthProviders?: string[];
 };
 
 export type RunOptions = {

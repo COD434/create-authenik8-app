@@ -29,6 +29,11 @@ describe('installDeps.ts', () => {
       expect(detectPackageManager()).toBe('bun');
     });
 
+    it('returns "npm" when npm_execpath contains npm', () => {
+      process.env.npm_execpath = '/usr/local/bin/npm-cli.js';
+      expect(detectPackageManager()).toBe('npm');
+    });
+
     it('returns "pnpm" when pnpm command succeeds', () => {
       vi.mocked(execSync).mockImplementationOnce(() => {});
       expect(detectPackageManager()).toBe('pnpm');

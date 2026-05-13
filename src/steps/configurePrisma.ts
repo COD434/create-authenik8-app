@@ -30,9 +30,19 @@ export async function configurePrisma(
       );
 
       await fs.copy(
-        path.join(prismaTemplatePath, ".env"),
+        path.join(prismaTemplatePath, ".env.example"),
         path.join(targetDir, ".env")
       );
+
+      const providers = state.authMode === "auth-oauth"
+        ? (state.oauthProviders?.length ? state.oauthProviders : ["google", "github"])
+        : [];
+      if (providers.length > 0) {
+        await fs.appendFile(
+          path.join(targetDir, ".env"),
+          `\nAUTHENIK8_OAUTH_PROVIDERS="${providers.join(",")}"\n`
+        );
+      }
 
       pkg.dependencies = {
         ...pkg.dependencies,

@@ -40,7 +40,7 @@ enum Role {
   USER
   ADMIN
 }",
-    "src/app.ts": "import express from "express";
+    "src/app.ts": "import  express from "express";
 import { createAuthRoutes } from "./routes/auth.routes";
 import { createProtectedRoutes } from "./routes/protected.routes";
 
@@ -195,6 +195,9 @@ return bcrypt.compare(password, hash);
   },
   "template": "auth",
   "tree": [
+    "README.md",
+    "THREAT_MODEL.md",
+    "docker-compose.yml",
     "package.json",
     "prisma/",
     "prisma/schema.prisma",
@@ -265,12 +268,49 @@ export const authMiddleware = (req: Request, res: Response, next: NextFunction) 
   getAuth().authenticateJWT(req, res, next);
 };",
     "src/auth/auth.ts": "import { createAuthenik8 } from "authenik8-core";
-import dotenv from "dotenv";
+import dotenv  from "dotenv";
 import { requiredEnv, requiredSecret } from "../utils/security";
 
 dotenv.config();
 
 let authInstance: any;
+
+function enabledOAuthProviders() {
+  const configured = process.env.AUTHENIK8_OAUTH_PROVIDERS;
+  if (!configured || configured.trim().length === 0) {
+    return new Set(["google", "github"]);
+  }
+
+  return new Set(
+    configured
+      .split(",")
+      .map((provider) => provider.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function oauthConfig() {
+  const enabled = enabledOAuthProviders();
+  const oauth: Record<string, unknown> = {};
+
+  if (enabled.has("google")) {
+    oauth.google = {
+      clientId: requiredEnv("GOOGLE_CLIENT_ID"),
+      clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+      redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
+    };
+  }
+
+  if (enabled.has("github")) {
+    oauth.github = {
+      clientId: requiredEnv("GITHUB_CLIENT_ID"),
+      clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
+      redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
+    };
+  }
+
+  return oauth;
+}
 
 
 
@@ -278,19 +318,7 @@ export async function initAuth() {
   authInstance= await createAuthenik8({
     jwtSecret: requiredSecret("JWT_SECRET"),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
-
-    oauth: {
-      google: {
-        clientId: requiredEnv("GOOGLE_CLIENT_ID"),
-        clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
-        redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
-      },
-      github: {
-        clientId: requiredEnv("GITHUB_CLIENT_ID"),
-        clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
-        redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
-      },
-    },
+    oauth: oauthConfig(),
   });
 
 }
@@ -313,13 +341,27 @@ export const auth = new Proxy(
     "src/auth/oauth.controller.ts": "import { Request, Response } from "express";
 import { getAuth } from "./auth";
 
+function requireProvider(provider: "google" | "github", res: Response) {
+  const oauthProvider = getAuth().oauth?.[provider];
+
+  if (!oauthProvider) {
+    res.status(404).json({ error: \`\${provider} OAuth is not configured\` });
+    return undefined;
+  }
+
+  return oauthProvider;
+}
+
 export const oauthController = {
   googleRedirect(req: Request, res: Response) {
-    getAuth().oauth?.google?.redirect(req, res);
+    requireProvider("google", res)?.redirect(req, res);
   },
 
   async googleCallback(req: Request, res: Response) {
-    const result = await getAuth().oauth?.google?.handleCallback(req);
+    const provider = requireProvider("google", res);
+    if (!provider) return;
+
+    const result = await provider.handleCallback(req);
 
     res.json({
       provider: "google",
@@ -328,11 +370,14 @@ export const oauthController = {
   },
 
   githubRedirect(req: Request, res: Response) {
-    getAuth().oauth?.github?.redirect(req, res);
+    requireProvider("github", res)?.redirect(req, res);
   },
 
   async githubCallback(req: Request, res: Response) {
-    const result = await getAuth().oauth?.github?.handleCallback(req);
+    const provider = requireProvider("github", res);
+    if (!provider) return;
+
+    const result = await provider.handleCallback(req);
 
     res.json({
       provider: "github",
@@ -341,11 +386,11 @@ export const oauthController = {
   },
 
   googleLink(req: Request, res: Response) {
-    getAuth().oauth?.google?.redirect(req, res, "link");
+    requireProvider("google", res)?.redirect(req, res, "link");
   },
 
   githubLink(req: Request, res: Response) {
-    getAuth().oauth?.github?.redirect(req, res, "link");
+    requireProvider("github", res)?.redirect(req, res, "link");
   },
 };",
     "src/auth/oauth.routes.ts": "import express from "express";
@@ -542,6 +587,9 @@ return bcrypt.compare(password, hash);
   },
   "template": "auth-oauth",
   "tree": [
+    "README.md",
+    "THREAT_MODEL.md",
+    "docker-compose.yml",
     "package.json",
     "prisma/",
     "prisma/schema.prisma",
@@ -569,7 +617,7 @@ return bcrypt.compare(password, hash);
 exports[`generator snapshots > 'express-base' folder tree and key files match the snapshot 1`] = `
 {
   "keyFiles": {
-    "app.ts": "import express from "express";
+    "app.ts": "import  express  from "express";
 import { createBaseRoutes } from "./routes/base.routes";
 
 export const createApp = (auth: any) => {
@@ -715,7 +763,7 @@ export const createBaseRoutes = (auth: any) => {
 
   return router;
 };",
-    "src/server.ts": "import dotenv from "dotenv";
+    "src/server.ts": "import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
 import { requiredSecret } from "../utils/security";
@@ -755,9 +803,12 @@ start();",
   },
   "template": "base",
   "tree": [
+    "README.md",
+    "THREAT_MODEL.md",
     "app.ts",
     "controllers/",
     "controllers/base.controller.ts",
+    "docker-compose.yml",
     "package.json",
     "prisma/",
     "prisma/schema.prisma",

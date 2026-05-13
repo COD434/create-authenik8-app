@@ -1,4 +1,4 @@
-import express from "express";
+import  express from "express";
 import { createAuthRoutes } from "./routes/auth.routes";
 import { createProtectedRoutes } from "./routes/protected.routes";
 

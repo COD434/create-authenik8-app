@@ -1,4 +1,4 @@
-import express from "express";
+import  express  from "express";
 import { createBaseRoutes } from "./routes/base.routes";
 
 export const createApp = (auth: any) => {
