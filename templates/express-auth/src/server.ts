@@ -1,4 +1,4 @@
-import dotenv from "dotenv";
+import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "./app";
 import { requiredSecret } from "./utils/security";

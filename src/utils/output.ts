@@ -8,8 +8,11 @@ export function printSummary(state: CliState, isProduction: boolean): void {
 Next steps:
 
 cd ${state.projectName}
-redis-server --daemonize yes
+${state.usePrisma ? "npm run prisma:migrate\n" : ""}redis-server --daemonize yes
 npm run dev
+
+Before running, review .env and replace generated development values for deployed environments.
+${state.authMode === "auth-oauth" ? "For OAuth, set real Google/GitHub client IDs, secrets, and redirect URLs in .env.\n" : ""}
 
 Auth Features:
 ${

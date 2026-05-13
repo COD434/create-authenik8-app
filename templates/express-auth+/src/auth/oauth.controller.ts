@@ -1,13 +1,27 @@
 import { Request, Response } from "express";
 import { getAuth } from "./auth";
 
+function requireProvider(provider: "google" | "github", res: Response) {
+  const oauthProvider = getAuth().oauth?.[provider];
+
+  if (!oauthProvider) {
+    res.status(404).json({ error: `${provider} OAuth is not configured` });
+    return undefined;
+  }
+
+  return oauthProvider;
+}
+
 export const oauthController = {
   googleRedirect(req: Request, res: Response) {
-    getAuth().oauth?.google?.redirect(req, res);
+    requireProvider("google", res)?.redirect(req, res);
   },
 
   async googleCallback(req: Request, res: Response) {
-    const result = await getAuth().oauth?.google?.handleCallback(req);
+    const provider = requireProvider("google", res);
+    if (!provider) return;
+
+    const result = await provider.handleCallback(req);
 
     res.json({
       provider: "google",
@@ -16,11 +30,14 @@ export const oauthController = {
   },
 
   githubRedirect(req: Request, res: Response) {
-    getAuth().oauth?.github?.redirect(req, res);
+    requireProvider("github", res)?.redirect(req, res);
   },
 
   async githubCallback(req: Request, res: Response) {
-    const result = await getAuth().oauth?.github?.handleCallback(req);
+    const provider = requireProvider("github", res);
+    if (!provider) return;
+
+    const result = await provider.handleCallback(req);
 
     res.json({
       provider: "github",
@@ -29,10 +46,10 @@ export const oauthController = {
   },
 
   googleLink(req: Request, res: Response) {
-    getAuth().oauth?.google?.redirect(req, res, "link");
+    requireProvider("google", res)?.redirect(req, res, "link");
   },
 
   githubLink(req: Request, res: Response) {
-    getAuth().oauth?.github?.redirect(req, res, "link");
+    requireProvider("github", res)?.redirect(req, res, "link");
   },
 };

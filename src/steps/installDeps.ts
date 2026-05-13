@@ -10,6 +10,7 @@ export function detectPackageManager(): PackageManager {
   try {
     if (process.env.npm_execpath?.includes("pnpm")) return "pnpm";
     if (process.env.npm_execpath?.includes("bun")) return "bun";
+    if (process.env.npm_execpath?.includes("npm")) return "npm";
     execSync("pnpm --version", { stdio: "ignore" });
     return "pnpm";
   } catch {}
@@ -49,4 +50,3 @@ export async function installDependencies(targetDir: string): Promise<void> {
   throw err;
   }
 }
-

@@ -12,10 +12,10 @@ export function resolveTemplateName(authMode: string): string {
 export function configurePackageJson(targetDir: string, usePrisma: boolean): void {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-
   if (!pkg.scripts.postinstall?.includes("prisma")) {
       pkg.scripts.postinstall = "npx prisma@5.22.0 generate";
     }
+
 
   if (usePrisma) {
    const currentDev = pkg.scripts.dev || "tsx watch src/index.ts";
@@ -32,7 +32,15 @@ export async function createProject(
   targetDir: string,
   templateRoot: string
 ): Promise<void> {
+  
   const templateName = resolveTemplateName(state.authMode ?? "base");
   const templatePath = path.join(templateRoot, templateName);
+  const pkgExists = fs.existsSync(path.join(templatePath, "package.json"));
+
+  if (!pkgExists) {
+  throw new Error(`Template "${templateName}" is missing package.json at ${templatePath}`);
+}
   await fs.copy(templatePath, targetDir);
+  await fs.copy(path.join(templateRoot,"THREAT_MODEL.md"), path.join(targetDir, "THREAT_MODEL.md"));
+
 }

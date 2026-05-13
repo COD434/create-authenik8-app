@@ -34,11 +34,12 @@
 
 Create a new project:
 
-```
-bash
+```bash
 npx create-authenik8-app my-app
 
 cd my-app
+
+npm run prisma:migrate
 
 redis-server --daemonize yes
 
@@ -112,10 +113,22 @@ Generated automatically:
 The CLI generates these automatically:
 
 ```
+DATABASE_URL=file:./dev.db
 JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
+```
+
+For Full Auth (Password + OAuth), also set:
+
+```bash
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
 ```
 
 
@@ -162,7 +175,142 @@ This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 ---
 ## Powered by
 
-authenik8-core (v1.0.29)  battle-tested identity & token engine
+authenik8-core (v1.0.33)  identity & token engine(beta)
+
+---
+
+## How authenik8-core works in generated apps
+
+Generated projects call:
+
+```ts
+const auth = await createAuthenik8({
+  jwtSecret: requiredSecret("JWT_SECRET"),
+  refreshSecret: requiredSecret("REFRESH_SECRET"),
+  oauth: {
+    google: {
+      clientId: requiredEnv("GOOGLE_CLIENT_ID"),
+      clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+      redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
+    },
+    github: {
+      clientId: requiredEnv("GITHUB_CLIENT_ID"),
+      clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
+      redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
+    },
+  },
+});
+```
+
+That factory returns one auth object used by the generated routes:
+
+• `signToken(payload)` creates access tokens.
+
+• `verifyToken(token)` verifies access tokens.
+
+• `generateRefreshToken(payload)` creates stateful refresh tokens.
+
+• `refreshToken(refreshToken)` rotates refresh tokens and returns a new access/refresh pair.
+
+• `helmet`, `rateLimit`, and `ipWhitelist` are Express middleware.
+
+• `requireAdmin` protects admin-only routes by checking `role: "admin"`.
+
+• `oauth.google` and `oauth.github` provide redirect and callback handlers.
+
+• `issueTokensFromProfile(profile)` turns a verified OAuth profile into app tokens through the Identity Engine.
+
+### Redis-backed token lifecycle
+
+Authenik8-core intentionally makes JWT auth stateful:
+
+1. Access tokens are signed with `JWT_SECRET`.
+2. Refresh tokens are signed with `REFRESH_SECRET` and include a unique `jti`.
+3. The current valid refresh token is stored in Redis under `refresh:<userId>`.
+4. Refresh calls acquire a Redis lock with `lock:<userId>`.
+5. The submitted refresh token must match the Redis value.
+6. A new access token and refresh token are issued.
+7. The new refresh token atomically replaces the old one.
+8. Reusing the old refresh token fails.
+
+This is why Redis is required. It enables refresh-token replay protection, concurrent refresh protection, and server-side session control.
+
+### OAuth identity resolution
+
+OAuth is not handled as separate unrelated Passport-style strategies. Provider callbacks are normalized into this profile shape:
+
+```ts
+{
+  email: "user@example.com",
+  name: "User Name",
+  provider: "google",
+  providerId: "provider-user-id",
+  email_verified: true
+}
+```
+
+The Identity Engine then decides:
+
+• Existing provider login: provider is already linked, so tokens are issued.
+
+• New user creation: no matching identity exists, so a new user identity is created.
+
+• Link required: an email match exists but policy requires explicit account linking.
+
+• Link provider: an authenticated user links Google or GitHub to their existing account.
+
+OAuth state is stored in Redis for five minutes under `oauth:state:<state>`, and Redis-backed identity records use:
+
+```text
+oauth:v1:user:<userId>
+oauth:v1:email:<email>
+oauth:v1:provider:<provider>:<providerId>
+```
+
+### Security middleware
+
+Generated apps use the middleware returned by core:
+
+```ts
+app.use(auth.helmet);
+app.use(auth.rateLimit);
+```
+
+`helmet` applies secure HTTP headers. `rateLimit` is Redis-backed and defaults to 100 requests per 60 seconds with a 300-second block. `ipWhitelist` is available for stricter APIs and allows localhost by default.
+
+### Common core errors
+
+• `MissingTokenError`: no refresh token was sent.
+
+• `InvalidTokenError`: refresh token is invalid, expired, reused, or replaced.
+
+• `Concurrent refresh detected`: two refresh requests tried to rotate the same token at once.
+
+• `OAuthError:Invalid or expired state`: OAuth callback state is missing from Redis.
+
+• `OAuth profile email must be verified before issuing tokens`: provider email was not verified.
+
+• `Provider already linked to another user`: account linking tried to attach an already-owned provider.
+
+---
+
+## Threat Model
+
+Generated apps include a `THREAT_MODEL.md` file. It explains:
+
+• what the generated app protects,
+
+• what `authenik8-core` handles with Redis-backed token state,
+
+• what threats remain your responsibility,
+
+• and what must be configured before production.
+
+Key protections include refresh-token replay detection, concurrent refresh locking, OAuth state validation, verified-email OAuth token issuance, Redis-backed rate limiting, secure headers, session tracking, and admin-route checks.
+
+Key non-goals include frontend XSS protection, CSRF for cookie-based auth, object-level authorization, MFA/WebAuthn, password reset, provider dashboard security, and protection from leaked secrets.
+
+Before production, replace generated secrets, keep Redis private, use HTTPS, review CORS, configure exact OAuth callback URLs, and add business-level authorization checks to your own routes.
 
 ---
 
@@ -289,4 +437,3 @@ The Identity Engine is what makes Authenik8 feel like a coherent **authenticatio
 • MFA
 
 • Production presets
-

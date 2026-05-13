@@ -84,6 +84,8 @@ describe("generator happy paths", () => {
 
       expect(pkg.dependencies.pm2).toBe("^5.4.2");
       expect(pkg.dependencies["ts-node"]).toBe("^10.9.2");
+      expect(pkg.dependencies["authenik8-core"]).toBe("^1.0.33");
+      expect(pkg.scripts["docker:up"]).toBe("docker compose up -d");
       expect(pkg.scripts["pm2:start"]).toBe("npx pm2 start ecosystem.config.js");
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GOOGLE_REDIRECT_URI")');
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GITHUB_REDIRECT_URI")');
@@ -91,6 +93,41 @@ describe("generator happy paths", () => {
       expect(files["src/auth/password.route.ts"]).toContain("passwordController.login");
       expect(files["src/auth/password.controller.ts"]).toContain("generateRefreshToken");
       expect(files["ecosystem.config.js"]).toContain('interpreter_args: "-r ts-node/register"');
+    } finally {
+      await project.cleanup();
+    }
+  });
+
+  it("writes generated docs, Docker Compose, and selected OAuth providers", async () => {
+    const project = await generateProjectFixture({
+      template: "auth-oauth",
+      database: "sqlite",
+      hashLib: "bcryptjs",
+      oauthProviders: ["google"],
+    });
+
+    try {
+      const files = await readProjectFiles(project.targetDir, [
+        "README.md",
+        "THREAT_MODEL.md",
+        "docker-compose.yml",
+        ".env",
+      ]);
+
+      expect(files["README.md"]).toContain("POST /auth/login");
+      expect(files["README.md"]).toContain("AUTHENIK8_OAUTH_PROVIDERS");
+      expect(files["README.md"]).toContain("3-Minute Verification");
+      expect(files["README.md"]).toContain("Troubleshooting");
+      expect(files["README.md"]).toContain("OAuth Callback Setup");
+      expect(files["README.md"]).toContain("Frontend Use");
+      expect(files["README.md"]).toContain("Threat Model");
+      expect(files["THREAT_MODEL.md"]).toContain("Threats Addressed");
+      expect(files["THREAT_MODEL.md"]).toContain("Threats Not Fully Addressed");
+      expect(files["THREAT_MODEL.md"]).toContain("Refresh-token replay");
+      expect(files["docker-compose.yml"]).toContain("redis:7-alpine");
+      expect(files["docker-compose.yml"]).toContain("postgres:16-alpine");
+      expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="google"');
+      expect(files[".env"]).toContain("dev-jwt-secret-change-before-production");
     } finally {
       await project.cleanup();
     }

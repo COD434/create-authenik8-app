@@ -9,7 +9,10 @@ const bunAvailable = hasBun();
       type: "list",
       name: "framework",
       message: "Choose framework:",
-      choices: ["Express", "Fastify (coming soon)"],
+      choices: [
+        "Express",
+        { name: "Fastify (coming soon)", value: "Fastify", disabled: "Coming soon" },
+      ],
       default: "Express",
     }, 
     {
@@ -22,6 +25,20 @@ const bunAvailable = hasBun();
         { name: "Full Auth (Password + OAuth)", value: "auth-oauth" },
       ],
       default: "base",
+    },
+    {
+      type: "checkbox",
+      name: "oauthProviders",
+      message: "Choose OAuth providers:",
+      choices: [
+        { name: "Google", value: "google" },
+        { name: "GitHub", value: "github" },
+      ],
+      default: ["google", "github"],
+      when: (answers) => answers.authMode === "auth-oauth",
+      validate: (choices) => Array.isArray(choices) && choices.length > 0
+        ? true
+        : "Select at least one OAuth provider",
     },
     {
       type: "confirm",

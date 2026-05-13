@@ -50,6 +50,7 @@ export async function generateProjectFixture(options) {
         database: options.database ?? "sqlite",
         useGit: false,
         runtime: options.productionRuntime,
+        oauthProviders: options.oauthProviders,
     };
     await createProject(state, targetDir, templateRoot);
     let hashLib;
