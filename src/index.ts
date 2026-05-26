@@ -135,7 +135,7 @@ Authentication setup:
 • auth (JWT + Password/Email auth)
 • auth-oauth(JWT+ Password/Email + oauth)
 
-Run time:
+Production runtime (--production-ready only):
 • node
 • bun
 
@@ -256,6 +256,9 @@ if ((raw.authMode === "auth" || raw.authMode === "auth-oauth") && !raw.usePrisma
 
     if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
       await configureProduction(targetDir, projectName, runtime);
+      saveState({ step: "production-configured", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
+      currentStep = "production-configured";
+      renderStep(currentStep, isProduction);
     }
 
     //  Install deps
@@ -275,13 +278,6 @@ if ((raw.authMode === "auth" || raw.authMode === "auth-oauth") && !raw.usePrisma
       //await installDependencies(targetDir);
 	    console.log(chalk.gray("↷ Skipping dependency installation (already completed)"));
 
-    }
-
-    //  Production setup
-    if (isProduction && !hasReachedStep(currentStep, "production-configured")) {
-      saveState({ step: "production-configured", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
-      currentStep = "production-configured";
-      renderStep(currentStep, isProduction);
     }
 
     // Git init

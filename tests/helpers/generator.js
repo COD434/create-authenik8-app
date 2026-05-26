@@ -226,15 +226,6 @@ export default express;
   },
 };
 `);
-    await writePackageStub(targetDir, "argon2", `export default {
-  async hash(value) {
-    return "hashed:" + value;
-  },
-  async verify(hash, value) {
-    return hash === "hashed:" + value;
-  },
-};
-`);
 }
 export async function runGeneratedServerSmoke(targetDir, entryPath) {
     await installGeneratedAppStubs(targetDir);

@@ -1,13 +1,24 @@
 import { createAuthenik8 } from "authenik8-core";
 import dotenv  from "dotenv";
-import { requiredSecret } from "../utils/security";
+import { requiredEnv, requiredSecret } from "../utils/security";
 
 dotenv.config();
 
 let authInstance: any;
 
 function oauthConfig() {
-  return {};
+  return {
+    google: {
+        clientId: requiredEnv("GOOGLE_CLIENT_ID"),
+        clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
+      },
+    github: {
+        clientId: requiredEnv("GITHUB_CLIENT_ID"),
+        clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
+      },
+  };
 }
 
 export async function initAuth() {

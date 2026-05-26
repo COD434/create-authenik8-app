@@ -28,7 +28,7 @@ export type GenerateProjectOptions = {
   database?: "sqlite" | "postgresql";
   usePrisma?: boolean;
   productionRuntime?: "node" | "bun";
-  hashLib?: "argon2" | "bcryptjs";
+  hashLib?: "bcryptjs";
   oauthProviders?: string[];
 };
 
@@ -302,19 +302,6 @@ export default express;
 `,
   );
 
-  await writePackageStub(
-    targetDir,
-    "argon2",
-    `export default {
-  async hash(value) {
-    return "hashed:" + value;
-  },
-  async verify(hash, value) {
-    return hash === "hashed:" + value;
-  },
-};
-`,
-  );
 }
 
 export async function runGeneratedServerSmoke(targetDir: string, entryPath: string) {

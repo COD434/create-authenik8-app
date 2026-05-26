@@ -1,12 +1,14 @@
+import type { StdioOptions } from "child_process";
+
 export type StepName =
   | "start"
   | "prompts"
   | "project-created"
   | "auth-installed"
   | "prisma-configured"
+  | "production-configured"
   | "deps-installed"
   | "prisma-generated"
-  | "production-configured"
   | "git-initialized"
   | "done";
 
@@ -25,5 +27,5 @@ export type CliState = {
 
 export type RunOptions = {
   cwd: string;
-  stdio: string;
+  stdio?: StdioOptions;
 };

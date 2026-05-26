@@ -65,6 +65,22 @@ describe('process.ts', () => {
       });
     });
 
+    it('passes stdio through to spawn when provided', async () => {
+      const mockChild = { on: vi.fn() } as any;
+      vi.mocked(spawn).mockReturnValue(mockChild);
+
+      const promise = processLib.run('npm', ['install'], { cwd: '/tmp/test-project', stdio: 'inherit' });
+
+      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
+      exitHandler(0);
+
+      await expect(promise).resolves.toBeUndefined();
+      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
+        cwd: '/tmp/test-project',
+        stdio: 'inherit',
+      });
+    });
+
     it('rejects on non-zero exit code', async () => {
       const mockChild = { on: vi.fn() } as any;
       vi.mocked(spawn).mockReturnValue(mockChild);

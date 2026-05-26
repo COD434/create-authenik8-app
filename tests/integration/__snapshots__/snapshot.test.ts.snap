@@ -275,44 +275,20 @@ dotenv.config();
 
 let authInstance: any;
 
-function enabledOAuthProviders() {
-  const configured = process.env.AUTHENIK8_OAUTH_PROVIDERS;
-  if (!configured || configured.trim().length === 0) {
-    return new Set(["google", "github"]);
-  }
-
-  return new Set(
-    configured
-      .split(",")
-      .map((provider) => provider.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
 function oauthConfig() {
-  const enabled = enabledOAuthProviders();
-  const oauth: Record<string, unknown> = {};
-
-  if (enabled.has("google")) {
-    oauth.google = {
-      clientId: requiredEnv("GOOGLE_CLIENT_ID"),
-      clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
-      redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
-    };
-  }
-
-  if (enabled.has("github")) {
-    oauth.github = {
-      clientId: requiredEnv("GITHUB_CLIENT_ID"),
-      clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
-      redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
-    };
-  }
-
-  return oauth;
+  return {
+    google: {
+        clientId: requiredEnv("GOOGLE_CLIENT_ID"),
+        clientSecret: requiredEnv("GOOGLE_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GOOGLE_REDIRECT_URI"),
+      },
+    github: {
+        clientId: requiredEnv("GITHUB_CLIENT_ID"),
+        clientSecret: requiredEnv("GITHUB_CLIENT_SECRET"),
+        redirectUri: requiredEnv("GITHUB_REDIRECT_URI"),
+      },
+  };
 }
-
-
 
 export async function initAuth() {
   authInstance= await createAuthenik8({
@@ -341,7 +317,9 @@ export const auth = new Proxy(
     "src/auth/oauth.controller.ts": "import { Request, Response } from "express";
 import { getAuth } from "./auth";
 
-function requireProvider(provider: "google" | "github", res: Response) {
+type OAuthProvider = "google" | "github";
+
+function requireProvider(provider: OAuthProvider, res: Response) {
   const oauthProvider = getAuth().oauth?.[provider];
 
   if (!oauthProvider) {
@@ -369,6 +347,10 @@ export const oauthController = {
     });
   },
 
+  googleLink(req: Request, res: Response) {
+    requireProvider("google", res)?.redirect(req, res, "link");
+  },
+
   githubRedirect(req: Request, res: Response) {
     requireProvider("github", res)?.redirect(req, res);
   },
@@ -385,10 +367,6 @@ export const oauthController = {
     });
   },
 
-  googleLink(req: Request, res: Response) {
-    requireProvider("google", res)?.redirect(req, res, "link");
-  },
-
   githubLink(req: Request, res: Response) {
     requireProvider("github", res)?.redirect(req, res, "link");
   },
@@ -401,9 +379,9 @@ const router = express.Router();
 
 router.get("/google", oauthController.googleRedirect);
 router.get("/google/callback", oauthController.googleCallback);
+router.get("/google/link", authMiddleware, oauthController.googleLink);
 router.get("/github", oauthController.githubRedirect);
 router.get("/github/callback", oauthController.githubCallback);
-router.get("/google/link", authMiddleware, oauthController.googleLink);
 router.get("/github/link", authMiddleware, oauthController.githubLink);
 
 export default router;",

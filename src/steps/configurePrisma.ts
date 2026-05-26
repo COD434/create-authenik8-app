@@ -37,10 +37,25 @@ export async function configurePrisma(
       const providers = state.authMode === "auth-oauth"
         ? (state.oauthProviders?.length ? state.oauthProviders : ["google", "github"])
         : [];
+      const envPath = path.join(targetDir, ".env");
       if (providers.length > 0) {
-        await fs.appendFile(
-          path.join(targetDir, ".env"),
-          `\nAUTHENIK8_OAUTH_PROVIDERS="${providers.join(",")}"\n`
+        const env = await fs.readFile(envPath, "utf-8");
+        const providerPrefixes = new Set(providers.map((provider) => provider.toUpperCase()));
+        const filteredEnv = env
+          .split("\n")
+          .filter((line) => {
+            if (line.startsWith("GOOGLE_") || line.startsWith("GITHUB_")) {
+              const prefix = line.split("_")[0] ?? "";
+              return providerPrefixes.has(prefix);
+            }
+            return true;
+          })
+          .join("\n")
+          .replace(/\n*$/, "\n");
+
+        await fs.writeFile(
+          envPath,
+          `${filteredEnv}AUTHENIK8_OAUTH_PROVIDERS="${providers.join(",")}"\n`
         );
       }
 
