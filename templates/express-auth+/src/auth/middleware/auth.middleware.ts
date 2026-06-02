@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { getAuth } from "./auth";
+import { getAuth } from "../auth";
 
 export const adminMiddleware = (req: Request, res: Response, next: NextFunction) => {
   getAuth().requireAdmin(req, res, next);

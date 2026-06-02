@@ -76,22 +76,24 @@ describe("generator happy paths", () => {
       const files = await readProjectFiles(project.targetDir, [
         "src/server.ts",
         "src/auth/auth.ts",
-        "src/auth/oauth.routes.ts",
-        "src/auth/password.controller.ts",
-        "src/auth/password.route.ts",
+        "src/auth/routes/oauth.routes.ts",
+        "src/auth/controllers/password.controller.ts",
+        "src/auth/routes/password.route.ts",
         "ecosystem.config.js",
       ]);
 
       expect(pkg.dependencies.pm2).toBe("^5.4.2");
       expect(pkg.dependencies["ts-node"]).toBe("^10.9.2");
+
       expect(pkg.dependencies["authenik8-core"]).toBe("^1.0.33");
+
       expect(pkg.scripts["docker:up"]).toBe("docker compose up -d");
       expect(pkg.scripts["pm2:start"]).toBe("npx pm2 start ecosystem.config.js");
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GOOGLE_REDIRECT_URI")');
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GITHUB_REDIRECT_URI")');
-      expect(files["src/auth/oauth.routes.ts"]).toContain('router.get("/github/callback"');
-      expect(files["src/auth/password.route.ts"]).toContain("passwordController.login");
-      expect(files["src/auth/password.controller.ts"]).toContain("generateRefreshToken");
+      expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github/callback"');
+      expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.login");
+      expect(files["src/auth/controllers/password.controller.ts"]).toContain("generateRefreshToken");
       expect(files["ecosystem.config.js"]).toContain('interpreter_args: "-r ts-node/register"');
     } finally {
       await project.cleanup();
@@ -115,7 +117,7 @@ describe("generator happy paths", () => {
       ]);
 
       expect(files["README.md"]).toContain("POST /auth/login");
-      expect(files["README.md"]).toContain("AUTHENIK8_OAUTH_PROVIDERS");
+      expect(files["README.md"]).toContain("AUTHENIK8_OAUTH_PROVIDERS=google");
       expect(files["README.md"]).toContain("3-Minute Verification");
       expect(files["README.md"]).toContain("Troubleshooting");
       expect(files["README.md"]).toContain("OAuth Callback Setup");
@@ -127,7 +129,47 @@ describe("generator happy paths", () => {
       expect(files["docker-compose.yml"]).toContain("redis:7-alpine");
       expect(files["docker-compose.yml"]).toContain("postgres:16-alpine");
       expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="google"');
+      expect(files[".env"]).toContain("GOOGLE_CLIENT_ID");
+      expect(files[".env"]).not.toContain("GITHUB_CLIENT_ID");
       expect(files[".env"]).toContain("dev-jwt-secret-change-before-production");
+    } finally {
+      await project.cleanup();
+    }
+  });
+
+
+  it("generates GitHub-only OAuth files when only GitHub is selected", async () => {
+    const project = await generateProjectFixture({
+      template: "auth-oauth",
+      database: "sqlite",
+      hashLib: "bcryptjs",
+      oauthProviders: ["github"],
+    });
+
+    try {
+      const files = await readProjectFiles(project.targetDir, [
+        "src/auth/auth.ts",
+        "src/auth/routes/oauth.routes.ts",
+        "src/auth/controllers/oauth.controller.ts",
+        "README.md",
+        ".env",
+      ]);
+
+      expect(files["src/auth/auth.ts"]).toContain('github: {');
+      expect(files["src/auth/auth.ts"]).toContain('requiredEnv("GITHUB_CLIENT_ID")');
+      expect(files["src/auth/auth.ts"]).not.toContain('requiredEnv("GOOGLE_CLIENT_ID")');
+      expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github"');
+      expect(files["src/auth/routes/oauth.routes.ts"]).not.toContain('router.get("/google"');
+      expect(files["src/auth/controllers/oauth.controller.ts"]).toContain('githubRedirect');
+      expect(files["src/auth/controllers/oauth.controller.ts"]).not.toContain('googleRedirect');
+      expect(files["README.md"]).toContain("AUTHENIK8_OAUTH_PROVIDERS=github");
+      expect(files["README.md"]).toContain("GET /auth/github");
+      expect(files["README.md"]).not.toContain("GET /auth/google");
+      expect(files["README.md"]).toContain("loginWithGitHub");
+      expect(files["README.md"]).not.toContain("loginWithGoogle");
+      expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="github"');
+      expect(files[".env"]).toContain("GITHUB_CLIENT_ID");
+      expect(files[".env"]).not.toContain("GOOGLE_CLIENT_ID");
     } finally {
       await project.cleanup();
     }

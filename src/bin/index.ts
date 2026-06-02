@@ -7,10 +7,9 @@ import chalk from "chalk";
 import inquirer from "inquirer";
 import { ExitPromptError } from "@inquirer/core";
 import ora from "ora";
-import { execSync,ChildProcess } from "child_process";
+import { execSync, ChildProcess, type StdioOptions } from "child_process";
 import { fileURLToPath } from "url";
 import { spawnSync, spawn } from "child_process";
-import os from "os";
 
 const spinner = ora().start();
 const activeProcesses = new Set<ChildProcess>();
@@ -30,14 +29,14 @@ type StepName =
 
 type RunOptions = {
   cwd: string;
-  stdio:string;
+  stdio?: StdioOptions;
 };
 
 export function run(cmd: string, args: string[], options: RunOptions):Promise<void> {
 	return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: options.cwd,
-      stdio: "ignore",
+      stdio: options.stdio ?? "ignore",
     });
     activeProcesses.add(child);
 
@@ -130,45 +129,12 @@ step:"start",
 projectName,
 }
 
-const platform = os.platform();
-// 'linux' | 'darwin' | 'win32'
-
-const isTermux =
-process.env.PREFIX?.includes("com.termux") ||
-process.env.TERMUX === "true";
-
-
 function getBestHashLib() {
-if (isTermux) return "bcryptjs";
-
-if (platform === "win32") return "bcryptjs";
-// avoids build tools issues for most users
-
-if (platform === "darwin") return "argon2";
-// mac usually fine
-
-if (platform === "linux") return "argon2";
-// but still fallback later if needed
-
 return "bcryptjs";
 }
 
 
-function generateHashModule(hashLib: "argon2" | "bcryptjs") {
-if (hashLib === "argon2") {
-return `
-import argon2 from "argon2";
-
-export const hashPassword = (password: string) => {
-return argon2.hash(password);
-};
-
-export const comparePassword = (password: string, hash: string) => {
-return argon2.verify(hash, password);
-};
-`;
-}
-
+function generateHashModule(hashLib: "bcryptjs") {
 return `
 import bcrypt from "bcryptjs";
 
@@ -200,9 +166,9 @@ const stepOrder: StepName[] = [
 "project-created",
 "auth-installed",
 "prisma-configured",
+"production-configured",
 "deps-installed",
 "prisma-generated",
-"production-configured",
 "git-initialized",
 "done",
 ];
@@ -657,18 +623,6 @@ stdio: "ignore"
 
 }catch{
 
-if (selectedHash !== "bcryptjs") {
- spinner.warn(`${selectedHash} failed, falling back to bcryptjs`);
-
-const fallbackResult = await run(getCommand("npm"),["install" ,"bcryptjs"], {  
-    cwd: targetDir,  
-    stdio: "ignore",  
-  });  
-spinner.stop();
-
-  selectedHash = "bcryptjs";  
-  renderStep("auth-installed"); 
-}else{
   spinner.fail("Failed to install password auth");
   process.exit(1);
    
@@ -676,12 +630,11 @@ spinner.stop();
   process.exit(1);  
 }
 }
-}
 renderStep("auth-installed")
 if (state.authMode !== "base") {
 
 spinner.start("Installing password auth...");
-const hashLib = selectedHash as "argon2" | "bcryptjs";
+const hashLib = selectedHash as "bcryptjs";
 
 await fs.writeFile(
 path.join(targetDir, "src/utils/hash.ts"),

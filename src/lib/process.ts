@@ -7,7 +7,7 @@ export function run(cmd: string, args: string[], options: RunOptions): Promise<v
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: options.cwd,
-      stdio: "ignore",
+      stdio: options.stdio ?? "ignore",
     });
     activeProcesses.add(child);
 

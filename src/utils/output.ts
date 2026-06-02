@@ -1,6 +1,26 @@
 import chalk from "chalk";
 import type { CliState } from "../lib/types.js";
 
+function selectedOAuthProviders(state: CliState): string[] {
+  const providers = state.oauthProviders?.filter((provider) =>
+    provider === "google" || provider === "github"
+  );
+
+  return providers?.length ? providers : ["google", "github"];
+}
+
+function oauthProviderLabel(state: CliState): string {
+  return selectedOAuthProviders(state)
+    .map((provider) => provider === "github" ? "GitHub" : "Google")
+    .join("/");
+}
+
+function oauthRouteLines(state: CliState): string {
+  return selectedOAuthProviders(state)
+    .map((provider) => `  GET    /auth/${provider}`)
+    .join("\n");
+}
+
 export function printSummary(state: CliState, isProduction: boolean): void {
   console.log(chalk.green.bold("\n🎉 Authenik8 app created successfully!\n"));
 
@@ -12,7 +32,7 @@ ${state.usePrisma ? "npm run prisma:migrate\n" : ""}redis-server --daemonize yes
 npm run dev
 
 Before running, review .env and replace generated development values for deployed environments.
-${state.authMode === "auth-oauth" ? "For OAuth, set real Google/GitHub client IDs, secrets, and redirect URLs in .env.\n" : ""}
+${state.authMode === "auth-oauth" ? `For OAuth, set real ${oauthProviderLabel(state)} client IDs, secrets, and redirect URLs in .env.\n` : ""}
 
 Auth Features:
 ${
@@ -20,7 +40,7 @@ ${
     ? "✓ JWT only"
     : state.authMode === "auth"
     ? "✓ Email + Password"
-    : "✓ Password + OAuth (Google/GitHub)"
+    : `✓ Password + OAuth (${oauthProviderLabel(state)})`
 }
 
 🛠 Stack:
@@ -48,8 +68,7 @@ ${
   POST   /auth/register
   POST   /auth/login
   POST   /auth/refresh
-  GET    /auth/google
-  GET    /auth/github
+${oauthRouteLines(state)}
   GET    /protected
 `
 }

@@ -12,7 +12,7 @@ export type GenerateProjectOptions = {
     database?: "sqlite" | "postgresql";
     usePrisma?: boolean;
     productionRuntime?: "node" | "bun";
-    hashLib?: "argon2" | "bcryptjs";
+    hashLib?: "bcryptjs";
 };
 export declare function generateProjectFixture(options: GenerateProjectOptions): Promise<GeneratedProject>;
 export declare function collectProjectTree(rootDir: string): Promise<string[]>;

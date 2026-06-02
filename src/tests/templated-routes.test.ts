@@ -219,29 +219,29 @@ const routeTemplates: RouteTemplate[] = [
       return appWithRouter(createBaseRoutes(createMockAuth(sessionStore)));
     },
   },
-  {
-    name: "templates/express-auth+/src/auth/protected.routes.ts",
-    guardedRoute: {
-      method: "get",
-      path: "/protected",
-      expectedBody: { message: "Protected route" },
-    },
-    async createApp(sessionStore?: InMemoryRedis) {
-      redisForAuthFactory = sessionStore;
-     // const [{ initAuth }, { default: protectedRoutes }] = await Promise.all([
-       // import("../../templates/express-auth+/src/auth/auth.js"),
-       // import("../../templates/express-auth+/src/auth/protected.routes.js"),
+  //{
+    //name: "templates/express-auth+/src/auth/routes/protected.routes.ts",
+   // guardedRoute: {
+     // method: "get",
+      //path: "/protected",
+      //expectedBody: { message: "Protected route" },
+    //},
+    //async createApp(sessionStore?: InMemoryRedis) {
+      //redisForAuthFactory = sessionStore;
+      //const [  { default: protectedRoutes }] = await Promise.all([
+        //import("../../templates/express-auth+/src/auth/auth.js"),
+        //import("../../templates/express-auth+/src/auth/routes/protected.routes.js"),
       //]);
-const authModule = await import("../../templates/express-auth+/src/auth/auth.js");
-  const routesModule = await import("../../templates/express-auth+/src/auth/protected.routes.js");
+//const authModule = await import("../../templates/express-auth+/src/auth/auth.js");
+  //const routesModule = await import("../../templates/express-auth+/src/auth/routes/protected.routes.js");
 
-  await authModule.initAuth();
+  //await authModule.initAuth();
 
 //      await initAuth();
-     const protectedRoutes = routesModule.default as unknown as Router ;
-      return appWithRouter(protectedRoutes);
-    },
-  },
+    // /const protectedRoutes = routesModule.default as unknown as Router ;
+    //  return appWithRouter(protectedRoutes);
+    //},
+  //},
 ];
 
 const sessionRoutes = [
