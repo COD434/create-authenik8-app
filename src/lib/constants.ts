@@ -6,9 +6,9 @@ export const stepOrder: StepName[] = [
   "project-created",
   "auth-installed",
   "prisma-configured",
+  "production-configured",
   "deps-installed",
   "prisma-generated",
-  "production-configured",
   "git-initialized",
   "done",
 ];

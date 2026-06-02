@@ -7,7 +7,7 @@ vi.mock('../../src/lib/process');
 vi.mock('../../src/lib/ui');
 
 
-import { installDependencies, detectPackageManager } from '../../src/steps/installDeps';
+import { installDependencies, detectPackageManager, ensureRedisServerInstalled } from '../../src/steps/installDeps';
 import * as processLib from '../../src/lib/process';
 import * as uiLib from '../../src/lib/ui';
 
@@ -60,6 +60,10 @@ describe('installDeps.ts', () => {
     const targetDir = '/tmp/test-project';
 
     beforeEach(() => {
+      vi.mocked(execSync).mockImplementation((command) => {
+        if (String(command).includes('redis-server --version')) return Buffer.from('');
+        throw new Error();
+      });
       vi.mocked(processLib.run).mockResolvedValue(undefined);
       vi.mocked(uiLib.spinner.start).mockReturnValue(undefined as any);
       vi.mocked(uiLib.spinner.stop).mockReturnValue(undefined as any);
@@ -77,37 +81,33 @@ describe('installDeps.ts', () => {
       expect(processLib.run).toHaveBeenCalledWith(
         'pnpm',
         ['install', '--prefer-offline'],
-        { cwd: targetDir, stdio: 'inherit' }
+        { cwd: targetDir, stdio: 'ignore' }
       );
       expect(uiLib.spinner.stop).toHaveBeenCalled();
     });
 
     it('uses bun and installs successfully', async () => {
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => { throw new Error(); })
-        .mockImplementationOnce(() => {});
+      process.env.npm_execpath = '/bun';
 
       await installDependencies(targetDir);
 
       expect(processLib.run).toHaveBeenCalledWith(
         'bun',
         ['install'],
-        { cwd: targetDir, stdio: 'inherit' }
+        { cwd: targetDir, stdio: 'ignore' }
       );
       expect(uiLib.spinner.stop).toHaveBeenCalled();
     });
 
     it('falls back to npm and installs successfully', async () => {
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => { throw new Error(); })
-        .mockImplementationOnce(() => { throw new Error(); });
+      process.env.npm_execpath = '/npm';
 
       await installDependencies(targetDir);
 
       expect(processLib.run).toHaveBeenCalledWith(
         'npm',
         ['install', '--prefer-offline', '--no-audit', '--no-fund'],
-        { cwd: targetDir, stdio: 'inherit' }
+        { cwd: targetDir, stdio: 'ignore' }
       );
     });
 
@@ -120,6 +120,36 @@ describe('installDeps.ts', () => {
 
       expect(uiLib.spinner.fail).toHaveBeenCalledWith('Failed to install dependencies');
       expect(processLib.exitForInterrupt).toHaveBeenCalledWith(error);
+    });
+  });
+
+  describe('ensureRedisServerInstalled()', () => {
+    it('does nothing when redis-server is already available', () => {
+      vi.mocked(execSync).mockImplementation((command) => {
+        expect(command).toBe('redis-server --version');
+        return Buffer.from('');
+      });
+
+      ensureRedisServerInstalled();
+
+      expect(execSync).toHaveBeenCalledTimes(1);
+    });
+
+    it('installs redis-server with apt-get when available', () => {
+      vi.mocked(execSync).mockImplementation((command) => {
+        const value = String(command);
+        if (value === 'redis-server --version') throw new Error();
+        if (value === 'apt-get --version') return Buffer.from('');
+        if (value === 'sudo apt-get update && sudo apt-get install -y redis-server') return Buffer.from('');
+        throw new Error();
+      });
+
+      ensureRedisServerInstalled();
+
+      expect(execSync).toHaveBeenCalledWith(
+        'sudo apt-get update && sudo apt-get install -y redis-server',
+        { stdio: 'inherit' }
+      );
     });
   });
 });

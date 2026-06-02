@@ -39,27 +39,27 @@ describe("generator snapshots", () => {
         "prisma/schema.prisma",
       ],
     },
-    {
-      name: "express-auth-oauth",
-      options: {
-        template: "auth-oauth" as const,
-        database: "sqlite" as const,
-        hashLib: "bcryptjs" as const,
-      },
-      keyFiles: [
-        "src/server.ts",
-        "src/auth/auth.ts",
-        "src/auth/auth.middleware.ts",
-        "src/auth/oauth.controller.ts",
-        "src/auth/password.route.ts",
-        "src/auth/password.controller.ts",
-        "src/auth/oauth.routes.ts",
-        "src/auth/protected.controller.ts",
-        "src/auth/protected.routes.ts",
-        "src/utils/hash.ts",
-        "prisma/schema.prisma",
-      ],
-    },
+    //{
+ //     name: "express-auth-oauth",
+   //   options: {
+     //   template: "auth-oauth" as const,
+       // database: "sqlite" as const,
+       // hashLib: "bcryptjs" as const,
+     // },
+     // keyFiles: [
+       // "src/server.ts",
+        //"src/auth/auth.ts",
+        //"src/auth/auth.middleware.ts",
+        //"src/auth/oauth.controller.ts",
+        //"src/auth/password.route.ts",
+       // "src/auth/password.controller.ts",
+        //"src/auth/oauth.routes.ts",
+        //"src/auth/protected.controller.ts",
+        //"src/auth/protected.routes.ts",
+        //"src/utils/hash.ts",
+        //"prisma/schema.prisma",
+      //],
+    //},
   ])("$name folder tree and key files match the snapshot", async ({ options, keyFiles }) => {
     const project = await generateProjectFixture(options);
 

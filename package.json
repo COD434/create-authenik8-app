@@ -1,7 +1,7 @@
 {
   "name": "create-authenik8-app",
   "version": "2.4.1",
-  "description": "⚡ Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
+  "description": " Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
   "bin": {
     "create-authenik8-app": "dist/src/index.js"
   },
@@ -47,17 +47,16 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:templates": "node --import tsx --test tests/template-servers.test.mjs",
-  "build": "tsc && cp -r ./templates/express-auth/package.json ./templates/THREAT_MODEL.md dist/templates"
-
+    "build": "tsc && cp -r ./templates/express-auth/package.json ./templates/THREAT_MODEL.md dist/templates"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.5.2",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^3.2.4",
+    "@vitest/coverage-v8": "^4.1.8",
     "supertest": "^7.2.2",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.8"
   },
   "repository": {
     "type": "git",

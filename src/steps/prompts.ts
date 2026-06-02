@@ -34,7 +34,7 @@ const bunAvailable = hasBun();
         { name: "Google", value: "google" },
         { name: "GitHub", value: "github" },
       ],
-      default: ["google", "github"],
+      //default: ["google"],
       when: (answers) => answers.authMode === "auth-oauth",
       validate: (choices) => Array.isArray(choices) && choices.length > 0
         ? true

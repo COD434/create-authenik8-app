@@ -1,7 +1,7 @@
 import express from "express";
-import passwordRoutes from "./auth/password.route";
-import oauthRoutes from "./auth/oauth.routes";
-import protectedRoutes from "./auth/protected.routes";
+import passwordRoutes from "./auth/routes/password.route";
+import oauthRoutes from "./auth/routes/oauth.routes";
+import protectedRoutes from "./auth/routes/protected.routes";
 import { getAuth, initAuth } from "./auth/auth";
 
 async function start(){

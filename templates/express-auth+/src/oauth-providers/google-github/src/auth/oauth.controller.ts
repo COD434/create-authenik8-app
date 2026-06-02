@@ -1,7 +1,9 @@
 import { Request, Response } from "express";
 import { getAuth } from "./auth";
 
-function requireProvider(provider: "google" | "github", res: Response) {
+type OAuthProvider = "google" | "github";
+
+function requireProvider(provider: OAuthProvider, res: Response) {
   const oauthProvider = getAuth().oauth?.[provider];
 
   if (!oauthProvider) {
@@ -29,6 +31,10 @@ export const oauthController = {
     });
   },
 
+  googleLink(req: Request, res: Response) {
+    requireProvider("google", res)?.redirect(req, res, "link");
+  },
+
   githubRedirect(req: Request, res: Response) {
     requireProvider("github", res)?.redirect(req, res);
   },
@@ -43,10 +49,6 @@ export const oauthController = {
       provider: "github",
       ...result,
     });
-  },
-
-  googleLink(req: Request, res: Response) {
-    requireProvider("google", res)?.redirect(req, res, "link");
   },
 
   githubLink(req: Request, res: Response) {
