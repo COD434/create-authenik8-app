@@ -84,7 +84,9 @@ describe("generator happy paths", () => {
 
       expect(pkg.dependencies.pm2).toBe("^5.4.2");
       expect(pkg.dependencies["ts-node"]).toBe("^10.9.2");
+
       expect(pkg.dependencies["authenik8-core"]).toBe("^1.0.33");
+
       expect(pkg.scripts["docker:up"]).toBe("docker compose up -d");
       expect(pkg.scripts["pm2:start"]).toBe("npx pm2 start ecosystem.config.js");
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GOOGLE_REDIRECT_URI")');
