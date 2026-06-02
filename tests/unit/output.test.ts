@@ -61,6 +61,16 @@ describe('output.ts', () => {
     expect(mainBody).toContain('GET    /auth/google');
   });
 
+  it('prints only selected OAuth providers in the summary', () => {
+    const state = { ...baseState, authMode: 'auth-oauth', oauthProviders: ['github'] } as CliState;
+    output.printSummary(state, false);
+
+    const mainBody = consoleSpy.mock.calls[1][0] as string;
+    expect(mainBody).toContain('✓ Password + OAuth (GitHub)');
+    expect(mainBody).toContain('GET    /auth/github');
+    expect(mainBody).not.toContain('GET    /auth/google');
+  });
+
   it('handles usePrisma = false (no database)', () => {
     const state = { ...baseState, usePrisma: false } as CliState;
     output.printSummary(state, false);

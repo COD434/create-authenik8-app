@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { sanitizeSessionResponse } from "../utils/security";
+import { sanitizeSessionResponse } from "../../utils/security";
 
 export const protectedController = {
-  protected(req: Request, res: Response) {
+  protected( res: Response) {
     res.json({ message: "Protected route" });
   },
 

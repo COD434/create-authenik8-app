@@ -1,7 +1,9 @@
 import fs from "fs-extra";
 import path from "path";
-import chalk from "chalk";
 import type { CliState } from "../lib/types.js";
+
+const supportedOAuthProviders = ["google", "github"] as const;
+type OAuthProvider = (typeof supportedOAuthProviders)[number];
 
 export function resolveTemplateName(authMode: string): string {
   if (authMode === "auth") return "express-auth";
@@ -26,9 +28,6 @@ export function configurePackageJson(targetDir: string, usePrisma: boolean): voi
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 }
-
-const supportedOAuthProviders = ["google", "github"] as const;
-type OAuthProvider = (typeof supportedOAuthProviders)[number];
 
 function resolveOAuthProviders(state: CliState): OAuthProvider[] {
   const selected = state.oauthProviders?.filter((provider): provider is OAuthProvider =>
@@ -81,8 +80,8 @@ router.get("/${provider}/link", authMiddleware, oauthController.${provider}Link)
 
 async function writeProviderSpecificOAuthFiles(targetDir: string, providers: OAuthProvider[]) {
   const authPath = path.join(targetDir, "src/auth/auth.ts");
-  const routesPath = path.join(targetDir, "src/auth/oauth.routes.ts");
-  const controllerPath = path.join(targetDir, "src/auth/oauth.controller.ts");
+  const routesPath = path.join(targetDir, "src/auth/routes/oauth.routes.ts");
+  const controllerPath = path.join(targetDir, "src/auth/controllers/oauth.controller.ts");
   const readmePath = path.join(targetDir, "README.md");
   const providerUnion = providers.map((provider) => `"${provider}"`).join(" | ");
 
@@ -127,8 +126,8 @@ export const auth = new Proxy(
 `);
 
   await fs.writeFile(routesPath, `import express from "express";
-import { authMiddleware } from "./auth.middleware";
-import { oauthController } from "./oauth.controller";
+import { authMiddleware } from "../middleware/auth.middleware";
+import { oauthController } from "../controllers/oauth.controller";
 
 const router = express.Router();
 
@@ -138,7 +137,7 @@ export default router;
 `);
 
   await fs.writeFile(controllerPath, `import { Request, Response } from "express";
-import { getAuth } from "./auth";
+import { getAuth } from "../auth";
 
 type OAuthProvider = ${providerUnion};
 
@@ -198,7 +197,10 @@ export const oauthController = {
     );
     if (!providers.includes("google")) {
       readme = readme.replace(/\n- `GOOGLE_REDIRECT_URI`: must exactly match the callback URL configured in Google Cloud\./, "");
-      readme = readme.replace(/\n\nexport function loginWithGoogle\(\) {\n  window\.location\.href = "http:\/\/localhost:3000\/auth\/google";\n}/, "");
+      readme = readme.replace(
+        /\n\nexport function loginWithGoogle\(\) {\n  window\.location\.href = "http:\/\/localhost:3000\/auth\/google";\n}/,
+        '\n\nexport function loginWithGitHub() {\n  window.location.href = "http://localhost:3000/auth/github";\n}',
+      );
       readme = readme.replace(/\n\n`google OAuth is not configured`: add `google` to `AUTHENIK8_OAUTH_PROVIDERS` and set the Google env vars, or use only the enabled provider route\./, "");
     }
     if (!providers.includes("github")) {
@@ -209,10 +211,6 @@ export const oauthController = {
       readme = readme.replace(
         "For OAuth, redirect the browser to `/auth/google` or `/auth/github`.",
         "For OAuth, redirect the browser to `/auth/github`.",
-      );
-      readme = readme.replace(
-        "export function loginWithGoogle() {\n  window.location.href = \"http://localhost:3000/auth/google\";\n}",
-        "export function loginWithGitHub() {\n  window.location.href = \"http://localhost:3000/auth/github\";\n}",
       );
     } else if (providers.includes("google") && !providers.includes("github")) {
       readme = readme.replace(

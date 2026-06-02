@@ -76,9 +76,9 @@ describe("generator happy paths", () => {
       const files = await readProjectFiles(project.targetDir, [
         "src/server.ts",
         "src/auth/auth.ts",
-        "src/auth/oauth.routes.ts",
-        "src/auth/password.controller.ts",
-        "src/auth/password.route.ts",
+        "src/auth/routes/oauth.routes.ts",
+        "src/auth/controllers/password.controller.ts",
+        "src/auth/routes/password.route.ts",
         "ecosystem.config.js",
       ]);
 
@@ -91,9 +91,9 @@ describe("generator happy paths", () => {
       expect(pkg.scripts["pm2:start"]).toBe("npx pm2 start ecosystem.config.js");
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GOOGLE_REDIRECT_URI")');
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GITHUB_REDIRECT_URI")');
-      expect(files["src/auth/oauth.routes.ts"]).toContain('router.get("/github/callback"');
-      expect(files["src/auth/password.route.ts"]).toContain("passwordController.login");
-      expect(files["src/auth/password.controller.ts"]).toContain("generateRefreshToken");
+      expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github/callback"');
+      expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.login");
+      expect(files["src/auth/controllers/password.controller.ts"]).toContain("generateRefreshToken");
       expect(files["ecosystem.config.js"]).toContain('interpreter_args: "-r ts-node/register"');
     } finally {
       await project.cleanup();
@@ -149,8 +149,8 @@ describe("generator happy paths", () => {
     try {
       const files = await readProjectFiles(project.targetDir, [
         "src/auth/auth.ts",
-        "src/auth/oauth.routes.ts",
-        "src/auth/oauth.controller.ts",
+        "src/auth/routes/oauth.routes.ts",
+        "src/auth/controllers/oauth.controller.ts",
         "README.md",
         ".env",
       ]);
@@ -158,13 +158,15 @@ describe("generator happy paths", () => {
       expect(files["src/auth/auth.ts"]).toContain('github: {');
       expect(files["src/auth/auth.ts"]).toContain('requiredEnv("GITHUB_CLIENT_ID")');
       expect(files["src/auth/auth.ts"]).not.toContain('requiredEnv("GOOGLE_CLIENT_ID")');
-      expect(files["src/auth/oauth.routes.ts"]).toContain('router.get("/github"');
-      expect(files["src/auth/oauth.routes.ts"]).not.toContain('router.get("/google"');
-      expect(files["src/auth/oauth.controller.ts"]).toContain('githubRedirect');
-      expect(files["src/auth/oauth.controller.ts"]).not.toContain('googleRedirect');
+      expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github"');
+      expect(files["src/auth/routes/oauth.routes.ts"]).not.toContain('router.get("/google"');
+      expect(files["src/auth/controllers/oauth.controller.ts"]).toContain('githubRedirect');
+      expect(files["src/auth/controllers/oauth.controller.ts"]).not.toContain('googleRedirect');
       expect(files["README.md"]).toContain("AUTHENIK8_OAUTH_PROVIDERS=github");
       expect(files["README.md"]).toContain("GET /auth/github");
       expect(files["README.md"]).not.toContain("GET /auth/google");
+      expect(files["README.md"]).toContain("loginWithGitHub");
+      expect(files["README.md"]).not.toContain("loginWithGoogle");
       expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="github"');
       expect(files[".env"]).toContain("GITHUB_CLIENT_ID");
       expect(files[".env"]).not.toContain("GOOGLE_CLIENT_ID");

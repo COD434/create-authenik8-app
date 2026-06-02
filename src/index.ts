@@ -5,9 +5,9 @@ import chalk from "chalk";
 import { ExitPromptError } from "@inquirer/core";
 import { fileURLToPath } from "url";
 
-import type { CliState, StepName } from "./lib/types.js";
+import type { StepName } from "./lib/types.js";
 import { initState, saveState, loadState, clearState, hasReachedStep, getState } from "./lib/state.js";
-import { killAllProcesses, run, getCommand } from "./lib/process.js";
+import { killAllProcesses } from "./lib/process.js";
 import { showBootLogo, renderStep, spinner } from "./lib/ui.js";
 
 import { runPrompts } from "./steps/prompts.js";
@@ -90,14 +90,6 @@ function assertRequired(value: any, name: string) {
 }
 
 async function main() {
-	//process.on("SIGINT", async () => {
-    //console.log("\n");
-    //spinner.stop();
-    //killAllProcesses();
-    //console.log(chalk.yellow("⏸ Setup interrupted."));
-   // console.log(chalk.gray(`↻ Resume with: create-authenik8-app ${projectName} --resume`));
-    //process.exit(0);
-  //});
 
   try {
     await showBootLogo();
@@ -135,13 +127,9 @@ Authentication setup:
 • auth (JWT + Password/Email auth)
 • auth-oauth(JWT+ Password/Email + oauth)
 
-Production runtime (--production-ready only):
-• node
-• bun
 
 Frameworks:
 • Express
-• Fastify(coming soon)
 
 Database (if Prisma enabled):
 • PostgreSQL
@@ -274,8 +262,6 @@ if ((raw.authMode === "auth" || raw.authMode === "auth-oauth") && !raw.usePrisma
       currentStep = "deps-installed";
       renderStep(currentStep, isProduction);
     } else {
-      //configurePackageJson(targetDir, getState().usePrisma ?? false);
-      //await installDependencies(targetDir);
 	    console.log(chalk.gray("↷ Skipping dependency installation (already completed)"));
 
     }

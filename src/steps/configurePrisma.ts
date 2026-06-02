@@ -15,7 +15,9 @@ export async function configurePrisma(
   pkg.dependencies = {
     ...pkg.dependencies,
     ioredis: "^5.8.1",
+  //  redis-server:"^1.2.2",
   };
+
 
   if (state.usePrisma) {
     spinner.start("Adding Prisma setup...");

@@ -326,7 +326,7 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
   });
 });
 
-test("templates/express-auth+/src/server.ts initializes auth, mounts routes, and starts safely", async () => {
+test("templates/express-auth+/src/server.js initializes auth, mounts routes, and starts safely", async () => {
   await withPatchedRuntime(async (state) => {
     const tempDir = await createTempFixture();
 
@@ -354,17 +354,17 @@ export function getAuth() {
 `,
       );
       await writeModule(
-        path.join(tempDir, "src/auth/password.route.ts"),
+        path.join(tempDir, "src/auth/routes/password.route.js"),
         `export default "password-routes";
 `,
       );
       await writeModule(
-        path.join(tempDir, "src/auth/oauth.routes.ts"),
+        path.join(tempDir, "src/auth/routes/oauth.routes.ts"),
         `export default "oauth-routes";
 `,
       );
       await writeModule(
-        path.join(tempDir, "src/auth/protected.routes.ts"),
+        path.join(tempDir, "src/auth/routes/protected.routes.ts"),
         `export default "protected-routes";
 `,
       );

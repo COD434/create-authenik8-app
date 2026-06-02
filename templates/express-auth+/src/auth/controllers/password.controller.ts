@@ -1,8 +1,8 @@
 import { Request, Response } from "express";
-import { getAuth } from "./auth";
-import { prisma } from "../prisma/client";
-import { hashPassword, comparePassword } from "../utils/hash";
-import { parseCredentials } from "../utils/security";
+import { getAuth } from "../auth";
+import { prisma } from "../../prisma/client";
+import { hashPassword, comparePassword } from "../../utils/hash";
+import { parseCredentials } from "../../utils/security";
 
 export const passwordController = {
   async register(req: Request, res: Response) {

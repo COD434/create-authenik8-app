@@ -1,6 +1,5 @@
 import fs from "fs-extra";
 import path from "path";
-import { run, getCommand, exitForInterrupt } from "../lib/process.js";
 import { getBestHashLib, generateHashModule } from "../utils/hash.js";
 import { spinner } from "../lib/ui.js";
 import type { PackageManager } from "./installDeps.js";
