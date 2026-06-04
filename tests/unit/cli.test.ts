@@ -105,7 +105,7 @@ function normalizeText(value: string): string {
 
 async function runCliSubprocess(argv: string[], cwd: string): Promise<CliSubprocessResult> {
   return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", tsxLoaderPath, path.join(repoRoot, "src/index.ts"), ...argv], {
+    const child = spawn(process.execPath, ["--import", tsxLoaderPath, path.join(repoRoot, "src/bin/index.ts"), ...argv], {
       cwd,
       env: {
         ...process.env,
@@ -182,11 +182,11 @@ async function runCli(
     }) as never);
 
   process.chdir(cwd);
-  process.argv = ["node", "src/index.ts", ...argv];
+  process.argv = ["node", "src/bin/index.ts", ...argv];
 
   try {
     vi.resetModules();
-    await import("../../src/index.js");
+    await import("../../src/bin/index.js");
   } catch (error) {
     if (!(error instanceof Error) || !error.message.startsWith("process.exit:")) {
       throw error;
