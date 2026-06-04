@@ -34,7 +34,7 @@ const projectName: string = projectNameArg;
 const isProduction = args.includes("--production-ready");
 const isResume = args.includes("--resume");
 const targetDir = path.resolve(process.cwd(), projectName);
-const templateRoot = path.resolve(__dirname, "../../templates");
+const templateRoot = path.resolve(__dirname, "../../../templates");
 const globalStateDir = path.join(process.cwd(), ".authenik8");
 const stateFile = path.join(globalStateDir, `${projectName}.json`);
 //handles shutdown during resume
