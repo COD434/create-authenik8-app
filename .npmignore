@@ -1,0 +1,8 @@
+# .npmignore
+src/
+*.test.*
+tsconfig.json
+.eslintrc*
+.prettierrc*
+.github/
+*.map

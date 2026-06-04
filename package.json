@@ -39,8 +39,8 @@
     "typescript": "^6.0.3"
   },
   "files": [
-    "dist",
-    "templates"
+    "dist/",
+    "templates/"
   ],
   "scripts": {
     "test": "vitest run",
