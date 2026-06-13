@@ -1,5 +1,16 @@
 
-<h1 align="center">✨ create-authenik8-app ✨</h1>
+<div align="center">
+<pre>
+█████╗      █████╗
+██╔══██╗    ██╔══██╗
+███████║    ╚█████╔╝
+██╔══██║    ██╔══██╗
+██║  ██║    ╚█████╔╝
+╚═╝  ╚═╝     ╚════╝
+</pre>
+
+<h1>create-authenik8-app</h1>
+</div>
 
 <p align="center">
   <i>Launch secure, production-ready authentication in seconds.</i>
@@ -22,7 +33,7 @@
 ![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
 
 
- ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/SVID_20260412_112831_1-ezgif.com-video-to-gif-converter.gif)
+ ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/demo.gif)
 
 
 **See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
@@ -175,7 +186,7 @@ This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 ---
 ## Powered by
 
-authenik8-core (v1.0.33)  identity & token engine(beta)
+authenik8-core (v1.0.38)  identity & token engine(beta)
 
 ---
 

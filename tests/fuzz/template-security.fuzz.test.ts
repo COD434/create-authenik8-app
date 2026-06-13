@@ -1,3 +1,4 @@
+import fc from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -17,86 +18,42 @@ import {
   sanitizeSessionResponse as sanitizeBaseSessionResponse,
 } from "../../templates/express-base/utils/security";
 
-type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
-
 const sensitiveKeys = new Set(["token", "accessToken", "refreshToken"]);
+const jsonValueArbitrary = fc.jsonValue({ maxDepth: 4 });
+const stringArbitrary = fc.string({ maxLength: 1100 });
+const tokenPartArbitrary = fc
+  .array(fc.constantFrom(..."abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"), {
+    minLength: 1,
+    maxLength: 24,
+  })
+  .map((characters) => characters.join(""));
+const validEmailArbitrary = fc
+  .tuple(tokenPartArbitrary, tokenPartArbitrary, tokenPartArbitrary)
+  .map(([local, domain, tld]) => `${local}@${domain}.${tld}`);
+const validPasswordArbitrary = fc.string({ minLength: 8, maxLength: 1024 });
+const validRefreshTokenArbitrary = fc.string({ minLength: 16, maxLength: 96 });
 
-const mulberry32 = (seed: number) => {
-  let value = seed;
+const arbitraryBody = fc.oneof(
+  fc.constant(undefined),
+  fc.constant(null),
+  stringArbitrary,
+  fc.integer(),
+  fc.array(jsonValueArbitrary, { maxLength: 5 }),
+  fc.record({
+    email: fc.oneof(stringArbitrary, jsonValueArbitrary),
+    password: fc.oneof(stringArbitrary, jsonValueArbitrary),
+    refreshToken: fc.oneof(stringArbitrary, jsonValueArbitrary),
+    extra: jsonValueArbitrary,
+  }),
+  fc.record({
+    email: validEmailArbitrary,
+    password: validPasswordArbitrary,
+    refreshToken: validRefreshTokenArbitrary,
+    extra: jsonValueArbitrary,
+  }),
+);
 
-  return () => {
-    value += 0x6d2b79f5;
-    let next = value;
-    next = Math.imul(next ^ (next >>> 15), next | 1);
-    next ^= next + Math.imul(next ^ (next >>> 7), next | 61);
-    return ((next ^ (next >>> 14)) >>> 0) / 4294967296;
-  };
-};
-
-const randomInt = (random: () => number, max: number) => Math.floor(random() * max);
-
-const randomString = (random: () => number, maxLength = 48) => {
-  const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@._- \t\n:/";
-  const length = randomInt(random, maxLength);
-
-  return Array.from({ length }, () => alphabet[randomInt(random, alphabet.length)]).join("");
-};
-
-const randomJson = (random: () => number, depth = 0): JsonValue => {
-  if (depth > 3) {
-    const primitives: JsonValue[] = [null, random() > 0.5, randomInt(random, 10_000), randomString(random)];
-    return primitives[randomInt(random, primitives.length)];
-  }
-
-  const choice = randomInt(random, 6);
-
-  if (choice === 0) return null;
-  if (choice === 1) return random() > 0.5;
-  if (choice === 2) return randomInt(random, 1_000_000);
-  if (choice === 3) return randomString(random);
-  if (choice === 4) {
-    return Array.from({ length: randomInt(random, 5) }, () => randomJson(random, depth + 1));
-  }
-
-  const keyPool = [
-    "id",
-    "role",
-    "sessionId",
-    "device",
-    "ip",
-    "createdAt",
-    "token",
-    "accessToken",
-    "refreshToken",
-    randomString(random, 12) || "value",
-  ];
-  const result: Record<string, JsonValue> = {};
-
-  for (let index = 0; index < randomInt(random, 7); index += 1) {
-    result[keyPool[randomInt(random, keyPool.length)]] = randomJson(random, depth + 1);
-  }
-
-  return result;
-};
-
-const randomBody = (random: () => number) => {
-  const choice = randomInt(random, 8);
-
-  if (choice === 0) return undefined;
-  if (choice === 1) return null;
-  if (choice === 2) return randomString(random);
-  if (choice === 3) return randomInt(random, 1000);
-  if (choice === 4) return [];
-
-  return {
-    email: random() > 0.2 ? randomString(random, 72) : randomJson(random),
-    password: random() > 0.2 ? randomString(random, 1100) : randomJson(random),
-    refreshToken: random() > 0.2 ? randomString(random, 96) : randomJson(random),
-    extra: randomJson(random),
-  };
-};
-
-const isValidEmail = (value: unknown) =>{
+const isValidEmail = (value: unknown) => {
   if (typeof value !== "string") return false;
   const normalized = value.trim().toLowerCase();
   const atIndex = normalized.indexOf("@");
@@ -133,91 +90,97 @@ const assertNoSensitiveKeys = (value: unknown) => {
 };
 
 describe("template security fuzzing", () => {
-  it("redacts sensitive session fields from arbitrary nested payloads", async () => {
+  it("redacts sensitive session fields from arbitrary nested payloads", () => {
     const sanitizers = [
       sanitizeAuthSessionResponse,
       sanitizeAuthPlusSessionResponse,
       sanitizeBaseSessionResponse,
     ];
 
-    for (const [sanitizerIndex, sanitize] of sanitizers.entries()) {
-      const random = mulberry32(10_000 + sanitizerIndex);
-
-      for (let iteration = 0; iteration < 250; iteration += 1) {
-        const payload = randomJson(random);
-        const sanitized = sanitize(payload);
-
-        assertNoSensitiveKeys(sanitized);
-      }
+    for (const sanitize of sanitizers) {
+      fc.assert(
+        fc.property(jsonValueArbitrary, (payload) => {
+          assertNoSensitiveKeys(sanitize(payload));
+        }),
+        { numRuns: 250 },
+      );
     }
   });
 
-  it("accepts only valid credential-shaped bodies", async () => {
+  it("accepts only valid credential-shaped bodies", () => {
     const parsers = [parseAuthCredentials, parseAuthPlusCredentials];
 
-    for (const [parserIndex, parseCredentials] of parsers.entries()) {
-      const random = mulberry32(20_000 + parserIndex);
+    for (const parseCredentials of parsers) {
+      fc.assert(
+        fc.property(arbitraryBody, (body) => {
+          const expectedValid =
+            !!body &&
+            typeof body === "object" &&
+            !Array.isArray(body) &&
+            isValidEmail((body as { email?: unknown }).email) &&
+            isValidPassword((body as { password?: unknown }).password);
 
-      for (let iteration = 0; iteration < 250; iteration += 1) {
-        const body = randomBody(random);
-        const expectedValid =
-          !!body &&
-          typeof body === "object" &&
-          !Array.isArray(body) &&
-          isValidEmail((body as { email?: unknown }).email) &&
-          isValidPassword((body as { password?: unknown }).password);
+          if (expectedValid) {
+            const parsed = parseCredentials(body);
 
-        if (expectedValid) {
-          const parsed = parseCredentials(body);
-
-          expect(parsed.email).toBe((body as { email: string }).email.trim().toLowerCase());
-          expect(parsed.password).toBe((body as { password: string }).password);
-        } else {
-          expect(() => parseCredentials(body)).toThrow();
-        }
-      }
+            expect(parsed.email).toBe((body as { email: string }).email.trim().toLowerCase());
+            expect(parsed.password).toBe((body as { password: string }).password);
+          } else {
+            expect(() => parseCredentials(body)).toThrow();
+          }
+        }),
+        { numRuns: 250 },
+      );
     }
   });
 
-  it("accepts only valid refresh-token-shaped bodies", async () => {
+  it("accepts only valid refresh-token-shaped bodies", () => {
     const parsers = [parseAuthRefreshToken, parseBaseRefreshToken];
 
-    for (const [parserIndex, parseRefreshToken] of parsers.entries()) {
-      const random = mulberry32(30_000 + parserIndex);
+    for (const parseRefreshToken of parsers) {
+      fc.assert(
+        fc.property(arbitraryBody, (body) => {
+          const expectedValid =
+            !!body &&
+            typeof body === "object" &&
+            !Array.isArray(body) &&
+            isValidRefreshToken((body as { refreshToken?: unknown }).refreshToken);
 
-      for (let iteration = 0; iteration < 250; iteration += 1) {
-        const body = randomBody(random);
-        const expectedValid =
-          !!body &&
-          typeof body === "object" &&
-          !Array.isArray(body) &&
-          isValidRefreshToken((body as { refreshToken?: unknown }).refreshToken);
-
-        if (expectedValid) {
-          expect(parseRefreshToken(body)).toBe((body as { refreshToken: string }).refreshToken);
-        } else {
-          expect(() => parseRefreshToken(body)).toThrow();
-        }
-      }
+          if (expectedValid) {
+            expect(parseRefreshToken(body)).toBe((body as { refreshToken: string }).refreshToken);
+          } else {
+            expect(() => parseRefreshToken(body)).toThrow();
+          }
+        }),
+        { numRuns: 250 },
+      );
     }
   });
 
-  it("fails closed for missing or weak secrets", async () => {
+  it("fails closed for missing or weak secrets", () => {
     const secretReaders = [requiredAuthSecret, requiredAuthPlusSecret, requiredBaseSecret];
+    const secretArbitrary = fc.oneof(
+      fc.string({ maxLength: 31 }),
+      fc.string({ minLength: 32, maxLength: 96 }),
+    );
 
     for (const [readerIndex, requiredSecret] of secretReaders.entries()) {
       const envName = `FUZZ_SECRET_${readerIndex}`;
 
-      vi.stubEnv(envName, "");
-      expect(() => requiredSecret(envName)).toThrow();
+      fc.assert(
+        fc.property(secretArbitrary, (secret) => {
+          vi.stubEnv(envName, secret);
 
-      vi.stubEnv(envName, "short-secret");
-      expect(() => requiredSecret(envName)).toThrow();
-
-      vi.stubEnv(envName, `long-secret-${readerIndex}-with-more-than-32-characters`);
-      expect(requiredSecret(envName)).toBe(
-        `long-secret-${readerIndex}-with-more-than-32-characters`,
+          if (secret.trim().length >= 32) {
+            expect(requiredSecret(envName)).toBe(secret);
+          } else {
+            expect(() => requiredSecret(envName)).toThrow();
+          }
+        }),
+        { numRuns: 250 },
       );
     }
+
+    vi.unstubAllEnvs();
   });
 });
