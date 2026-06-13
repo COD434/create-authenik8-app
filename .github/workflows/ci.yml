@@ -94,35 +94,72 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Snapshot tags before release
+        run: git tag --points-at HEAD > "$RUNNER_TEMP/tags-before-release"
+
       - name: Semantic Release + Publish
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+        run: npx semantic-release
+
+      - name: Find release created for this commit
+        id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          npx semantic-release
+          TAG=""
 
+          while IFS= read -r CANDIDATE; do
+            if ! grep -Fqx "$CANDIDATE" "$RUNNER_TEMP/tags-before-release"; then
+              TAG="$CANDIDATE"
+              break
+            fi
+          done < <(git tag --points-at HEAD --sort=-version:refname)
 
-      - name: Pack tarball
+          if [ -n "$TAG" ] && gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "published=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          else
+            echo "published=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack release tarball
+        if: steps.release.outputs.published == 'true'
         id: pack
         run: |
           TARBALL=$(npm pack --json | jq -r '.[0].filename')
-          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
-
-
-      - name: Get the version from package.json
-        id: get_version
-        run: echo "VERSION=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
-
-      - name: List all files in workspace (debug)
-        run: ls -la
+          echo "tarball=$TARBALL" >> "$GITHUB_OUTPUT"
 
       - name: Attest build provenance
+        if: steps.release.outputs.published == 'true'
         id: attest
-        uses: actions/attest-build-provenance@v2
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
-          subject-path: ${{ steps.pack.outputs.tarball}}
+          subject-path: ${{ steps.pack.outputs.tarball }}
 
+      - name: Prepare Scorecard provenance asset
+        if: steps.release.outputs.published == 'true'
+        id: provenance
+        env:
+          BUNDLE_PATH: ${{ steps.attest.outputs.bundle-path }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+        run: |
+          PROVENANCE="${TARBALL}.intoto.jsonl"
+          cp "$BUNDLE_PATH" "$PROVENANCE"
+          echo "path=$PROVENANCE" >> "$GITHUB_OUTPUT"
 
+      - name: Upload artifact and provenance to GitHub Release
+        if: steps.release.outputs.published == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+          PROVENANCE: ${{ steps.provenance.outputs.path }}
+        run: |
+          gh release upload "$RELEASE_TAG" "$TARBALL" "$PROVENANCE" \
+            --clobber \
+            --repo "$GITHUB_REPOSITORY"
 
 
