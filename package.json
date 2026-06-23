@@ -58,7 +58,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "fast-check": "^4.8.0",
     "supertest": "^7.2.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.9"
   },
   "repository": {
     "type": "git",
