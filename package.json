@@ -55,7 +55,7 @@
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.9.3",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.9",
     "fast-check": "^4.8.0",
     "supertest": "^7.2.2",
     "vitest": "^4.1.8"
