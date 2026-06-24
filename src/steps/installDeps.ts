@@ -32,10 +32,10 @@ export function detectPackageManager(): PackageManager {
 
 function getRedisInstallCommand(): string | null {
   if (process.platform === "darwin" && commandSucceeds("brew --version")) {
-    return "brew install redis";
+    return "brew install redis"
   }
-
   if (process.platform === "win32" && commandSucceeds("npm.cmd -v")){
+
 return "npm.cmd -y install redis-server";
   }
 
