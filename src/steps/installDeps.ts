@@ -35,7 +35,7 @@ function getRedisInstallCommand(): string | null {
     return "brew install redis";
   }
 
-  if (process.platform === "Win32" && commandSucceeds("npm.cmd -v")){
+  if (process.platform === "win32" && commandSucceeds("npm.cmd -v")){
 return "npm.cmd -y install redis-server";
   }
 
