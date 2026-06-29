@@ -61,9 +61,27 @@ describe("cross-platform process execution", () => {
     const child = mockChild();
     vi.mocked(spawn).mockReturnValue(child as never);
 
+<<<<<<< HEAD
     const promise = processLib.run("npm", ["install"], {
       cwd: "/tmp/project",
       stdio: "pipe",
+=======
+    it('resolves on successful exit (code 0)', async () => {
+      const mockChild = { on: vi.fn() } as any;
+      vi.mocked(spawn).mockReturnValue(mockChild);
+
+      const promise = processLib.run('npm', ['install'], options);
+
+      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
+      exitHandler(0);
+
+      await expect(promise).resolves.toBeUndefined();
+      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
+        cwd: '/tmp/test-project',
+        stdio: 'ignore',
+	shell:true
+      });
+>>>>>>> 372ba3c (fix(deps):fixed window install)
     });
     child.stderr.emit("data", "registry request failed");
     child.emit("close", 1, null);
@@ -78,8 +96,18 @@ describe("cross-platform process execution", () => {
     const promise = processLib.run("npm", ["install"], { cwd: "/tmp/project" });
     child.emit("close", null, "SIGINT");
 
+<<<<<<< HEAD
     await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
   });
+=======
+      await expect(promise).resolves.toBeUndefined();
+      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
+        cwd: '/tmp/test-project',
+        stdio: 'inherit',
+	shell:true
+      });
+    });
+>>>>>>> 372ba3c (fix(deps):fixed window install)
 
   it("rejects executable spawn errors", async () => {
     const child = mockChild();
