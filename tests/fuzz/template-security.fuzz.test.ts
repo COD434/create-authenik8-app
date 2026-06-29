@@ -111,6 +111,13 @@ describe("template security fuzzing", () => {
     const parsers = [parseAuthCredentials, parseAuthPlusCredentials];
 
     for (const parseCredentials of parsers) {
+      expect(() =>
+        parseCredentials({
+          email: "user@example.",
+          password: "valid-password",
+        }),
+      ).toThrow();
+
       fc.assert(
         fc.property(arbitraryBody, (body) => {
           const expectedValid =
