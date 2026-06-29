@@ -3,15 +3,16 @@ import type { RunOptions } from "./types.js";
 
 const activeProcesses = new Set<ChildProcess>();
 
-export function run(cmd: string, args: string[], options: RunOptions): Promise<void> {
+export function run(cmd: string, args: string[],options: RunOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: options.cwd,
       stdio: options.stdio ?? "ignore",
+      shell:true
     });
     activeProcesses.add(child);
 
-    child.on("exit", (code) => {
+    child.on("exit", (code:any) => {
       activeProcesses.delete(child);
       if (code === 0) {
         resolve();
@@ -20,7 +21,7 @@ export function run(cmd: string, args: string[], options: RunOptions): Promise<v
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", (err:any) => {
       activeProcesses.delete(child);
       reject(err);
     });

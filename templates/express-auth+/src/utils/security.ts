@@ -35,7 +35,7 @@ export function parseCredentials(body: unknown) {
   const atIndex = normalizedEmail.indexOf("@");
   const dotIndex = normalizedEmail.lastIndexOf(".");
 
-  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 || dotIndex === normalizedEmail.length) {
+  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 || dotIndex === normalizedEmail.length - 1) {
 	  throw new Error("A valid email is required");
   }
 

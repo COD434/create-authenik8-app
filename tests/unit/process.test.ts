@@ -62,6 +62,7 @@ describe('process.ts', () => {
       expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
         cwd: '/tmp/test-project',
         stdio: 'ignore',
+	shell:true
       });
     });
 
@@ -78,6 +79,7 @@ describe('process.ts', () => {
       expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
         cwd: '/tmp/test-project',
         stdio: 'inherit',
+	shell:true
       });
     });
 
