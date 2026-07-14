@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+<<<<<<< HEAD
 
 vi.mock("../src/config/env.js", () => ({
   env: {
@@ -11,6 +12,9 @@ vi.mock("../src/config/env.js", () => ({
 
 import { readRefreshCookie, refreshCookieName, refreshCookieOptions, setRefreshCookie } from "../src/auth/cookies.js";
 import { csrfCookieName, issueCsrfToken, requireCsrf } from "../src/middleware/csrf.js";
+=======
+import { refreshCookieOptions } from "../src/auth/cookies.js";
+>>>>>>> befe6e3 (feat:new presets)
 import { requireAllowedOrigin } from "../src/middleware/origin.js";
 import { exactHttpOriginSchema } from "../src/config/exact-origin.js";
 
@@ -18,6 +22,7 @@ describe("browser session defenses", () => {
   it("restricts the refresh cookie", () => {
     expect(refreshCookieOptions()).toMatchObject({
       httpOnly: true,
+<<<<<<< HEAD
       sameSite: "strict",
       path: "/api",
     });
@@ -70,6 +75,13 @@ describe("browser session defenses", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
+=======
+      sameSite: "lax",
+      path: "/api/auth",
+    });
+  });
+
+>>>>>>> befe6e3 (feat:new presets)
   it("rejects a mismatched cookie request origin", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();

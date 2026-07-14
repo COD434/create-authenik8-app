@@ -12,6 +12,7 @@ import {
 } from "../../src/steps/installDeps.js";
 import * as processLib from "../../src/lib/process.js";
 
+vi.mock("../../src/lib/process.js");
 
 describe("getProjectInstallEnv", () => {
   it("removes inherited npm allow-scripts configuration", () => {

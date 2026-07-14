@@ -110,6 +110,16 @@ export async function configurePrisma(
       );
 
       await fs.copy(
+        path.join(prismaTemplatePath, "prisma.config.ts"),
+        path.join(targetDir, "prisma.config.ts")
+      );
+
+      await fs.copy(
+        path.join(prismaTemplatePath, "client.ts"),
+        path.join(targetDir, "src/prisma/client.ts")
+      );
+
+      await fs.copy(
         path.join(prismaTemplatePath, ".env.example"),
         path.join(targetDir, ".env")
       );

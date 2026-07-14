@@ -52,7 +52,7 @@ export function run(
       }
     });
 
-    child.on("error", (err:any) => {
+    child.on("error", (err) => {
       activeProcesses.delete(child);
       reject(err);
     });

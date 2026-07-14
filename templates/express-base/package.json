@@ -4,22 +4,32 @@
     "dev": "tsx watch ./src/server.ts",
     "build": "tsc",
     "start": "node dist/src/server.js",
+<<<<<<< HEAD
     "db:migrate": "prisma db push && prisma generate",
     "prisma:migrate": "prisma db push && prisma generate",
     "docker:up": "docker compose up -d --wait",
+=======
+    "prisma:migrate": "prisma migrate",
+    "docker:up": "docker compose up -d",
+>>>>>>> befe6e3 (feat:new presets)
     "docker:down": "docker compose down"
   },
   "dependencies": {
     "authenik8-core": "2.0.6",
     "dotenv": "^16.0.0",
     "express": "^4.18.2",
+<<<<<<< HEAD
     "@prisma/client": "7.9.0",
     "ioredis": "^5.8.1",
+=======
+    "@prisma/client": "7.8.0",
+>>>>>>> befe6e3 (feat:new presets)
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.2",
+<<<<<<< HEAD
     "ioredis-mock": "8.13.1",
     "prisma": "7.9.0",
     "tsx": "^4.22.4",
@@ -28,6 +38,15 @@
   "overrides": {
     "find-my-way": "9.7.0",
     "valibot": "1.4.2"
+=======
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0",
+     "prisma": "7.8.0"
+
+>>>>>>> befe6e3 (feat:new presets)
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.13"
   },
   "type": "commonjs"
 }

@@ -69,6 +69,7 @@ export function requiredEnv(name: string): string {
   return result.data;
 }
 
+<<<<<<< HEAD
 export function requiredPort(): number {
   const result = portSchema.safeParse(process.env.PORT ?? 3000);
   if (!result.success) throw new InputValidationError("PORT must be between 1 and 65535");
@@ -145,6 +146,16 @@ export function parseRefreshToken(body: unknown): string {
   return result.data.refreshToken;
 }
 
+=======
+export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
+  const result = credentialsSchema.safeParse(body);
+  if (!result.success) {
+    throw new InputValidationError(validationMessage(result.error, "Email and password are required"));
+  }
+  return result.data;
+}
+
+>>>>>>> befe6e3 (feat:new presets)
 export function parseIdentifier(value: unknown, label: string): string {
   const result = identifierSchema.safeParse(value);
   if (!result.success) throw new InputValidationError(`${label} is invalid`);

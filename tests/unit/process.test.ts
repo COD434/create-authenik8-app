@@ -62,6 +62,7 @@ describe("cross-platform process execution", () => {
     vi.mocked(spawn).mockReturnValue(child as never);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     const promise = processLib.run("npm", ["install"], {
       cwd: "/tmp/project",
       stdio: "pipe",
@@ -82,6 +83,11 @@ describe("cross-platform process execution", () => {
 	shell:true
       });
 >>>>>>> 372ba3c (fix(deps):fixed window install)
+=======
+    const promise = processLib.run("npm", ["install"], {
+      cwd: "/tmp/project",
+      stdio: "pipe",
+>>>>>>> befe6e3 (feat:new presets)
     });
     child.stderr.emit("data", "registry request failed");
     child.emit("close", 1, null);
@@ -97,6 +103,7 @@ describe("cross-platform process execution", () => {
     child.emit("close", null, "SIGINT");
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
   });
 =======
@@ -108,6 +115,10 @@ describe("cross-platform process execution", () => {
       });
     });
 >>>>>>> 372ba3c (fix(deps):fixed window install)
+=======
+    await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
+  });
+>>>>>>> befe6e3 (feat:new presets)
 
   it("rejects executable spawn errors", async () => {
     const child = mockChild();
@@ -138,6 +149,7 @@ describe("cross-platform process execution", () => {
       error: new Error("missing"),
     } as never);
     expect(processLib.commandExists("bun", "darwin")).toBe(false);
+<<<<<<< HEAD
   });
 
   it("checks the Docker Compose plugin instead of only the Docker executable", () => {
@@ -197,6 +209,27 @@ describe("cross-platform process execution", () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
+=======
+  });
+
+  it("terminates child trees with taskkill on Windows", async () => {
+    const child = mockChild(9876);
+    vi.mocked(spawn).mockReturnValue(child as never);
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
+
+    const promise = processLib.run("npm.cmd", ["install"], { cwd: "C:\\project" });
+    processLib.killAllProcesses("win32");
+    child.emit("close", 0, null);
+    await promise;
+
+    expect(spawnSync).toHaveBeenCalledWith(
+      "taskkill.exe",
+      ["/pid", "9876", "/T", "/F"],
+      { stdio: "ignore", windowsHide: true },
+    );
+  });
+
+>>>>>>> befe6e3 (feat:new presets)
   it("classifies only supported interrupt signals", async () => {
     expect(processLib.isInterruptedError({ signal: "SIGINT" })).toBe(true);
     expect(processLib.isInterruptedError({ signal: "SIGTERM" })).toBe(true);

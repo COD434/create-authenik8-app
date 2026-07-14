@@ -228,3 +228,7 @@ jobs:
           gh release upload "$RELEASE_TAG" "$TARBALL" "$PROVENANCE" \
             --clobber \
             --repo "$GITHUB_REPOSITORY"
+<<<<<<< HEAD
+=======
+
+>>>>>>> befe6e3 (feat:new presets)

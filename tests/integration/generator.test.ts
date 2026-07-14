@@ -946,6 +946,60 @@ describe("generator happy paths", () => {
     }
   });
 
+  it("generates the connected full-stack workspace without legacy package rewrites", async () => {
+    const project = await generateProjectFixture({
+      template: "fullstack",
+      database: "postgresql",
+    });
+
+    try {
+      const pkg = await fs.readJson(`${project.targetDir}/package.json`);
+      const files = await readProjectFiles(project.targetDir, [
+        "PRESET_CONTRACT.md",
+        "apps/api/package.json",
+        "apps/api/prisma.config.ts",
+        "apps/api/prisma/schema.prisma",
+        "apps/api/src/config/prisma.ts",
+        "apps/api/src/auth/cookies.ts",
+        "apps/api/src/modules/projects/project.policy.ts",
+        "apps/web/src/auth/AuthProvider.tsx",
+        "apps/web/src/auth/providers.ts",
+        "apps/web/vite.config.ts",
+        "packages/api-client/src/index.ts",
+        ".env",
+      ]);
+
+      expect(pkg.workspaces).toEqual(["apps/*", "packages/*"]);
+      expect(pkg.scripts.dev).toContain("concurrently");
+      expect(pkg.scripts.dev).toContain("@authenik8/contracts");
+      expect(pkg.scripts.dev).toContain("@authenik8/api-client");
+      expect(pkg.scripts.dev).toContain("@authenik8/ui");
+      expect(pkg.scripts.postinstall).toBeUndefined();
+      const apiPkg = JSON.parse(files["apps/api/package.json"]);
+      expect(apiPkg.dependencies["@prisma/client"]).toBe("7.8.0");
+      expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.8.0");
+      expect(apiPkg.dependencies.zod).toBe("^4.4.3");
+      expect(apiPkg.devDependencies.prisma).toBe("7.8.0");
+      expect(pkg.overrides["@hono/node-server"]).toBe("1.19.13");
+      expect(files["PRESET_CONTRACT.md"]).toContain("Access tokens exist only in module memory");
+      expect(files["apps/api/prisma.config.ts"]).toContain('url: env("DATABASE_URL")');
+      expect(files["apps/api/prisma/schema.prisma"]).toContain("model Project");
+      expect(files["apps/api/src/config/prisma.ts"]).toContain("new PrismaPg");
+      expect(files["apps/api/src/auth/cookies.ts"]).toContain('httpOnly: true');
+      expect(files["apps/api/src/modules/projects/project.policy.ts"]).toContain("project.ownerId === actor.userId");
+      expect(files["apps/web/src/auth/AuthProvider.tsx"]).toContain("authApi.restore()");
+      expect(files["apps/web/src/auth/providers.ts"]).toContain("readonly OAuthProvider[]");
+      expect(files["apps/web/src/auth/providers.ts"]).toContain('["google","github"]');
+      expect(files["apps/web/vite.config.ts"]).toContain("preview:");
+      expect(files["apps/web/vite.config.ts"]).toContain("proxy: apiProxy");
+      expect(files["packages/api-client/src/index.ts"]).toContain("registerSchema.parse(input)");
+      expect(files["packages/api-client/src/index.ts"]).not.toMatch(/localStorage|sessionStorage/);
+      expect(files[".env"]).toContain("DATABASE_URL=postgresql://");
+    } finally {
+      await project.cleanup();
+    }
+  });
+
   it.each([
     {
       template: "base" as const,

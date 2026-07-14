@@ -108,10 +108,14 @@ describe("template security fuzzing", () => {
     ] as const;
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     for (const [parseCredentials, schema] of parsers) {
 =======
     for (const parseCredentials of parsers) {
 >>>>>>> 4011375 (fix(deps):fixed window install)
+=======
+    for (const [parseCredentials, schema] of parsers) {
+>>>>>>> befe6e3 (feat:new presets)
       expect(() =>
         parseCredentials({
           email: "user@example.",
@@ -165,7 +169,11 @@ describe("template security fuzzing", () => {
     ] as const;
 
     for (const [parseRefreshToken, schema] of parsers) {
+<<<<<<< HEAD
       assertFuzzProperty(
+=======
+      fc.assert(
+>>>>>>> befe6e3 (feat:new presets)
         fc.property(arbitraryBody, (body) => {
           const expected = schema.safeParse(body);
 
