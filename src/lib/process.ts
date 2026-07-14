@@ -11,17 +11,20 @@ function appendOutput(current: string, chunk: unknown): string {
     : next;
 }
 
-export function run(cmd: string, args: string[], options: RunOptions): Promise<void> {
+export function run(cmd: string, args: string[],options: RunOptions): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd: options.cwd,
       stdio: options.stdio ?? "ignore",
+
       env: options.env,
       shell: process.platform === "win32",
       windowsHide: true,
+
     });
     activeProcesses.add(child);
     let output = "";
+
 
     child.stdout?.on("data", (chunk) => {
       output = appendOutput(output, chunk);
@@ -31,6 +34,7 @@ export function run(cmd: string, args: string[], options: RunOptions): Promise<v
     });
 
     child.on("close", (code, signal) => {
+
       activeProcesses.delete(child);
       if (code === 0) {
         resolve();
@@ -47,7 +51,7 @@ export function run(cmd: string, args: string[], options: RunOptions): Promise<v
       }
     });
 
-    child.on("error", (err) => {
+    child.on("error", (err:any) => {
       activeProcesses.delete(child);
       reject(err);
     });
