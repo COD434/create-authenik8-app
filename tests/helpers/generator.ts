@@ -13,7 +13,7 @@ import { installAuth } from "../../src/steps/installAuth.js";
 import { configureProduction } from "../../src/steps/finalSetup.js";
 import * as hashUtils from "../../src/utils/hash.js";
 
-type TemplateKind = "base" | "auth" | "auth-oauth";
+type TemplateKind = "base" | "auth" | "auth-oauth" | "fullstack";
 
 export type GeneratedProject = {
   rootDir: string;
@@ -30,19 +30,20 @@ export type GenerateProjectOptions = {
   productionRuntime?: "node" | "bun";
   hashLib?: "bcryptjs";
   oauthProviders?: string[];
+  packageManager?: "npm" | "pnpm" | "bun";
 };
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../");
 const templateRoot = path.join(repoRoot, "templates");
-console.log("Template root resolved to:", templateRoot);
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
 
 const templateToAuthMode: Record<TemplateKind, CliState["authMode"]> = {
   base: "base",
   auth: "auth",
   "auth-oauth": "auth-oauth",
+  fullstack: "fullstack",
 };
 
 function toPosixPath(value: string): string {
@@ -90,7 +91,7 @@ export async function generateProjectFixture(
 
   let hashLib: string | undefined;
 
-  if (state.authMode !== "base") {
+  if (state.authMode !== "base" && state.authMode !== "fullstack") {
     const hashSpy = vi
       .spyOn(hashUtils, "getBestHashLib")
       .mockReturnValue(options.hashLib ?? "bcryptjs");
@@ -103,7 +104,7 @@ export async function generateProjectFixture(
   }
 
   await configurePrisma(state, targetDir, templateRoot);
-  configurePackageJson(targetDir, state.usePrisma ?? false);
+  configurePackageJson(targetDir, state.usePrisma ?? false, options.packageManager ?? "npm");
 
   if (options.productionRuntime) {
     await configureProduction(targetDir, state.projectName, options.productionRuntime);
@@ -166,6 +167,11 @@ export async function readProjectFiles(rootDir: string, relativePaths: string[])
 }
 
 export async function installGeneratedAppStubs(targetDir: string): Promise<void> {
+  await fs.copy(
+    path.join(repoRoot, "node_modules", "zod"),
+    path.join(targetDir, "node_modules", "zod"),
+  );
+
   await writePackageStub(
     targetDir,
     "authenik8-core",
@@ -225,6 +231,21 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
 };
 `,
   );
+  const dotenvDir = path.join(targetDir, "node_modules", "dotenv");
+  await fs.writeJson(
+    path.join(dotenvDir, "package.json"),
+    {
+      name: "dotenv",
+      type: "module",
+      main: "./index.js",
+      exports: {
+        ".": "./index.js",
+        "./config": "./config.js",
+      },
+    },
+    { spaces: 2 },
+  );
+  await fs.writeFile(path.join(dotenvDir, "config.js"), "export {};\n");
 
   await writePackageStub(
     targetDir,
@@ -290,6 +311,20 @@ export default express;
 
   await writePackageStub(
     targetDir,
+    "@prisma/adapter-pg",
+    `export class PrismaPg {}
+`,
+  );
+
+  await writePackageStub(
+    targetDir,
+    "@prisma/adapter-better-sqlite3",
+    `export class PrismaBetterSqlite3 {}
+`,
+  );
+
+  await writePackageStub(
+    targetDir,
     "bcryptjs",
     `export default {
   async hash(value) {
@@ -315,6 +350,7 @@ export async function runGeneratedServerSmoke(targetDir: string, entryPath: stri
     `globalThis.setInterval = () => ({ unref() {} });
 process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
 await import(${JSON.stringify(entryImportPath)});
+await new Promise((resolve) => setTimeout(resolve, 25));
 `,
   );
 
@@ -357,7 +393,7 @@ await import(${JSON.stringify(entryImportPath)});
       reject(error);
     });
 
-    child.on("exit", (code) => {
+    child.on("close", (code) => {
       clearTimeout(timeout);
       resolve({
         code,

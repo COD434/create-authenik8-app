@@ -1,158 +1,140 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { spawn } from 'child_process';
-import * as processLib from '../../src/lib/process';
+import { EventEmitter } from "node:events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { spawn, spawnSync } from "child_process";
+import * as processLib from "../../src/lib/process.js";
 
-vi.mock('child_process');
+vi.mock("child_process");
 
-describe('process.ts', () => {
+function mockChild(pid = 1234) {
+  const child = new EventEmitter() as EventEmitter & {
+    pid: number;
+    stdout: EventEmitter;
+    stderr: EventEmitter;
+    kill: ReturnType<typeof vi.fn>;
+  };
+  child.pid = pid;
+  child.stdout = new EventEmitter();
+  child.stderr = new EventEmitter();
+  child.kill = vi.fn();
+  return child;
+}
+
+describe("cross-platform process execution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    processLib.killAllProcesses("linux");
   });
 
-  describe('getCommand()', () => {
-    const originalPlatform = process.platform;
+  it("resolves platform executable names without mutating process.platform", () => {
+    expect(processLib.getCommand("npm", "win32")).toBe("npm.cmd");
+    expect(processLib.getCommand("npx", "win32")).toBe("npx.cmd");
+    expect(processLib.getCommand("pnpm", "win32")).toBe("pnpm.cmd");
+    expect(processLib.getCommand("bun", "win32")).toBe("bun.exe");
+    expect(processLib.getCommand("git", "win32")).toBe("git.exe");
+    expect(processLib.getCommand("npm", "darwin")).toBe("npm");
+    expect(processLib.getCommand("node", "linux")).toBe("node");
+  });
 
-    afterEach(() => {
-      Object.defineProperty(process, 'platform', { value: originalPlatform, writable: true });
-    });
+  it("runs commands with hidden Windows consoles and no Unix shell", async () => {
+    const child = mockChild();
+    vi.mocked(spawn).mockReturnValue(child as never);
 
-    it('returns Windows .cmd versions on win32', () => {
-      Object.defineProperty(process, 'platform', { value: 'win32', writable: true });
+    const promise = processLib.run("npm", ["install"], { cwd: "/tmp/project" });
+    child.emit("close", 0, null);
 
-      expect(processLib.getCommand('npm')).toBe('npm.cmd');
-      expect(processLib.getCommand('npx')).toBe('npx.cmd');
-      expect(processLib.getCommand('pnpm')).toBe('pnpm.cmd');
-      expect(processLib.getCommand('bun')).toBe('bun.exe');
-      expect(processLib.getCommand('git')).toBe('git.exe');
-    });
-
-    it('returns normal names on non-Windows', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', writable: true });
-
-      expect(processLib.getCommand('npm')).toBe('npm');
-      expect(processLib.getCommand('npx')).toBe('npx');
-      expect(processLib.getCommand('pnpm')).toBe('pnpm');
-      expect(processLib.getCommand('bun')).toBe('bun');
-      expect(processLib.getCommand('git')).toBe('git');
-    });
-
-    it('returns the command unchanged for unknown commands', () => {
-      expect(processLib.getCommand('python')).toBe('python');
-      expect(processLib.getCommand('echo')).toBe('echo');
+    await expect(promise).resolves.toBeUndefined();
+    expect(spawn).toHaveBeenCalledWith("npm", ["install"], {
+      cwd: "/tmp/project",
+      stdio: "ignore",
+      env: undefined,
+      shell: false,
+      windowsHide: true,
     });
   });
 
-  describe('run()', () => {
-    const options = { cwd: '/tmp/test-project' };
+  it("captures buffered output and includes it in failures", async () => {
+    const child = mockChild();
+    vi.mocked(spawn).mockReturnValue(child as never);
 
-    it('resolves on successful exit (code 0)', async () => {
-      const mockChild = { on: vi.fn() } as any;
-      vi.mocked(spawn).mockReturnValue(mockChild);
-
-      const promise = processLib.run('npm', ['install'], options);
-
-      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
-      exitHandler(0);
-
-      await expect(promise).resolves.toBeUndefined();
-      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
-        cwd: '/tmp/test-project',
-        stdio: 'ignore',
-	shell:true
-      });
+    const promise = processLib.run("npm", ["install"], {
+      cwd: "/tmp/project",
+      stdio: "pipe",
     });
+    child.stderr.emit("data", "registry request failed");
+    child.emit("close", 1, null);
 
-    it('passes stdio through to spawn when provided', async () => {
-      const mockChild = { on: vi.fn() } as any;
-      vi.mocked(spawn).mockReturnValue(mockChild);
+    await expect(promise).rejects.toThrow("registry request failed");
+  });
 
-      const promise = processLib.run('npm', ['install'], { cwd: '/tmp/test-project', stdio: 'inherit' });
+  it("preserves interrupt signals", async () => {
+    const child = mockChild();
+    vi.mocked(spawn).mockReturnValue(child as never);
 
-      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
-      exitHandler(0);
+    const promise = processLib.run("npm", ["install"], { cwd: "/tmp/project" });
+    child.emit("close", null, "SIGINT");
 
-      await expect(promise).resolves.toBeUndefined();
-      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
-        cwd: '/tmp/test-project',
-        stdio: 'inherit',
-	shell:true
-      });
-    });
+    await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
+  });
 
-    it('rejects on non-zero exit code', async () => {
-      const mockChild = { on: vi.fn() } as any;
-      vi.mocked(spawn).mockReturnValue(mockChild);
+  it("rejects executable spawn errors", async () => {
+    const child = mockChild();
+    vi.mocked(spawn).mockReturnValue(child as never);
+    const error = Object.assign(new Error("not found"), { code: "ENOENT" });
 
-      const promise = processLib.run('npm', ['install'], options);
+    const promise = processLib.run("git", ["init"], { cwd: "/tmp/project" });
+    child.emit("error", error);
 
-      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
-      exitHandler(1);
+    await expect(promise).rejects.toBe(error);
+    expect(processLib.isCommandNotFoundError(error)).toBe(true);
+  });
 
-      await expect(promise).rejects.toThrow('npm exited with code 1');
-    });
+  it("probes commands with the correct Windows shell behavior", () => {
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
 
-    it('rejects on spawn error', async () => {
-      const mockChild = { on: vi.fn() } as any;
-      vi.mocked(spawn).mockReturnValue(mockChild);
-
-      const promise = processLib.run('npm', ['install'], options);
-
-      const errorHandler = mockChild.on.mock.calls.find(([event]) => event === 'error')![1];
-      const error = new Error('Spawn failed');
-      errorHandler(error);
-
-      await expect(promise).rejects.toBe(error);
+    expect(processLib.commandExists("npm", "win32")).toBe(true);
+    expect(spawnSync).toHaveBeenCalledWith("npm.cmd", ["--version"], {
+      stdio: "ignore",
+      shell: true,
+      windowsHide: true,
     });
   });
 
-  describe('killAllProcesses()', () => {
-    it('kills all active processes', () => {
-      const mockProc1 = { kill: vi.fn() };
-      const mockProc2 = { kill: vi.fn() };
-
-      // We can't easily access the private Set, so we just verify the public API works
-      // (the internal tracking is covered by the run() tests above)
-      processLib.killAllProcesses();
-
-      // No assertion needed beyond the call not throwing — coverage is already high
-      expect(true).toBe(true); // placeholder
-    });
+  it("returns false when an executable probe fails", () => {
+    vi.mocked(spawnSync).mockReturnValue({
+      status: null,
+      error: new Error("missing"),
+    } as never);
+    expect(processLib.commandExists("bun", "darwin")).toBe(false);
   });
 
-  describe('isInterruptedError()', () => {
-    it('returns true for SIGINT error', () => {
-      const err = { signal: 'SIGINT' };
-      expect(processLib.isInterruptedError(err)).toBe(true);
-    });
+  it("terminates child trees with taskkill on Windows", async () => {
+    const child = mockChild(9876);
+    vi.mocked(spawn).mockReturnValue(child as never);
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
 
-    it('returns true for SIGTERM error', () => {
-      const err = { signal: 'SIGTERM' };
-      expect(processLib.isInterruptedError(err)).toBe(true);
-    });
+    const promise = processLib.run("npm.cmd", ["install"], { cwd: "C:\\project" });
+    processLib.killAllProcesses("win32");
+    child.emit("close", 0, null);
+    await promise;
 
-    it('returns false for other errors', () => {
-      expect(processLib.isInterruptedError(new Error('normal error'))).toBe(false);
-      expect(processLib.isInterruptedError({ signal: 'SIGKILL' })).toBe(false);
-      expect(processLib.isInterruptedError(null)).toBe(false);
-      expect(processLib.isInterruptedError(undefined)).toBe(false);
-    });
+    expect(spawnSync).toHaveBeenCalledWith(
+      "taskkill.exe",
+      ["/pid", "9876", "/T", "/F"],
+      { stdio: "ignore", windowsHide: true },
+    );
   });
 
-  describe('exitForInterrupt()', () => {
-    it('re-throws interrupt errors', async () => {
-      const interruptErr = { signal: 'SIGINT' };
-
-      await expect(processLib.exitForInterrupt(interruptErr)).rejects.toBe(interruptErr);
+  it("classifies only supported interrupt signals", async () => {
+    expect(processLib.isInterruptedError({ signal: "SIGINT" })).toBe(true);
+    expect(processLib.isInterruptedError({ signal: "SIGTERM" })).toBe(true);
+    expect(processLib.isInterruptedError({ signal: "SIGKILL" })).toBe(false);
+    await expect(processLib.exitForInterrupt({ signal: "SIGINT" })).rejects.toEqual({
+      signal: "SIGINT",
     });
-
-    it('does nothing for non-interrupt errors', async () => {
-      const normalErr = new Error('normal error');
-
-      await expect(processLib.exitForInterrupt(normalErr)).resolves.toBeUndefined();
-    });
+    await expect(processLib.exitForInterrupt(new Error("normal"))).resolves.toBeUndefined();
   });
 });

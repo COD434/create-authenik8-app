@@ -3,13 +3,24 @@
 exports[`generator snapshots > 'express-auth' folder tree and key files match the snapshot 1`] = `
 {
   "keyFiles": {
+    "prisma.config.ts": "import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});",
     "prisma/schema.prisma": "generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -107,7 +118,18 @@ export const createAuthController = (auth: any) => ({
   },
 });",
     "src/controllers/protected.controller.ts": "import { Request, Response } from "express";
-import { sanitizeSessionResponse } from "../utils/security";
+import {
+  InputValidationError,
+  parseIdentifier,
+  sanitizeSessionResponse,
+} from "../utils/security";
+
+function sessionError(res: Response, error: unknown, fallback: string) {
+  if (error instanceof InputValidationError) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+  return res.status(500).json({ success: false, message: fallback });
+}
 
 export const createProtectedController = () => ({
   protected(req: Request, res: Response) {
@@ -121,10 +143,11 @@ export const createProtectedController = () => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      const sessions = await actions.listSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessions = await actions.listSessions(userId);
       res.json({ sessions: sanitizeSessionResponse(sessions) });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    } catch (error) {
+      sessionError(res, error, "Failed to retrieve sessions");
     }
   },
 
@@ -135,10 +158,12 @@ export const createProtectedController = () => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessionId = parseIdentifier(req.params.sessionId, "Session ID");
+      await actions.revokeSession(userId, sessionId);
       res.json({ success: true, message: "Session revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    } catch (error) {
+      sessionError(res, error, "Failed to revoke session");
     }
   },
 
@@ -149,13 +174,31 @@ export const createProtectedController = () => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeAllSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      await actions.revokeAllSessions(userId);
       res.json({ success: true, message: "All sessions revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    } catch (error) {
+      sessionError(res, error, "Failed to revoke sessions");
     }
   },
 });",
+    "src/prisma/client.ts": "import "dotenv/config";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+const databaseUrl = process.env.DATABASE_URL;
+if (!databaseUrl) throw new Error("DATABASE_URL is required");
+
+const adapter = new PrismaPg({ connectionString: databaseUrl });
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}",
     "src/routes/auth.routes.ts": "import { Router } from "express";
 import { createAuthController } from "../controllers/auth.controller";
 
@@ -199,6 +242,7 @@ return bcrypt.compare(password, hash);
     "THREAT_MODEL.md",
     "docker-compose.yml",
     "package.json",
+    "prisma.config.ts",
     "prisma/",
     "prisma/schema.prisma",
     "src/",
@@ -241,7 +285,13 @@ export const createApp = (auth: any) => {
   return app;
 };",
     "controllers/base.controller.ts": "import { Request, Response } from "express";
-import { getBearerToken, parseRefreshToken, sanitizeSessionResponse } from "../utils/security";
+import {
+  InputValidationError,
+  getBearerToken,
+  parseIdentifier,
+  parseRefreshToken,
+  sanitizeSessionResponse,
+} from "../utils/security";
 
 export const createBaseController = (auth: any) => ({
   publicRoute(req: Request, res: Response) {
@@ -285,10 +335,15 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      const sessions = await actions.listSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessions = await actions.listSessions(userId);
       res.json({ sessions: sanitizeSessionResponse(sessions) });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to retrieve sessions",
+      });
     }
   },
 
@@ -299,10 +354,16 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessionId = parseIdentifier(req.params.sessionId, "Session ID");
+      await actions.revokeSession(userId, sessionId);
       res.json({ success: true, message: "Session revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to revoke session",
+      });
     }
   },
 
@@ -313,11 +374,28 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeAllSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      await actions.revokeAllSessions(userId);
       res.json({ success: true, message: "All sessions revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to revoke sessions",
+      });
     }
+  },
+});",
+    "prisma.config.ts": "import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
   },
 });",
     "prisma/schema.prisma": "generator client {
@@ -326,7 +404,6 @@ export const createBaseController = (auth: any) => ({
 
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -371,6 +448,22 @@ export const createBaseRoutes = (auth: any) => {
 
   return router;
 };",
+    "src/prisma/client.ts": "import "dotenv/config";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaClient } from "@prisma/client";
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+const adapter = new PrismaBetterSqlite3({
+  url: process.env.DATABASE_URL ?? "file:./dev.db",
+});
+export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}",
     "src/server.ts": "import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
@@ -418,11 +511,14 @@ start();",
     "controllers/base.controller.ts",
     "docker-compose.yml",
     "package.json",
+    "prisma.config.ts",
     "prisma/",
     "prisma/schema.prisma",
     "routes/",
     "routes/base.routes.ts",
     "src/",
+    "src/prisma/",
+    "src/prisma/client.ts",
     "src/server.ts",
     "tsconfig.json",
     "utils/",

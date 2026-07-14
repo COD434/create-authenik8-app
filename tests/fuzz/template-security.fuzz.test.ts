@@ -4,16 +4,20 @@ import { describe, expect, it, vi } from "vitest";
 import {
   parseCredentials as parseAuthCredentials,
   parseRefreshToken as parseAuthRefreshToken,
+  credentialsSchema as authCredentialsSchema,
+  refreshTokenBodySchema as authRefreshTokenBodySchema,
   requiredSecret as requiredAuthSecret,
   sanitizeSessionResponse as sanitizeAuthSessionResponse,
 } from "../../templates/express-auth/src/utils/security";
 import {
   parseCredentials as parseAuthPlusCredentials,
+  credentialsSchema as authPlusCredentialsSchema,
   requiredSecret as requiredAuthPlusSecret,
   sanitizeSessionResponse as sanitizeAuthPlusSessionResponse,
 } from "../../templates/express-auth+/src/utils/security";
 import {
   parseRefreshToken as parseBaseRefreshToken,
+  refreshTokenBodySchema as baseRefreshTokenBodySchema,
   requiredSecret as requiredBaseSecret,
   sanitizeSessionResponse as sanitizeBaseSessionResponse,
 } from "../../templates/express-base/utils/security";
@@ -53,26 +57,6 @@ const arbitraryBody = fc.oneof(
   }),
 );
 
-const isValidEmail = (value: unknown) => {
-  if (typeof value !== "string") return false;
-  const normalized = value.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  const dotIndex = normalized.lastIndexOf(".");
-
-  return (
-    atIndex >= 1 &&
-    atIndex === normalized.lastIndexOf("@") &&
-    dotIndex >= atIndex + 2 &&
-    dotIndex < normalized.length - 1
-  );
-};
-
-const isValidPassword = (value: unknown) =>
-  typeof value === "string" && value.length >= 8 && value.length <= 1024;
-
-const isValidRefreshToken = (value: unknown) =>
-  typeof value === "string" && value.trim().length >= 16;
-
 const assertNoSensitiveKeys = (value: unknown) => {
   if (Array.isArray(value)) {
     value.forEach(assertNoSensitiveKeys);
@@ -108,9 +92,12 @@ describe("template security fuzzing", () => {
   });
 
   it("accepts only valid credential-shaped bodies", () => {
-    const parsers = [parseAuthCredentials, parseAuthPlusCredentials];
+    const parsers = [
+      [parseAuthCredentials, authCredentialsSchema],
+      [parseAuthPlusCredentials, authPlusCredentialsSchema],
+    ] as const;
 
-    for (const parseCredentials of parsers) {
+    for (const [parseCredentials, schema] of parsers) {
       expect(() =>
         parseCredentials({
           email: "user@example.",
@@ -120,18 +107,10 @@ describe("template security fuzzing", () => {
 
       fc.assert(
         fc.property(arbitraryBody, (body) => {
-          const expectedValid =
-            !!body &&
-            typeof body === "object" &&
-            !Array.isArray(body) &&
-            isValidEmail((body as { email?: unknown }).email) &&
-            isValidPassword((body as { password?: unknown }).password);
+          const expected = schema.safeParse(body);
 
-          if (expectedValid) {
-            const parsed = parseCredentials(body);
-
-            expect(parsed.email).toBe((body as { email: string }).email.trim().toLowerCase());
-            expect(parsed.password).toBe((body as { password: string }).password);
+          if (expected.success) {
+            expect(parseCredentials(body)).toEqual(expected.data);
           } else {
             expect(() => parseCredentials(body)).toThrow();
           }
@@ -142,19 +121,18 @@ describe("template security fuzzing", () => {
   });
 
   it("accepts only valid refresh-token-shaped bodies", () => {
-    const parsers = [parseAuthRefreshToken, parseBaseRefreshToken];
+    const parsers = [
+      [parseAuthRefreshToken, authRefreshTokenBodySchema],
+      [parseBaseRefreshToken, baseRefreshTokenBodySchema],
+    ] as const;
 
-    for (const parseRefreshToken of parsers) {
+    for (const [parseRefreshToken, schema] of parsers) {
       fc.assert(
         fc.property(arbitraryBody, (body) => {
-          const expectedValid =
-            !!body &&
-            typeof body === "object" &&
-            !Array.isArray(body) &&
-            isValidRefreshToken((body as { refreshToken?: unknown }).refreshToken);
+          const expected = schema.safeParse(body);
 
-          if (expectedValid) {
-            expect(parseRefreshToken(body)).toBe((body as { refreshToken: string }).refreshToken);
+          if (expected.success) {
+            expect(parseRefreshToken(body)).toBe(expected.data.refreshToken);
           } else {
             expect(() => parseRefreshToken(body)).toThrow();
           }
@@ -179,7 +157,7 @@ describe("template security fuzzing", () => {
           vi.stubEnv(envName, secret);
 
           if (secret.trim().length >= 32) {
-            expect(requiredSecret(envName)).toBe(secret);
+            expect(requiredSecret(envName)).toBe(secret.trim());
           } else {
             expect(() => requiredSecret(envName)).toThrow();
           }

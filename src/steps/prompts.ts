@@ -1,71 +1,88 @@
 import inquirer from "inquirer";
 import type { CliState } from "../lib/types.js";
-import {hasBun} from "./finalSetup.js"
+import {
+  authMethodSelectionSchema,
+  firstZodIssue,
+  oauthProviderSelectionSchema,
+  promptAnswersSchema,
+} from "../lib/schemas.js";
+import { hasBun } from "./finalSetup.js";
 
-export async function runPrompts(state:CliState,isProduction: boolean): Promise<Partial<CliState>> {
-const bunAvailable = hasBun();	
+function validateSelection(
+  schema: typeof authMethodSelectionSchema | typeof oauthProviderSelectionSchema,
+  choices: unknown,
+): true | string {
+  const result = schema.safeParse(choices);
+  return result.success ? true : firstZodIssue(result.error);
+}
+
+export async function runPrompts(
+  _state: CliState,
+  isProduction: boolean,
+): Promise<Partial<CliState>> {
+  const bunAvailable = isProduction && hasBun();
   return inquirer.prompt([
     {
       type: "list",
-      name: "framework",
-      message: "Choose framework:",
-      choices: [
-        "Express",
-        { name: "Fastify (coming soon)", value: "Fastify", disabled: "Coming soon" },
-      ],
-      default: "Express",
-    }, 
-    {
-      type: "list",
       name: "authMode",
-      message: "Choose authentication setup:",
+      message: "Select a preset:",
       choices: [
-        { name: "JWT only", value: "base" },
-        { name: "Email + Password Auth", value: "auth" },
-        { name: "Full Auth (Password + OAuth)", value: "auth-oauth" },
+        { name: "Full-stack application (recommended)", value: "fullstack" },
+        { name: "Express API (JWT only)", value: "base" },
+        { name: "Express API + email/password", value: "auth" },
+        { name: "Express API + OAuth", value: "auth-oauth" },
       ],
-      default: "base",
+      default: "fullstack",
+    },
+    {
+      type: "checkbox",
+      name: "authMethods",
+      message: "Select authentication methods:",
+      choices: [
+        { name: "Email and password (required)", value: "password", checked: true },
+        { name: "Google", value: "google", checked: true },
+        { name: "GitHub", value: "github", checked: true },
+      ],
+      when: (answers) => answers.authMode === "fullstack",
+      validate: (choices) => validateSelection(authMethodSelectionSchema, choices),
     },
     {
       type: "checkbox",
       name: "oauthProviders",
-      message: "Choose OAuth providers:",
+      message: "Select OAuth providers:",
       choices: [
         { name: "Google", value: "google" },
         { name: "GitHub", value: "github" },
       ],
-      //default: ["google"],
       when: (answers) => answers.authMode === "auth-oauth",
-      validate: (choices) => Array.isArray(choices) && choices.length > 0
-        ? true
-        : "Select at least one OAuth provider",
+      validate: (choices) => validateSelection(oauthProviderSelectionSchema, choices),
     },
     {
       type: "confirm",
       name: "usePrisma",
-      message: "Use Prisma?",
+      message: "Add Prisma?",
       default: true,
-     when: (answers) => answers.authMode === "base"
+      when: (answers) => answers.authMode === "base",
     },
     {
       type: "list",
       name: "database",
-      message: "Choose database:",
+      message: "Select a database:",
       choices: [
+        { name: "SQLite", value: "sqlite" },
         { name: "PostgreSQL", value: "postgresql" },
-        { name: "SQLite ", value: "sqlite" },
       ],
-      when: (answers) => answers.usePrisma || answers.authMode === "auth" || answers.authMode === "auth-oauth",
+      when: (answers) => answers.authMode !== "fullstack"
+        && (answers.usePrisma || ["auth", "auth-oauth"].includes(answers.authMode)),
       default: "sqlite",
     },
     {
       type: "confirm",
       name: "useGit",
-      message: "Initialize git?",
+      message: "Initialize a Git repository?",
       default: true,
     },
-   
-       {
+    {
       type: "list",
       name: "runtime",
       message: "Choose runtime:",
@@ -82,15 +99,20 @@ const bunAvailable = hasBun();
           value: "node",
         },
       ],
-      when: () => isProduction,
-      default: bunAvailable ? "bun" : "node"
+      when: (answers) => isProduction && answers.authMode !== "fullstack",
+      default: bunAvailable ? "bun" : "node",
     },
   ])
-  .then((result) => {
-    if (result.runtime === "bun" && !bunAvailable) {
-      result.runtime = "node";
-    }
-    return result;
-  })  
-  
+    .then((result) => {
+      const answers = {
+        ...result,
+        framework: "Express" as const,
+        ...(result.runtime === "bun" && !bunAvailable ? { runtime: "node" as const } : {}),
+      };
+      const validation = promptAnswersSchema.safeParse(answers);
+      if (!validation.success) {
+        throw new Error(`Invalid prompt input: ${firstZodIssue(validation.error)}`);
+      }
+      return validation.data;
+    });
 }

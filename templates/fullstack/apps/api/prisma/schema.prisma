@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                String      @id @default(uuid())
+  email             String      @unique
+  passwordHash      String?
+  name              String
+  role              Role        @default(USER)
+  status            UserStatus  @default(ACTIVE)
+  emailVerifiedAt   DateTime?
+  passwordUpdatedAt DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+  projects          Project[]
+  sessions          Session[]
+  oauthAccounts     OAuthAccount[]
+  resetTokens       PasswordResetToken[]
+  verificationTokens EmailVerificationToken[]
+  auditEvents       AuditEvent[] @relation("AuditActor")
+}
+
+model OAuthAccount {
+  id                String   @id @default(uuid())
+  userId            String
+  provider          String
+  providerAccountId String
+  providerEmail     String
+  createdAt         DateTime @default(now())
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@unique([userId, provider])
+  @@index([userId])
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  userId      String
+  refreshHash String    @unique
+  userAgent   String
+  ipAddress   String
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime  @default(now())
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  name        String
+  description String        @default("")
+  status      ProjectStatus @default(DRAFT)
+  ownerId     String
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@index([ownerId, updatedAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model AuditEvent {
+  id         String   @id @default(uuid())
+  actorId    String?
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([actorId])
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}

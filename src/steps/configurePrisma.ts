@@ -1,7 +1,7 @@
 import fs from "fs-extra";
 import path from "path";
 import type { CliState } from "../lib/types.js";
-import { spinner } from "../lib/ui.js";
+import { PRISMA_VERSION } from "../lib/constants.js";
 import { exitForInterrupt } from "../lib/process.js";
 
 export async function configurePrisma(
@@ -9,19 +9,17 @@ export async function configurePrisma(
   targetDir: string,
   templateRoot: string
 ): Promise<void> {
+  if (state.authMode === "fullstack") return;
+
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = await fs.readJson(pkgPath);
 
   pkg.dependencies = {
     ...pkg.dependencies,
     ioredis: "^5.8.1",
-  //  redis-server:"^1.2.2",
   };
 
-
   if (state.usePrisma) {
-    spinner.start("Adding Prisma setup...");
-
     try {
       const dbType = state.database === "postgresql" ? "postgresql" : "sqlite";
       const prismaTemplatePath = path.join(templateRoot, `prisma/${dbType}`);
@@ -32,8 +30,22 @@ export async function configurePrisma(
       );
 
       await fs.copy(
+        path.join(prismaTemplatePath, "prisma.config.ts"),
+        path.join(targetDir, "prisma.config.ts")
+      );
+
+      await fs.copy(
+        path.join(prismaTemplatePath, "client.ts"),
+        path.join(targetDir, "src/prisma/client.ts")
+      );
+
+      await fs.copy(
         path.join(prismaTemplatePath, ".env.example"),
         path.join(targetDir, ".env")
+      );
+      await fs.copy(
+        path.join(prismaTemplatePath, ".env.example"),
+        path.join(targetDir, ".env.example")
       );
 
       const providers = state.authMode === "auth-oauth"
@@ -63,24 +75,51 @@ export async function configurePrisma(
 
       pkg.dependencies = {
         ...pkg.dependencies,
-        "@prisma/client": "5.22.0",
+        "@prisma/client": PRISMA_VERSION,
+        [dbType === "postgresql"
+          ? "@prisma/adapter-pg"
+          : "@prisma/adapter-better-sqlite3"]: PRISMA_VERSION,
       };
+      delete pkg.dependencies[
+        dbType === "postgresql"
+          ? "@prisma/adapter-better-sqlite3"
+          : "@prisma/adapter-pg"
+      ];
 
       pkg.devDependencies = {
         ...pkg.devDependencies,
-        prisma: "5.22.0",
+        prisma: PRISMA_VERSION,
       };
+
+      pkg.engines = { ...pkg.engines, node: "^20.19 || ^22.12 || >=24" };
 
       pkg.scripts = {
         ...pkg.scripts,
         "prisma:generate": "prisma generate",
-        "prisma:migrate": "prisma migrate dev",
+        "prisma:migrate": "prisma migrate dev && prisma generate",
       };
-
-      spinner.succeed(`Prisma (${dbType}) configured`);
     } catch (err) {
-      spinner.fail("Failed to setup Prisma");
-      exitForInterrupt(err);
+      await exitForInterrupt(err);
+      throw err;
+    }
+  } else {
+    pkg.engines = { ...pkg.engines, node: ">=18.0.0" };
+    const templateEnvPath = path.join(targetDir, "src/.env.example");
+    if (await fs.pathExists(templateEnvPath)) {
+      await fs.move(templateEnvPath, path.join(targetDir, ".env.example"), { overwrite: true });
+      await fs.copy(path.join(targetDir, ".env.example"), path.join(targetDir, ".env"));
+    }
+
+    const readmePath = path.join(targetDir, "README.md");
+    if (await fs.pathExists(readmePath)) {
+      const readme = (await fs.readFile(readmePath, "utf-8"))
+        .replaceAll("npm run prisma:migrate\n", "")
+        .replace(/^DATABASE_URL=.*\n/gm, "")
+        .replace(/^- `DATABASE_URL`:.*\n/gm, "")
+        .replace(/^`Prisma Client did not initialize`:.*\n?/gm, "")
+        .replace(/^`DATABASE_URL is wrong`:.*\n?/gm, "")
+        .replace(", run `npx prisma migrate deploy` for production databases", "");
+      await fs.writeFile(readmePath, readme);
     }
   }
 

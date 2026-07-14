@@ -1,155 +1,85 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { execSync } from 'child_process';
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("../../src/lib/process.js");
 
-vi.mock('child_process');
-vi.mock('../../src/lib/process');
-vi.mock('../../src/lib/ui');
+import {
+  detectPackageManager,
+  getInstallArgs,
+  installDependencies,
+  isPackageManagerAvailable,
+  resolvePackageManagerForPreset,
+} from "../../src/steps/installDeps.js";
+import * as processLib from "../../src/lib/process.js";
 
-
-import { installDependencies, detectPackageManager, ensureRedisServerInstalled } from '../../src/steps/installDeps';
-import * as processLib from '../../src/lib/process';
-import * as uiLib from '../../src/lib/ui';
-
-
-describe('installDeps.ts', () => {
+describe("dependency installation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.npm_execpath; // reset env for each test
+    vi.mocked(processLib.getCommand).mockImplementation((command) => command);
+    vi.mocked(processLib.run).mockResolvedValue(undefined);
+    vi.mocked(processLib.commandExists).mockReturnValue(true);
   });
 
-  describe('detectPackageManager()', () => {
-    it('returns "pnpm" when npm_execpath contains pnpm', () => {
-      process.env.npm_execpath = '/usr/bin/pnpm';
-      expect(detectPackageManager()).toBe('pnpm');
-    });
-
-    it('returns "bun" when npm_execpath contains bun', () => {
-      process.env.npm_execpath = '/usr/local/bin/bun';
-      expect(detectPackageManager()).toBe('bun');
-    });
-
-    it('returns "npm" when npm_execpath contains npm', () => {
-      process.env.npm_execpath = '/usr/local/bin/npm-cli.js';
-      expect(detectPackageManager()).toBe('npm');
-    });
-
-    it('returns "pnpm" when pnpm command succeeds', () => {
-      vi.mocked(execSync).mockImplementationOnce(() => {});
-      expect(detectPackageManager()).toBe('pnpm');
-    });
-
-    it('returns "bun" when pnpm fails but bun succeeds', () => {
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => { throw new Error(); })
-        .mockImplementationOnce(() => {});
-
-      expect(detectPackageManager()).toBe('bun');
-    });
-
-    it('falls back to "npm" when neither is available', () => {
-      vi.mocked(execSync)
-        .mockImplementationOnce(() => { throw new Error(); })
-        .mockImplementationOnce(() => { throw new Error(); });
-
-      expect(detectPackageManager()).toBe('npm');
-    });
+  it.each([
+    [{ npm_config_user_agent: "pnpm/10.0.0 npm/? node/v22" }, "pnpm"],
+    [{ npm_config_user_agent: "bun/1.2.0 npm/? node/v22" }, "bun"],
+    [{ npm_config_user_agent: "npm/11.0.0 node/v24" }, "npm"],
+    [{ npm_execpath: "C:\\tools\\pnpm.cjs" }, "pnpm"],
+    [{}, "npm"],
+  ] as const)("detects the invoking package manager from %o", (env, expected) => {
+    expect(detectPackageManager(env)).toBe(expected);
   });
 
-  describe('installDependencies()', () => {
-    const targetDir = '/tmp/test-project';
-
-    beforeEach(() => {
-      vi.mocked(execSync).mockImplementation((command) => {
-        if (String(command).includes('redis-server --version')) return Buffer.from('');
-        throw new Error();
-      });
-      vi.mocked(processLib.run).mockResolvedValue(undefined);
-      vi.mocked(uiLib.spinner.start).mockReturnValue(undefined as any);
-      vi.mocked(uiLib.spinner.stop).mockReturnValue(undefined as any);
-      vi.mocked(uiLib.spinner.fail).mockReturnValue(undefined as any);
-      vi.mocked(processLib.exitForInterrupt).mockImplementation(() => {});
-      vi.mocked(processLib.getCommand).mockImplementation((pm) => pm);
-    });
-
-    it('uses pnpm and installs successfully', async () => {
-      process.env.npm_execpath = '/pnpm';
-
-      await installDependencies(targetDir);
-
-      expect(uiLib.spinner.start).toHaveBeenCalledWith('Installing dependencies...(this may take a few minutes)');
-      expect(processLib.run).toHaveBeenCalledWith(
-        'pnpm',
-        ['install', '--prefer-offline'],
-        { cwd: targetDir, stdio: 'ignore' }
-      );
-      expect(uiLib.spinner.stop).toHaveBeenCalled();
-    });
-
-    it('uses bun and installs successfully', async () => {
-      process.env.npm_execpath = '/bun';
-
-      await installDependencies(targetDir);
-
-      expect(processLib.run).toHaveBeenCalledWith(
-        'bun',
-        ['install'],
-        { cwd: targetDir, stdio: 'ignore' }
-      );
-      expect(uiLib.spinner.stop).toHaveBeenCalled();
-    });
-
-    it('falls back to npm and installs successfully', async () => {
-      process.env.npm_execpath = '/npm';
-
-      await installDependencies(targetDir);
-
-      expect(processLib.run).toHaveBeenCalledWith(
-        'npm',
-        ['install', '--prefer-offline', '--no-audit', '--no-fund'],
-        { cwd: targetDir, stdio: 'ignore' }
-      );
-    });
-
-    it('handles installation failure gracefully', async () => {
-      const error = new Error('Install failed');
-      process.env.npm_execpath = '/pnpm';
-      vi.mocked(processLib.run).mockRejectedValueOnce(error);
-
-      await expect(installDependencies(targetDir)).rejects.toThrow('Install failed');
-
-      expect(uiLib.spinner.fail).toHaveBeenCalledWith('Failed to install dependencies');
-      expect(processLib.exitForInterrupt).toHaveBeenCalledWith(error);
-    });
+  it("does not probe unrelated package managers during detection", () => {
+    expect(detectPackageManager({})).toBe("npm");
+    expect(processLib.commandExists).not.toHaveBeenCalled();
   });
 
-  describe('ensureRedisServerInstalled()', () => {
-    it('does nothing when redis-server is already available', () => {
-      vi.mocked(execSync).mockImplementation((command) => {
-        expect(command).toBe('redis-server --version');
-        return Buffer.from('');
-      });
+  it("keeps the fullstack preset on npm workspaces", () => {
+    expect(resolvePackageManagerForPreset("fullstack", undefined, {
+      npm_config_user_agent: "pnpm/11.0.0",
+    })).toBe("npm");
+    expect(() => resolvePackageManagerForPreset("fullstack", "pnpm")).toThrow(
+      "full-stack preset uses npm workspaces",
+    );
+  });
 
-      ensureRedisServerInstalled();
+  it("honors an explicit manager for Express presets", () => {
+    expect(resolvePackageManagerForPreset("auth", "bun")).toBe("bun");
+  });
 
-      expect(execSync).toHaveBeenCalledTimes(1);
-    });
+  it.each([
+    ["npm", ["install", "--prefer-offline", "--no-audit", "--no-fund", "--progress=false", "--no-update-notifier"]],
+    ["pnpm", ["install", "--prefer-offline", "--reporter=append-only"]],
+    ["bun", ["install", "--no-progress"]],
+  ] as const)("uses cache-aware %s install arguments", (manager, expected) => {
+    expect(getInstallArgs(manager)).toEqual(expected);
+  });
 
-    it('installs redis-server with apt-get when available', () => {
-      vi.mocked(execSync).mockImplementation((command) => {
-        const value = String(command);
-        if (value === 'redis-server --version') throw new Error();
-        if (value === 'apt-get --version') return Buffer.from('');
-        if (value === 'sudo apt-get update && sudo apt-get install -y redis-server') return Buffer.from('');
-        throw new Error();
-      });
+  it.each(["npm", "pnpm", "bun"] as const)("installs with %s and returns timing metadata", async (manager) => {
+    const result = await installDependencies("/tmp/test-project", manager);
 
-      ensureRedisServerInstalled();
+    expect(processLib.run).toHaveBeenCalledWith(
+      manager,
+      getInstallArgs(manager),
+      { cwd: "/tmp/test-project", stdio: "inherit" },
+    );
+    expect(result).toMatchObject({ packageManager: manager });
+    expect(result.durationMs).toBeGreaterThanOrEqual(0);
+  });
 
-      expect(execSync).toHaveBeenCalledWith(
-        'sudo apt-get update && sudo apt-get install -y redis-server',
-        { stdio: 'inherit' }
-      );
-    });
+  it("checks explicit package-manager availability", () => {
+    vi.mocked(processLib.commandExists).mockReturnValue(false);
+    expect(isPackageManagerAvailable("pnpm")).toBe(false);
+    expect(processLib.commandExists).toHaveBeenCalledWith("pnpm");
+  });
+
+  it("preserves install failures and interrupt handling", async () => {
+    const error = new Error("registry unavailable");
+    vi.mocked(processLib.run).mockRejectedValueOnce(error);
+
+    await expect(installDependencies("/tmp/test-project", "npm")).rejects.toThrow(
+      "registry unavailable",
+    );
+    expect(processLib.exitForInterrupt).toHaveBeenCalledWith(error);
   });
 });

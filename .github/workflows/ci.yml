@@ -13,22 +13,9 @@ permissions:
   contents: read
 
 jobs:
-  template-modes:
-    name: ${{ matrix.mode }} mode
+  quality:
+    name: Linux quality gate
     runs-on: ubuntu-latest
-    
-
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - mode: base
-            test_pattern: ^templates/express-base/src/server\.ts
-          - mode: auth
-            test_pattern: ^templates/express-auth/src/server\.ts
-          - mode: auth-oauth
-            test_pattern: ^templates/express-auth\+/src/server\.ts
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -42,26 +29,64 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 20
+          node-version: 20.19.x
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
-      - name: Run CLI Tests with Coverage
+      - name: Build CLI
+        run: npm run build
+
+      - name: Run tests with coverage
         run: npm run test:coverage
 
-      - name: Run Template Server Tests
+      - name: Run template server tests
         run: npm run test:templates
 
-     
-      - name: Verify ${{ matrix.mode }} mode
-        run: node --import tsx --test --test-name-pattern="${{ matrix.test_pattern }}" tests/template-servers.test.mjs
+      - name: Verify package contents
+        run: npm pack --dry-run
 
-   
+  compatibility:
+    name: ${{ matrix.os_name }} / Node ${{ matrix.node }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os_name: Windows
+            os: windows-latest
+            node: 22.12.x
+          - os_name: macOS
+            os: macos-latest
+            node: 24.x
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --prefer-offline --no-audit --no-fund
+
+      - name: Build CLI
+        run: npm run build
+
+      - name: Run CLI tests
+        run: npm test
+
+      - name: Run template server tests
+        run: npm run test:templates
+
   release:
     name: Semantic Release & Publish
-    needs: template-modes          
+    needs: [quality, compatibility]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' 
 
@@ -89,7 +114,7 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build
         run: npm run build
@@ -161,5 +186,4 @@ jobs:
           gh release upload "$RELEASE_TAG" "$TARBALL" "$PROVENANCE" \
             --clobber \
             --repo "$GITHUB_REPOSITORY"
-
 

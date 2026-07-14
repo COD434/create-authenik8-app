@@ -3,11 +3,14 @@
   "description": "Authenik8 generated Express auth app",
   "main": "dist/server.js",
   "type": "commonjs",
+  "engines": {
+    "node": "^20.19 || ^22.12 || >=24"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate": "prisma migrate dev && prisma generate",
     "docker:up": "docker compose up -d",
     "docker:down": "docker compose down"
   },
@@ -15,13 +18,17 @@
     "authenik8-core": "^1.0.38",
     "dotenv": "^16.0.0",
     "express": "^4.19.2",
-    "@prisma/client": "5.22.0"
+    "@prisma/client": "7.8.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^25.9.1",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.0.0",
-     "prisma": "5.22.0"
+     "prisma": "7.8.0"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.13"
   }
 }

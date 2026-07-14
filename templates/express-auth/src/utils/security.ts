@@ -1,54 +1,61 @@
+import { z } from "zod";
+
 const sensitiveKeys = new Set(["token", "accessToken", "refreshToken"]);
 
+const passwordSchema = z.string()
+  .min(8, "Password must be between 8 and 1024 characters")
+  .max(1024, "Password must be between 8 and 1024 characters")
+  .refine((password) => !/[\u0000-\u001f\u007f]/.test(password), "Password contains unsupported control characters");
+
+export const credentialsSchema = z.strictObject({
+  email: z.string().trim().toLowerCase().email("A valid email is required").max(254),
+  password: passwordSchema,
+});
+
+export const refreshTokenBodySchema = z.strictObject({
+  refreshToken: z.string().trim().min(16, "Refresh token is required").max(4096),
+});
+const secretSchema = z.string().trim().min(32);
+const identifierSchema = z.string()
+  .trim()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9._:-]+$/);
+
+export class InputValidationError extends Error {}
+
+function validationMessage(error: z.ZodError, fallback: string): string {
+  return error.issues[0]?.message ?? fallback;
+}
+
 export function requiredSecret(name: string): string {
-  const value = process.env[name];
-
-  if (typeof value !== "string" || value.trim().length < 32) {
-    throw new Error(`${name} must be set to at least 32 characters`);
+  const result = secretSchema.safeParse(process.env[name]);
+  if (!result.success) {
+    throw new InputValidationError(`${name} must be set to at least 32 characters`);
   }
-
-  return value;
+  return result.data;
 }
 
-export function parseCredentials(body: unknown) {
-  if (!body || typeof body !== "object") {
-    throw new Error("Email and password are required");
+export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
+  const result = credentialsSchema.safeParse(body);
+  if (!result.success) {
+    throw new InputValidationError(validationMessage(result.error, "Email and password are required"));
   }
-
-  const { email, password } = body as { email?: unknown; password?: unknown };
-
-  if (typeof email !== "string" || typeof password !== "string") {
-    throw new Error("Email and password are required");
-  }
-
-  const normalizedEmail = email.trim().toLowerCase();
-  const atIndex = normalizedEmail.indexOf("@");
-  const dotIndex = normalizedEmail.lastIndexOf(".");
-
-
-  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 ||dotIndex === normalizedEmail.length - 1 ) {
-	  throw new Error("A valid email is required");
-  }
-
-  if (password.length < 8 || password.length > 1024) {
-    throw new Error("Password must be between 8 and 1024 characters");
-  }
-
-  return { email: normalizedEmail, password };
+  return result.data;
 }
 
-export function parseRefreshToken(body: unknown) {
-  if (!body || typeof body !== "object") {
-    throw new Error("Refresh token is required");
+export function parseRefreshToken(body: unknown): string {
+  const result = refreshTokenBodySchema.safeParse(body);
+  if (!result.success) {
+    throw new InputValidationError(validationMessage(result.error, "Refresh token is required"));
   }
+  return result.data.refreshToken;
+}
 
-  const { refreshToken } = body as { refreshToken?: unknown };
-
-  if (typeof refreshToken !== "string" || refreshToken.trim().length < 16) {
-    throw new Error("Refresh token is required");
-  }
-
-  return refreshToken;
+export function parseIdentifier(value: unknown, label: string): string {
+  const result = identifierSchema.safeParse(value);
+  if (!result.success) throw new InputValidationError(`${label} is invalid`);
+  return result.data;
 }
 
 export function sanitizeSessionResponse(value: unknown): unknown {

@@ -6,3 +6,6 @@ coverage/
 src/tests/**/*.js
 src/tests/**/*.d.ts
 src/tests/**/*.js.map
+tests/**/*.js
+tests/**/*.d.ts
+tests/**/*.map

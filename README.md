@@ -1,72 +1,122 @@
 
 <div align="center">
-<pre>
-█████╗      █████╗
-██╔══██╗    ██╔══██╗
-███████║    ╚█████╔╝
-██╔══██║    ██╔══██╗
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-</pre>
+
+<img src="./assets/logo.svg" alt="Authenik8" width="180" />
 
 <h1>create-authenik8-app</h1>
+
+<p><strong>Generate a secure Express API or a connected React + Express application from one CLI.</strong></p>
+
+<p>Authenik8 provides production-minded identity flows, stateful JWT rotation, Redis-backed sessions, Prisma, OAuth, and a complete fullstack application preset.</p>
+
 </div>
-
-<p align="center">
-  <i>Launch secure, production-ready authentication in seconds.</i>
-</p>
-
-<p align="center">
-  If this saved you time, a ⭐ helps a lot
-</p>
-
-
-<p align="center">
-  <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
-  </p>
 
 ![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
-![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
-
-
- ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/demo.gif)
-
-
 **See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
 ---
 
-##  Usage
+## Quickstart
 
 Create a new project:
 
 ```bash
 npx create-authenik8-app my-app
+```
 
+Choose the installer for an Express preset when needed:
+
+```bash
+npx create-authenik8-app my-api --package-manager pnpm
+```
+
+The CLI uses the invoking package manager when it can identify one, otherwise it defaults to npm. Install commands use the local package cache first and suppress registry audit/funding requests during scaffolding. Set `AUTHENIK8_VERBOSE=1` to show complete installer output.
+
+Choose **Full-stack application** for the complete App Kit, or select one of the three Express API presets.
+
+### Full-stack application
+
+Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.
+
+```bash
 cd my-app
-
-npm run prisma:migrate
-
-redis-server --daemonize yes
-
+npm run docker:up
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
-Your production-ready auth backend will be ready in 50 seconds.
+
+Open `http://localhost:5173`. Vite proxies `/api` to Express on `http://localhost:3000`.
+
+### Express API
+
+Requirements: Node.js 18+ without Prisma. Prisma-backed presets require Node.js 20.19+, 22.12+, or 24+.
+
+```bash
+cd my-app
+npm run docker:up
+npm run prisma:migrate # Skip only when JWT-only was generated without Prisma
+npm run dev
+```
 
 ---
 
-## What you get instantly
+## Presets
 
-• A fully working Express authentication starter with:
+| Preset | Best for | Included |
+| --- | --- | --- |
+| **Express API (JWT only)** | APIs that manage identities elsewhere | Protected routes, rotating refresh tokens, RBAC, optional Prisma |
+| **Express API + email/password** | First-party accounts | Registration, login, password hashing, Prisma |
+| **Express API + OAuth** | Multiple sign-in methods | Password auth, Google and/or GitHub OAuth, account linking |
+| **Full-stack application** | Starting a complete product | React/Vite, Express, shared contracts, typed client, PostgreSQL, Redis, account/admin UI, Project CRUD |
+
+## Full-stack App Kit
+
+The fullstack preset is an npm workspace with connected frontend, backend, and shared packages:
+
+```text
+apps/
+  api/                 Express, Authenik8, Prisma, PostgreSQL, Redis
+  web/                 React, Vite, React Router, TanStack Query
+packages/
+  contracts/           Shared Zod request schemas and response types
+  api-client/          Typed browser client and refresh handling
+  ui/                  Reusable application primitives
+```
+
+It includes:
+
+- Registration, login, logout, OAuth, password recovery, and email verification
+- Profile, password, linked-provider, session, and session-revocation screens
+- Admin users, roles, status controls, session revocation, and audit events
+- An owned Project resource across database, API, policy, client, and UI layers
+- OpenAPI 3.1 output, health checks, structured logs, request IDs, and security middleware
+- Docker Compose for PostgreSQL and Redis, Prisma migrations, seed data, tests, and production docs
+
+Access tokens remain in browser memory. Refresh tokens use a restricted HttpOnly cookie, and server-side policies remain the authorization boundary.
+
+### Full-stack commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Build shared packages and watch the API, web app, contracts, client, and UI |
+| `npm run build` | Build all production bundles |
+| `npm start` | Start Express and serve the built SPA and `/api` |
+| `npm run db:migrate` | Apply the Prisma development migration |
+| `npm run db:seed` | Create the configured administrator and example data |
+| `npm test` | Run API policy/security tests and web storage tests |
+| `npm run typecheck` | Type-check every workspace |
+
+---
+
+## Core authentication features
 
 • JWT authentication (access + refresh tokens) with secure rotation
-
-• Secure refresh token rotation
 
 • Redis-based token storage
 
@@ -74,13 +124,13 @@ Your production-ready auth backend will be ready in 50 seconds.
 
 • TypeScript setup
 
-• Express server preconfigured
+• Express server preconfigured with security middleware
 
 • Clean scalable folder structure
 
 • .env file generated automatically
 
-• Production extras (PM2 cluster, Helmet, rate limiting, memory guards)
+• Generated threat model and production guidance
 
 
 ---
@@ -97,33 +147,44 @@ Most developers waste days (or weeks) on:
 
 • Proper access control 
 
-Authenik8 provides all of this out of the box so you can start building your API immediately.
+Authenik8 provides these foundations so you can start with a secure API or a connected application instead of rebuilding identity infrastructure.
 
 
 ---
 
 ## Requirements
 
-• Node.js 18+
+• Node.js 18+ for the JWT-only API preset without Prisma
 
-• Redis (required for refresh tokens & security features)
+• Node.js 20.19+, 22.12+, or 24+ for Prisma-backed API presets and the fullstack preset
 
-Redis (Local)
-```
-Bash
+• Docker with Compose for the generated PostgreSQL and Redis services
 
-redis-server --daemonize yes
-```
+• Redis is required for refresh-token rotation, OAuth state, rate limits, and session controls
+
+### CLI compatibility
+
+The CLI is tested on Linux, Windows, and macOS. Express presets support npm, pnpm, and Bun dependency installation; the fullstack preset uses npm workspaces. Prisma-backed pnpm and Bun projects include explicit approvals for the native dependency build steps they require.
+
+| Option | Purpose |
+| --- | --- |
+| `--package-manager npm\|pnpm\|bun` | Select the installer for an Express preset |
+| `--no-install` | Generate files without installing dependencies |
+| `--resume` | Continue an interrupted generation |
+| `--production-ready` | Add PM2 configuration to an Express preset |
+| `--version` | Print the installed CLI version |
+
+Git initialization is skipped with a clear status when Git is unavailable. Installer failures retain the package manager's diagnostic output, while successful interactive runs keep the progress display concise.
 
 ---
 
 ## Environment Variables
 
-Generated automatically:
+The CLI creates development `.env` files. Replace placeholder secrets before deployment.
 
-The CLI generates these automatically:
+### Express API presets
 
-```
+```dotenv
 DATABASE_URL=file:./dev.db
 JWT_SECRET=your-secret
 REFRESH_SECRET=your-refresh-secret
@@ -131,9 +192,9 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
 
-For Full Auth (Password + OAuth), also set:
+For password + OAuth, also configure the enabled providers:
 
-```bash
+```dotenv
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
@@ -142,6 +203,19 @@ GITHUB_CLIENT_SECRET=your-github-client-secret
 GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
 ```
 
+### Full-stack preset
+
+```dotenv
+WEB_ORIGIN=http://localhost:5173
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/authenik8?schema=public
+REDIS_URL=redis://localhost:6379
+JWT_SECRET=replace-with-at-least-32-random-characters
+REFRESH_SECRET=replace-with-another-32-random-characters
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/oauth/google/callback
+GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/oauth/github/callback
+```
+
+OAuth variables are generated only for selected providers. The fullstack `.env.example` also documents cookie, proxy, logging, mail delivery, and seed-admin settings.
 
 ---
 

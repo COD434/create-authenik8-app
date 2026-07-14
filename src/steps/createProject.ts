@@ -1,32 +1,72 @@
 import fs from "fs-extra";
 import path from "path";
 import type { CliState } from "../lib/types.js";
+import type { PackageManager } from "../lib/types.js";
 
 const supportedOAuthProviders = ["google", "github"] as const;
 type OAuthProvider = (typeof supportedOAuthProviders)[number];
 
 export function resolveTemplateName(authMode: string): string {
+  if (authMode === "fullstack") return "fullstack";
   if (authMode === "auth") return "express-auth";
   if (authMode === "auth-oauth") return "express-auth+";
   return "express-base";
 }
 
-export function configurePackageJson(targetDir: string, usePrisma: boolean): void {
+export function configurePackageJson(
+  targetDir: string,
+  usePrisma: boolean,
+  packageManager: PackageManager = "npm",
+): void {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-  if (!pkg.scripts.postinstall?.includes("prisma")) {
-      pkg.scripts.postinstall = "npx prisma@5.22.0 generate";
-    }
+  if (Array.isArray(pkg.workspaces)) return;
 
+  pkg.scripts ??= {};
 
   if (usePrisma) {
-   const currentDev = pkg.scripts.dev || "tsx watch src/index.ts";
-    if (!currentDev.includes("prisma@5.22.0 generate")) {
-      pkg.scripts.dev = `npx prisma@5.22.0 generate && ${currentDev}`;
+    if (!pkg.scripts.postinstall?.includes("prisma")) {
+      pkg.scripts.postinstall = "prisma generate";
     }
+
+    const currentDev = pkg.scripts.dev || "tsx watch src/index.ts";
+    if (!currentDev.includes("prisma generate")) {
+      pkg.scripts.dev = `prisma generate && ${currentDev}`;
+    }
+
+    if (packageManager === "bun") {
+      pkg.trustedDependencies = ["@prisma/engines", "better-sqlite3", "prisma"];
+    }
+
+    if (packageManager === "pnpm") {
+      fs.writeFileSync(
+        path.join(targetDir, "pnpm-workspace.yaml"),
+        [
+          "allowBuilds:",
+          '  "@prisma/engines": true',
+          "  better-sqlite3: true",
+          "  prisma: true",
+          "overrides:",
+          '  "@hono/node-server": "1.19.13"',
+          "",
+        ].join("\n"),
+      );
+    }
+  } else {
+    for (const scriptName of ["postinstall", "prisma:generate", "prisma:migrate"]) {
+      if (pkg.scripts[scriptName]?.includes("prisma")) {
+        delete pkg.scripts[scriptName];
+      }
+    }
+
+    delete pkg.dependencies?.["@prisma/client"];
+    delete pkg.dependencies?.["@prisma/adapter-pg"];
+    delete pkg.dependencies?.["@prisma/adapter-better-sqlite3"];
+    delete pkg.devDependencies?.prisma;
+    delete pkg.trustedDependencies;
   }
 
-  fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
+  fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
 }
 
 function resolveOAuthProviders(state: CliState): OAuthProvider[] {
@@ -233,12 +273,31 @@ export async function createProject(
   const pkgExists = fs.existsSync(path.join(templatePath, "package.json"));
 
   if (!pkgExists) {
-  throw new Error(`Template "${templateName}" is missing package.json at ${templatePath}`);
-}
+    throw new Error(`Template "${templateName}" is missing package.json at ${templatePath}`);
+  }
   await fs.copy(templatePath, targetDir, {
     filter: (source) => !source.split(path.sep).includes("oauth-providers"),
   });
-  await fs.copy(path.join(templateRoot,"THREAT_MODEL.md"), path.join(targetDir, "THREAT_MODEL.md"));
+
+  const generatedPkgPath = path.join(targetDir, "package.json");
+  const generatedPkg = await fs.readJson(generatedPkgPath);
+  generatedPkg.name = state.projectName;
+  await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
+
+  if (state.authMode === "fullstack") {
+    await fs.move(path.join(targetDir, "gitignore.template"), path.join(targetDir, ".gitignore"), { overwrite: true });
+    await fs.copy(path.join(templatePath, ".env.example"), path.join(targetDir, ".env"));
+    const providers = state.oauthProviders === undefined
+      ? [...supportedOAuthProviders]
+      : resolveOAuthProviders(state).filter((provider) => state.oauthProviders?.includes(provider));
+    await fs.writeFile(
+      path.join(targetDir, "apps/web/src/auth/providers.ts"),
+      `export type OAuthProvider = "google" | "github";\n\nexport const enabledOAuthProviders: readonly OAuthProvider[] = ${JSON.stringify(providers)};\n`,
+    );
+  }
+  if (state.authMode !== "fullstack") {
+    await fs.copy(path.join(templateRoot, "THREAT_MODEL.md"), path.join(targetDir, "THREAT_MODEL.md"));
+  }
   if (state.authMode === "auth-oauth") {
     await writeProviderSpecificOAuthFiles(targetDir, resolveOAuthProviders(state));
   }

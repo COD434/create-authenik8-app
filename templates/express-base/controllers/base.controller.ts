@@ -1,5 +1,11 @@
 import { Request, Response } from "express";
-import { getBearerToken, parseRefreshToken, sanitizeSessionResponse } from "../utils/security";
+import {
+  InputValidationError,
+  getBearerToken,
+  parseIdentifier,
+  parseRefreshToken,
+  sanitizeSessionResponse,
+} from "../utils/security";
 
 export const createBaseController = (auth: any) => ({
   publicRoute(req: Request, res: Response) {
@@ -43,10 +49,15 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      const sessions = await actions.listSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessions = await actions.listSessions(userId);
       res.json({ sessions: sanitizeSessionResponse(sessions) });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to retrieve sessions",
+      });
     }
   },
 
@@ -57,10 +68,16 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessionId = parseIdentifier(req.params.sessionId, "Session ID");
+      await actions.revokeSession(userId, sessionId);
       res.json({ success: true, message: "Session revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to revoke session",
+      });
     }
   },
 
@@ -71,10 +88,15 @@ export const createBaseController = (auth: any) => ({
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeAllSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      await actions.revokeAllSessions(userId);
       res.json({ success: true, message: "All sessions revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    } catch (error) {
+      const validationError = error instanceof InputValidationError;
+      res.status(validationError ? 400 : 500).json({
+        success: false,
+        message: validationError ? error.message : "Failed to revoke sessions",
+      });
     }
   },
 });

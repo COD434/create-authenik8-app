@@ -1,0 +1,61 @@
+# Authenik8 Full-stack Starter
+
+A connected React and Express application with secure Authenik8 sessions, account settings, administration, and an owned Project resource.
+
+## Local development
+
+Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.
+
+```bash
+docker compose up -d
+npm run db:migrate
+npm run db:seed
+npm run dev
+```
+
+Open `http://localhost:5173`. The API runs on `http://localhost:3000/api`. The generated `.env` contains development values; replace every secret before deploying.
+
+The seeded administrator uses `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. Change the default password immediately, including for local environments shared by multiple people.
+
+## Application map
+
+- Authentication: registration, login, OAuth, refresh, logout, password recovery, and email verification.
+- Account: profile, password, linked providers, active sessions, and revocation.
+- Administration: users, roles, status, session revocation, and audit events.
+- Projects: list, create, details, edit, archive, and delete with owner policies.
+
+The API follows a contract, repository, service, controller, policy, and route convention. Copy `apps/api/src/modules/projects` and `apps/web/src/features/projects` when adding a vertical feature.
+
+## Session model
+
+The API returns a short-lived access token to the Auth provider, which holds it only in memory. The browser sends a restricted HttpOnly refresh cookie automatically. The API client performs one refresh after a `401`, shares an in-flight refresh between requests, and retries once. It never reads from or writes tokens to browser storage.
+
+Route guards are user experience controls. API middleware and policies remain the authorization boundary.
+
+## OAuth callbacks
+
+Configure either provider with these exact local callback URLs:
+
+```text
+http://localhost:3000/api/auth/oauth/google/callback
+http://localhost:3000/api/auth/oauth/github/callback
+```
+
+OAuth callbacks place a single-use exchange code in Redis and redirect to the SPA. Tokens are not placed in a URL.
+
+## Production
+
+```bash
+npm run build
+NODE_ENV=production npm start
+```
+
+Read [docs/PRODUCTION.md](docs/PRODUCTION.md) and [THREAT_MODEL.md](THREAT_MODEL.md) before deployment. Production requires HTTPS, strong unique secrets, non-public Redis, database backups, a trusted reverse proxy configuration, an exact `WEB_ORIGIN`, and a working mail delivery integration for recovery and verification links.
+
+## Health and tests
+
+- `GET /api/health/live` confirms the process is running.
+- `GET /api/health/ready` checks PostgreSQL and Redis.
+- `GET /api/docs/openapi.json` returns the generated OpenAPI 3.1 contract.
+- `npm test` covers ownership/admin policies, cookie/origin defenses, and the browser storage rule.
+- `npm run typecheck` checks each workspace.

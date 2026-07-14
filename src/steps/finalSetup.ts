@@ -1,38 +1,39 @@
 import fs from "fs-extra";
 import path from "path";
-import { run, getCommand, exitForInterrupt } from "../lib/process.js";
-import { spinner } from "../lib/ui.js";
-
-import { execSync } from "child_process";
+import {
+  commandExists,
+  run,
+  getCommand,
+  exitForInterrupt,
+  isCommandNotFoundError,
+} from "../lib/process.js";
 
 const PM2_VERSION = "^5.4.2";
 const TS_NODE_VERSION = "^10.9.2";
 
 export function hasBun(): boolean {
-  try {
-    execSync("bun --version", { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
+  return commandExists("bun");
 }
 
-export function resolveRuntime(runtime: any): "node" | "bun" {
+export function resolveRuntime(runtime: unknown): "node" | "bun" {
   if (runtime === "bun" && !hasBun()) {
-	  console.log("⚠️ Bun not found, falling back to Node");
+    console.log("Bun was not found; using Node instead.");
     return "node";
   }
   if (runtime === "bun") return "bun";
   return "node";
 }
 
-
-export function createPm2Config(targetDir: string, projectName: string,runtime: "node" |"bun"): void {
+export function createPm2Config(
+  targetDir: string,
+  projectName: string,
+  runtime: "node" | "bun",
+): void {
   const configPath = path.join(targetDir, "ecosystem.config.js");
   const useBun = runtime === "bun";
 
-  const content =  useBun 
-  ?`module.exports = {
+  const content = useBun
+    ? `module.exports = {
   apps: [
     {
       name: "${projectName}",
@@ -46,8 +47,8 @@ export function createPm2Config(targetDir: string, projectName: string,runtime: 
       }
     }
   ]
-}`:
-	`module.exports = {
+}`
+    : `module.exports = {
   apps: [
     {
       name: "${projectName}",
@@ -63,19 +64,21 @@ export function createPm2Config(targetDir: string, projectName: string,runtime: 
       }
     }
   ]
-};`
+};`;
 
   fs.writeFileSync(configPath, content, "utf-8");
 }
 
-
-export async function configureProduction(targetDir: string,projectName:string , runtime:"node"| "bun"): Promise<void> {
+export async function configureProduction(
+  targetDir: string,
+  projectName: string,
+  runtime: "node" | "bun",
+): Promise<void> {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
 
   pkg.dependencies["pm2"] = PM2_VERSION;
 
-  
   if (runtime === "node") {
     pkg.dependencies["ts-node"] = TS_NODE_VERSION;
   }
@@ -85,21 +88,20 @@ export async function configureProduction(targetDir: string,projectName:string ,
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
-    createPm2Config(targetDir, projectName,runtime);
-  }
-  
+  createPm2Config(targetDir, projectName, runtime);
+}
 
-
-
-export async function initGit(targetDir: string): Promise<void> {
+export async function initGit(targetDir: string): Promise<boolean> {
   try {
     await run(getCommand("git"), ["init"], {
       cwd: targetDir,
       stdio: "ignore",
     });
-    spinner.stop();
-  } catch {
-    spinner.fail("Git init failed");
+    return true;
+  } catch (error) {
+    if (isCommandNotFoundError(error)) return false;
+    await exitForInterrupt(error);
+    throw error;
   }
 }
 
@@ -108,7 +110,7 @@ export function appendProductionReadme(targetDir: string, projectName: string): 
     path.join(targetDir, "README.md"),
     `
 
-🚀 Production Mode
+## Production Mode
 
 This project is configured for production using PM2.
 
@@ -124,6 +126,6 @@ Stop app:
 
 npm run pm2:stop
 
-   `
+   `,
   );
 }

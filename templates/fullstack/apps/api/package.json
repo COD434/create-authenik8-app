@@ -1,0 +1,48 @@
+{
+  "name": "@authenik8/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "predev": "prisma generate",
+    "dev": "tsx watch src/server.ts",
+    "prebuild": "prisma generate",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev && prisma generate",
+    "prisma:seed": "prisma generate && prisma db seed",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@authenik8/contracts": "0.1.0",
+    "@prisma/adapter-pg": "7.8.0",
+    "@prisma/client": "7.8.0",
+    "authenik8-core": "^1.0.38",
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "ioredis": "^5.10.0",
+    "pino": "^9.7.0",
+    "pino-http": "^10.4.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie-parser": "^1.4.9",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.0.0",
+    "@types/supertest": "^7.2.0",
+    "prisma": "7.8.0",
+    "supertest": "^7.2.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}
