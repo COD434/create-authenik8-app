@@ -257,6 +257,12 @@ describe("generator happy paths", () => {
       expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github/callback"');
       expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.login");
       expect(files["src/auth/controllers/password.controller.ts"]).toContain("await auth.issueTokens");
+      expect(files["src/auth/controllers/oauth.controller.ts"]).toContain(
+        'import { getAuth } from "../auth";',
+      );
+      expect(files["src/auth/controllers/oauth.controller.ts"]).not.toContain(
+        'from "../auth.js"',
+      );
       expect(files["src/auth/controllers/oauth.controller.ts"]).not.toContain("issueTokensFromProfile");
       expect(files["src/auth/identity.adapter.ts"]).toContain("identityProvider.upsert");
       expect(files["prisma/schema.prisma"]).toContain("model IdentityProvider");
