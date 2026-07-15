@@ -37,7 +37,7 @@ async function removeUnusedPostgresService(targetDir: string): Promise<void> {
   const composePath = path.join(targetDir, "docker-compose.yml");
   if (!(await fs.pathExists(composePath))) return;
 
-  const compose = await fs.readFile(composePath, "utf-8");
+  const compose = (await fs.readFile(composePath, "utf-8")).replace(/\r\n/g, "\n");
   const redisOnly = compose
     .replace(/\n  postgres:\n[\s\S]*?(?=\nvolumes:\n)/, "\n")
     .replace(/\n  postgres-data:\s*(?=\n|$)/, "");

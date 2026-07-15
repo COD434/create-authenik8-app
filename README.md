@@ -1,7 +1,7 @@
 
 <div align="center">
 
-![logo](https://raw.githubusercontent.com/COD434/authenik8-core-Beta-/main/assets/logo.svg)
+![create-authenik8-app logo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/logo.svg)
 
 <h1>create-authenik8-app</h1>
 

@@ -51,7 +51,7 @@ describe("cross-platform process execution", () => {
       cwd: "/tmp/project",
       stdio: "ignore",
       env: undefined,
-      shell: false,
+      shell: process.platform === "win32",
       windowsHide: true,
     });
   });
