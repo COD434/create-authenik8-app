@@ -27,6 +27,7 @@
     "doctor:lovable": "node scripts/doctor-lovable.mjs",
     "export:lovable-client": "npm run build:packages && node scripts/export-lovable-client.mjs",
     "db:generate": "npm run prisma:generate -w @authenik8/api",
+<<<<<<< HEAD
     "setup": "node scripts/run-local.mjs setup",
     "db:migrate": "node scripts/run-local.mjs migrate",
     "db:migrate:apply": "npm run prisma:migrate -w @authenik8/api",
@@ -34,6 +35,11 @@
     "db:seed:apply": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "node scripts/run-local.mjs studio",
     "db:studio:apply": "npm run prisma:studio -w @authenik8/api",
+=======
+    "db:migrate": "npm run prisma:migrate -w @authenik8/api",
+    "db:seed": "npm run prisma:seed -w @authenik8/api",
+    "db:studio": "npm run prisma:studio -w @authenik8/api",
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
@@ -44,12 +50,20 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
+<<<<<<< HEAD
     "find-my-way": "9.7.0",
     "valibot": "1.4.2"
   },
   "allowScripts": {
     "prisma@7.9.0": true,
     "@prisma/engines@7.9.0": true,
+=======
+    "@hono/node-server": "1.19.13"
+  },
+  "allowScripts": {
+    "prisma@7.8.0": true,
+    "@prisma/engines@7.8.0": true,
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
     "esbuild": true
   }
 }

@@ -10,8 +10,12 @@
     "docker:up": "docker compose up -d --wait",
 =======
     "prisma:migrate": "prisma migrate",
+<<<<<<< HEAD
     "docker:up": "docker compose up -d",
 >>>>>>> befe6e3 (feat:new presets)
+=======
+    "docker:up": "docker compose up -d --wait",
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
     "docker:down": "docker compose down"
   },
   "dependencies": {

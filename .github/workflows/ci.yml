@@ -229,6 +229,9 @@ jobs:
             --clobber \
             --repo "$GITHUB_REPOSITORY"
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 
 >>>>>>> befe6e3 (feat:new presets)
+=======
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)

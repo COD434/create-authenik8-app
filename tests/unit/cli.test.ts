@@ -482,6 +482,7 @@ describe("CLI", () => {
       false,
       expect.any(Boolean),
       expect.any(Boolean),
+<<<<<<< HEAD
     );
   });
 
@@ -510,6 +511,8 @@ describe("CLI", () => {
       true,
       expect.any(Boolean),
       expect.any(Boolean),
+=======
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
     );
   });
 

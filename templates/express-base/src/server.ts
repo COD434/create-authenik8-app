@@ -1,7 +1,10 @@
 import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
+<<<<<<< HEAD
 import { createRedisClient } from "./config/redis";
+=======
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
 import { agentIdentityConfig, authJwkConfig, requiredPort, requiredSecret } from "../utils/security";
 
 dotenv.config();
@@ -11,7 +14,10 @@ async function start() {
     jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
     agent: agentIdentityConfig(),
+<<<<<<< HEAD
     redis: await createRedisClient(),
+=======
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
   });
 
   const app = createApp(auth);

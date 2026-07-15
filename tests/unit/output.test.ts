@@ -118,6 +118,7 @@ describe("completion output", () => {
   });
 
   it("warns instead of printing an unusable Docker command when Compose is unavailable", () => {
+<<<<<<< HEAD
     printSummary({ ...baseState, database: "postgresql" }, false, false);
 
     expect(printed()).toContain("Docker Compose was not found");
@@ -140,6 +141,17 @@ describe("completion output", () => {
 
   it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
     printSummary({ ...baseState, database: "postgresql" }, false, true, false);
+=======
+    printSummary(baseState, false, false);
+
+    expect(printed()).toContain("Docker Compose was not found");
+    expect(printed()).toContain("start Redis manually");
+    expect(printed()).not.toContain("npm run docker:up");
+  });
+
+  it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
+    printSummary(baseState, false, true, false);
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
 
     expect(printed()).toContain("daemon is not reachable");
     expect(printed()).toContain("Start Docker Desktop or the Docker service");

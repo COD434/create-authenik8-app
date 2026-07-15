@@ -10,8 +10,12 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+<<<<<<< HEAD
     "db:migrate": "prisma db push && prisma generate",
     "prisma:migrate": "prisma db push && prisma generate",
+=======
+    "prisma:migrate": "prisma migrate dev && prisma generate",
+>>>>>>> 20fbce9 (fix: aligned wires with latest core)
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
