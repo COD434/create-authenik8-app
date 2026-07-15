@@ -1,72 +1,122 @@
 
 <div align="center">
-<pre>
-█████╗      █████╗
-██╔══██╗    ██╔══██╗
-███████║    ╚█████╔╝
-██╔══██║    ██╔══██╗
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-</pre>
+
+![create-authenik8-app logo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/logo.svg)
 
 <h1>create-authenik8-app</h1>
+
+<p><strong>Generate a secure Express API or a connected React + Express application from one CLI.</strong></p>
+
+<p>Authenik8 provides production-minded identity flows, stateful JWT rotation, Redis-backed sessions, Prisma, OAuth, and a complete fullstack application preset.</p>
+
 </div>
-
-<p align="center">
-  <i>Launch secure, production-ready authentication in seconds.</i>
-</p>
-
-<p align="center">
-  If this saved you time, a ⭐ helps a lot
-</p>
-
-
-<p align="center">
-  <b> A lightweight authentication infrastructure generator powered by an internal Identity Engine.</b>
-  </p>
 
 ![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
-![subtitle](https://readme-typing-svg.demolab.com?font=Fira+Code&size=18&pause=1000&color=00C2FF&width=600&lines=Production-ready+Auth+Generator;JWT+%2B+OAuth+%2B+Prisma+%2B+Redis;Identity+Engine+powered+authentication+system)
-
-
- ![Demo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/demo.gif)
-
-
 **See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
 ---
 
-##  Usage
+## Quickstart
 
 Create a new project:
 
 ```bash
 npx create-authenik8-app my-app
+```
 
+Choose the installer for an Express preset when needed:
+
+```bash
+npx create-authenik8-app my-api --package-manager pnpm
+```
+
+The CLI uses the invoking package manager when it can identify one, otherwise it defaults to npm. Install commands use the local package cache first and suppress registry audit/funding requests during scaffolding. Set `AUTHENIK8_VERBOSE=1` to show complete installer output.
+
+Choose **Full-stack application** for the complete App Kit, or select one of the three Express API presets.
+
+### Full-stack application
+
+Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.
+
+```bash
 cd my-app
-
-npm run prisma:migrate
-
-redis-server --daemonize yes
-
+npm run docker:up
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
-Your production-ready auth backend will be ready in 50 seconds.
+
+Open `http://localhost:5173`. Vite proxies `/api` to Express on `http://localhost:3000`.
+
+### Express API
+
+Requirements: Node.js 20.19+, 22.12+, or 24+.
+
+```bash
+cd my-app
+npm run docker:up
+npm run prisma:migrate # Skip only when JWT-only was generated without Prisma
+npm run dev
+```
 
 ---
 
-## What you get instantly
+## Presets
 
-• A fully working Express authentication starter with:
+| Preset | Best for | Included |
+| --- | --- | --- |
+| **Express API (JWT only)** | APIs that manage identities elsewhere | Protected routes, rotating refresh tokens, RBAC, optional Prisma |
+| **Express API + email/password** | First-party accounts | Registration, login, password hashing, Prisma |
+| **Express API + OAuth** | Multiple sign-in methods | Password auth, Google and/or GitHub OAuth, account linking |
+| **Full-stack application** | Starting a complete product | React/Vite, Express, shared contracts, typed client, PostgreSQL, Redis, account/admin UI, Project CRUD |
+
+## Full-stack App Kit
+
+The fullstack preset is an npm workspace with connected frontend, backend, and shared packages:
+
+```text
+apps/
+  api/                 Express, Authenik8, Prisma, PostgreSQL, Redis
+  web/                 React, Vite, React Router, TanStack Query
+packages/
+  contracts/           Shared Zod request schemas and response types
+  api-client/          Typed browser client and refresh handling
+  ui/                  Reusable application primitives
+```
+
+It includes:
+
+- Registration, login, logout, OAuth, password recovery, and email verification
+- Profile, password, linked-provider, session, and session-revocation screens
+- Admin users, roles, status controls, session revocation, and audit events
+- An owned Project resource across database, API, policy, client, and UI layers
+- OpenAPI 3.1 output, health checks, structured logs, request IDs, and security middleware
+- Docker Compose for PostgreSQL and Redis, Prisma migrations, seed data, tests, and production docs
+
+Access tokens remain in browser memory. Refresh tokens use a restricted HttpOnly cookie, and server-side policies remain the authorization boundary.
+
+### Full-stack commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run dev` | Build shared packages and watch the API, web app, contracts, client, and UI |
+| `npm run build` | Build all production bundles |
+| `npm start` | Start Express and serve the built SPA and `/api` |
+| `npm run db:migrate` | Apply the Prisma development migration |
+| `npm run db:seed` | Create the configured administrator and example data |
+| `npm test` | Run API policy/security tests and web storage tests |
+| `npm run typecheck` | Type-check every workspace |
+
+---
+
+## Core authentication features
 
 • JWT authentication (access + refresh tokens) with secure rotation
-
-• Secure refresh token rotation
 
 • Redis-based token storage
 
@@ -74,13 +124,13 @@ Your production-ready auth backend will be ready in 50 seconds.
 
 • TypeScript setup
 
-• Express server preconfigured
+• Express server preconfigured with security middleware
 
 • Clean scalable folder structure
 
 • .env file generated automatically
 
-• Production extras (PM2 cluster, Helmet, rate limiting, memory guards)
+• Generated threat model and production guidance
 
 
 ---
@@ -97,43 +147,55 @@ Most developers waste days (or weeks) on:
 
 • Proper access control 
 
-Authenik8 provides all of this out of the box so you can start building your API immediately.
+Authenik8 provides these foundations so you can start with a secure API or a connected application instead of rebuilding identity infrastructure.
 
 
 ---
 
 ## Requirements
 
-• Node.js 18+
+• Node.js 20.19+, 22.12+, or 24+ for every preset
 
-• Redis (required for refresh tokens & security features)
+• Docker with Compose for the generated PostgreSQL and Redis services
 
-Redis (Local)
-```
-Bash
+• Redis is required for refresh-token rotation, OAuth state, rate limits, and session controls
 
-redis-server --daemonize yes
-```
+### CLI compatibility
+
+The CLI is tested on Linux, Windows, and macOS. Express presets support npm, pnpm, and Bun dependency installation; the fullstack preset uses npm workspaces. Prisma-backed pnpm and Bun projects include explicit approvals for the native dependency build steps they require.
+
+| Option | Purpose |
+| --- | --- |
+| `--package-manager npm\|pnpm\|bun` | Select the installer for an Express preset |
+| `--no-install` | Generate files without installing dependencies |
+| `--resume` | Continue an interrupted generation |
+| `--production-ready` | Add PM2 configuration to an Express preset |
+| `--version` | Print the installed CLI version |
+
+Git initialization is skipped with a clear status when Git is unavailable. Installer failures retain the package manager's diagnostic output, while successful interactive runs keep the progress display concise.
 
 ---
 
 ## Environment Variables
 
-Generated automatically:
+The CLI creates a git-ignored `.env` with a unique ES256 signing key and refresh secret. Move those values into your deployment secret manager; never commit the private JWK.
 
-The CLI generates these automatically:
+### Express API presets
 
-```
+```dotenv
 DATABASE_URL=file:./dev.db
-JWT_SECRET=your-secret
-REFRESH_SECRET=your-refresh-secret
+AUTHENIK8_SIGNING_JWKS='[{"kty":"EC","crv":"P-256","kid":"<key-id>","x":"...","y":"...","d":"...","alg":"ES256"}]'
+AUTHENIK8_ACTIVE_KID=<key-id>
+AUTHENIK8_ISSUER=http://localhost:3000
+AUTHENIK8_AUDIENCE=my-app-api
+REFRESH_SECRET=<generated-random-secret>
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
 
-For Full Auth (Password + OAuth), also set:
+For password + OAuth, also configure the enabled providers:
 
-```bash
+```dotenv
 GOOGLE_CLIENT_ID=your-google-client-id
 GOOGLE_CLIENT_SECRET=your-google-client-secret
 GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
@@ -142,6 +204,22 @@ GITHUB_CLIENT_SECRET=your-github-client-secret
 GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
 ```
 
+### Full-stack preset
+
+```dotenv
+WEB_ORIGIN=http://localhost:5173
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/authenik8?schema=public
+REDIS_URL=redis://localhost:6379
+AUTHENIK8_SIGNING_JWKS='[{"kty":"EC","crv":"P-256","kid":"<key-id>","x":"...","y":"...","d":"...","alg":"ES256"}]'
+AUTHENIK8_ACTIVE_KID=<key-id>
+AUTHENIK8_ISSUER=http://localhost:3000
+AUTHENIK8_AUDIENCE=my-app-api
+REFRESH_SECRET=<generated-random-secret>
+GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/oauth/google/callback
+GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/oauth/github/callback
+```
+
+OAuth variables are generated only for selected providers. The fullstack `.env.example` also documents cookie, proxy, logging, mail delivery, and seed-admin settings.
 
 ---
 
@@ -186,7 +264,7 @@ This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 ---
 ## Powered by
 
-authenik8-core (v1.0.38)  identity & token engine(beta)
+authenik8-core (v2.0.3)  JOSE/JWK human + agent identity engine (beta)
 
 ---
 
@@ -196,8 +274,9 @@ Generated projects call:
 
 ```ts
 const auth = await createAuthenik8({
-  jwtSecret: requiredSecret("JWT_SECRET"),
+  jwt: authJwkConfig(),
   refreshSecret: requiredSecret("REFRESH_SECRET"),
+  agent: agentIdentityConfig(),
   oauth: {
     google: {
       clientId: requiredEnv("GOOGLE_CLIENT_ID"),
@@ -219,6 +298,10 @@ That factory returns one auth object used by the generated routes:
 
 • `verifyToken(token)` verifies access tokens.
 
+• `requireAuth` verifies the token and rejects Redis-revoked sessions.
+
+• `getJwks()` returns only public verification keys for the generated JWKS endpoint.
+
 • `generateRefreshToken(payload)` creates stateful refresh tokens.
 
 • `refreshToken(refreshToken)` rotates refresh tokens and returns a new access/refresh pair.
@@ -229,22 +312,42 @@ That factory returns one auth object used by the generated routes:
 
 • `oauth.google` and `oauth.github` provide redirect and callback handlers.
 
-• `issueTokensFromProfile(profile)` turns a verified OAuth profile into app tokens through the Identity Engine.
+• `issueTokens(payload)` creates an access/refresh pair with one shared session ID.
+
+• `agent.issueToken(...)` creates a scoped, Redis-session-backed M2M identity after your application authenticates the workload.
+
+• `agent.issueDelegatedToken(...)` creates an agent token bound to an active human session and explicit delegation policy.
+
+• `agent.requireScopes(...)`, `agent.revokeSession(...)`, and `agent.revokeAgent(...)` enforce machine authorization and revocation.
+
+### Agent identity mapping
+
+Generated projects keep agent identity disabled with `AUTHENIK8_AGENTS={}`.
+Adding a validated agent-to-scope mapping enables the optional core API. Every
+project also receives `AGENT_IDENTITY.md` with a database-registry example,
+trusted workload exchange, scoped route, delegated-user flow, and revocation.
+
+The CLI intentionally does not scaffold a public token-minting endpoint. It
+cannot safely infer whether your workload uses mTLS, a cloud workload identity,
+or a signed client assertion. Applications must authenticate that workload
+before calling the privileged `agent.issueToken()` primitive.
 
 ### Redis-backed token lifecycle
 
 Authenik8-core intentionally makes JWT auth stateful:
 
-1. Access tokens are signed with `JWT_SECRET`.
+1. Access tokens are signed with the active ES256 JWK and carry its `kid`, issuer, audience, and token purpose.
 2. Refresh tokens are signed with `REFRESH_SECRET` and include a unique `jti`.
-3. The current valid refresh token is stored in Redis under `refresh:<userId>`.
-4. Refresh calls acquire a Redis lock with `lock:<userId>`.
+3. Each session's current refresh token is stored under `refresh:<userId>:<sessionId>` and indexed for complete user-wide revocation.
+4. Refresh calls acquire a Redis lock with `lock:<userId>:<sessionId>`.
 5. The submitted refresh token must match the Redis value.
 6. A new access token and refresh token are issued.
 7. The new refresh token atomically replaces the old one.
 8. Reusing the old refresh token fails.
 
 This is why Redis is required. It enables refresh-token replay protection, concurrent refresh protection, and server-side session control.
+
+To rotate keys, append a new private JWK to `AUTHENIK8_SIGNING_JWKS`, set `AUTHENIK8_ACTIVE_KID` to its `kid`, and retain old public JWKs until all tokens signed by them have expired. `/.well-known/jwks.json` publishes every verification key without private fields.
 
 ### OAuth identity resolution
 
@@ -317,7 +420,7 @@ Generated apps include a `THREAT_MODEL.md` file. It explains:
 
 • and what must be configured before production.
 
-Key protections include refresh-token replay detection, concurrent refresh locking, OAuth state validation, verified-email OAuth token issuance, Redis-backed rate limiting, secure headers, session tracking, and admin-route checks.
+Key protections include refresh-token replay detection, concurrent refresh locking, OAuth state validation, verified-email OAuth token issuance, Redis-backed rate limiting, secure headers, human and agent session tracking, scoped agent middleware, delegated actor chains, and revocation.
 
 Key non-goals include frontend XSS protection, CSRF for cookie-based auth, object-level authorization, MFA/WebAuthn, password reset, provider dashboard security, and protection from leaked secrets.
 

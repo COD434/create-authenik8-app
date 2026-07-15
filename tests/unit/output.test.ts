@@ -1,113 +1,105 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as output from '../../src/utils/output';
-import type { CliState } from '../../src/lib/types.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CliState } from "../../src/lib/types.js";
+import { printSummary } from "../../src/utils/output.js";
 
-describe('output.ts', () => {
+describe("completion output", () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
 
+  const baseState: CliState = {
+    step: "done",
+    projectName: "test-app",
+    framework: "Express",
+    authMode: "base",
+    usePrisma: true,
+    database: "sqlite",
+    runtime: "node",
+    useGit: true,
+    packageManager: "npm",
+  };
+
   beforeEach(() => {
-    vi.clearAllMocks();
-    consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
     consoleSpy.mockRestore();
   });
 
-  const baseState: CliState = {
-    projectName: 'test-app',
-    framework: 'Express',
-    authMode: 'base',
-    usePrisma: true,
-    database: 'sqlite',
-    runtime: 'node',
-    useGit: true,
-  } as CliState;
+  function printed(): string {
+    return consoleSpy.mock.calls.flat().join("\n");
+  }
 
-  it('prints full summary for base authMode (non-production)', () => {
-    output.printSummary(baseState, false);
+  it("prints a concise project handoff", () => {
+    printSummary(baseState, false);
 
-    expect(consoleSpy).toHaveBeenCalledTimes(2);
-
-    const successHeader = consoleSpy.mock.calls[0][0] as string;
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-
-    expect(successHeader).toContain('🎉 Authenik8 app created successfully!');
-    expect(mainBody).toContain('cd test-app');
-    expect(mainBody).toContain('✓ JWT only');
-    expect(mainBody).toContain('✔ SQLite');
-    expect(mainBody).toContain('✔ Prisma ORM');
-    expect(mainBody).toContain('GET    /public');
-    expect(mainBody).toContain('GET    /guest');
-    expect(mainBody).toContain('POST   /refresh');
-    expect(mainBody).toContain('github.com/COD434/create-authenik8-app');
+    expect(printed()).toContain("test-app is ready");
+    expect(printed()).toContain("Express API (JWT only)");
+    expect(printed()).toContain("SQLite with Prisma");
+    expect(printed()).toContain("npm run docker:up");
+    expect(printed()).toContain("npm run prisma:migrate");
+    expect(printed()).not.toContain("github.com/COD434");
   });
 
-  it('prints summary for authMode = "auth"', () => {
-    const state = { ...baseState, authMode: 'auth' } as CliState;
-    output.printSummary(state, false);
+  it("uses the selected package manager in next steps", () => {
+    printSummary({ ...baseState, packageManager: "pnpm", installDeps: false }, false);
 
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('✓ Email + Password');
-    expect(mainBody).toContain('POST   /auth/register');
+    expect(printed()).toContain("pnpm install");
+    expect(printed()).toContain("pnpm run dev");
   });
 
-  it('prints summary for authMode = "auth-oauth"', () => {
-    const state = { ...baseState, authMode: 'auth-oauth' } as CliState;
-    output.printSummary(state, false);
+  it("summarizes password and selected OAuth authentication", () => {
+    printSummary({
+      ...baseState,
+      authMode: "auth-oauth",
+      oauthProviders: ["github"],
+    }, false);
 
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('✓ Password + OAuth (Google/GitHub)');
-    expect(mainBody).toContain('GET    /auth/google');
+    expect(printed()).toContain("Email, password, and GitHub");
+    expect(printed()).toContain("Configure GitHub OAuth credentials");
+    expect(printed()).not.toContain("Google OAuth credentials");
   });
 
-  it('prints only selected OAuth providers in the summary', () => {
-    const state = { ...baseState, authMode: 'auth-oauth', oauthProviders: ['github'] } as CliState;
-    output.printSummary(state, false);
+  it("handles a fullstack project with no OAuth providers", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+      oauthProviders: [],
+    }, false);
 
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('✓ Password + OAuth (GitHub)');
-    expect(mainBody).toContain('GET    /auth/github');
-    expect(mainBody).not.toContain('GET    /auth/google');
+    expect(printed()).toContain("Email and password");
+    expect(printed()).toContain("npm run db:migrate");
+    expect(printed()).toContain("npm run db:seed");
+    expect(printed()).toContain("http://localhost:5173");
   });
 
-  it('handles usePrisma = false (no database)', () => {
-    const state = { ...baseState, usePrisma: false } as CliState;
-    output.printSummary(state, false);
+  it("omits Prisma commands for a database-free project", () => {
+    printSummary({ ...baseState, usePrisma: false }, false);
 
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('✔ No database');
-    expect(mainBody).toContain('✔ No ORM');
+    expect(printed()).toContain("Database");
+    expect(printed()).toContain("None");
+    expect(printed()).not.toContain("prisma:migrate");
   });
 
-  it('handles postgresql database', () => {
-    const state = { ...baseState, database: 'postgresql' } as CliState;
-    output.printSummary(state, false);
-
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('✔ PostgreSQL');
+  it("shows the PM2 command for production API presets", () => {
+    printSummary(baseState, true);
+    expect(printed()).toContain("Production process");
+    expect(printed()).toContain("npm run pm2:start");
   });
 
-  it('prints extra production section when isProduction = true', () => {
-    output.printSummary(baseState, true);
+  it("warns instead of printing an unusable Docker command when Compose is unavailable", () => {
+    printSummary(baseState, false, false);
 
-    expect(consoleSpy).toHaveBeenCalledTimes(3);
-
-    const productionBlock = consoleSpy.mock.calls[2][0] as string;
-    expect(productionBlock).toContain('🚀 Production Ready Enabled');
-    expect(productionBlock).toContain('npm run pm2:start');
+    expect(printed()).toContain("Docker Compose was not found");
+    expect(printed()).toContain("start Redis manually");
+    expect(printed()).not.toContain("npm run docker:up");
   });
 
-  it('handles minimal state (edge case)', () => {
-    const minimalState = {
-      projectName: 'minimal',
-      authMode: 'base',
-      usePrisma: false,
-    } as CliState;
+  it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
+    printSummary(baseState, false, true, false);
 
-    output.printSummary(minimalState, false);
-
-    const mainBody = consoleSpy.mock.calls[1][0] as string;
-    expect(mainBody).toContain('cd minimal');
+    expect(printed()).toContain("daemon is not reachable");
+    expect(printed()).toContain("Start Docker Desktop or the Docker service");
+    expect(printed()).not.toContain("npm run docker:up");
   });
 });

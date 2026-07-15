@@ -1,19 +1,23 @@
-import fc from "fast-check";
+import fc, { type IProperty } from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 
 import {
   parseCredentials as parseAuthCredentials,
   parseRefreshToken as parseAuthRefreshToken,
+  credentialsSchema as authCredentialsSchema,
+  refreshTokenBodySchema as authRefreshTokenBodySchema,
   requiredSecret as requiredAuthSecret,
   sanitizeSessionResponse as sanitizeAuthSessionResponse,
 } from "../../templates/express-auth/src/utils/security";
 import {
   parseCredentials as parseAuthPlusCredentials,
+  credentialsSchema as authPlusCredentialsSchema,
   requiredSecret as requiredAuthPlusSecret,
   sanitizeSessionResponse as sanitizeAuthPlusSessionResponse,
 } from "../../templates/express-auth+/src/utils/security";
 import {
   parseRefreshToken as parseBaseRefreshToken,
+  refreshTokenBodySchema as baseRefreshTokenBodySchema,
   requiredSecret as requiredBaseSecret,
   sanitizeSessionResponse as sanitizeBaseSessionResponse,
 } from "../../templates/express-base/utils/security";
@@ -53,25 +57,16 @@ const arbitraryBody = fc.oneof(
   }),
 );
 
-const isValidEmail = (value: unknown) => {
-  if (typeof value !== "string") return false;
-  const normalized = value.trim().toLowerCase();
-  const atIndex = normalized.indexOf("@");
-  const dotIndex = normalized.lastIndexOf(".");
+function assertFuzzProperty<T>(property: IProperty<T>): void {
+  const result = fc.check(property, { numRuns: 250 });
+  if (!result.failed) return;
 
-  return (
-    atIndex >= 1 &&
-    atIndex === normalized.lastIndexOf("@") &&
-    dotIndex >= atIndex + 2 &&
-    dotIndex < normalized.length - 1
+  const path = result.counterexamplePath ?? "unavailable";
+  throw new Error(
+    `Fuzz property failed after ${result.numRuns} runs; reproduce with seed ${result.seed} and path ${path}. ` +
+    "The counterexample is redacted because it may contain credential-shaped data.",
   );
-};
-
-const isValidPassword = (value: unknown) =>
-  typeof value === "string" && value.length >= 8 && value.length <= 1024;
-
-const isValidRefreshToken = (value: unknown) =>
-  typeof value === "string" && value.trim().length >= 16;
+}
 
 const assertNoSensitiveKeys = (value: unknown) => {
   if (Array.isArray(value)) {
@@ -98,19 +93,21 @@ describe("template security fuzzing", () => {
     ];
 
     for (const sanitize of sanitizers) {
-      fc.assert(
+      assertFuzzProperty(
         fc.property(jsonValueArbitrary, (payload) => {
           assertNoSensitiveKeys(sanitize(payload));
         }),
-        { numRuns: 250 },
       );
     }
   });
 
   it("accepts only valid credential-shaped bodies", () => {
-    const parsers = [parseAuthCredentials, parseAuthPlusCredentials];
+    const parsers = [
+      [parseAuthCredentials, authCredentialsSchema],
+      [parseAuthPlusCredentials, authPlusCredentialsSchema],
+    ] as const;
 
-    for (const parseCredentials of parsers) {
+    for (const [parseCredentials, schema] of parsers) {
       expect(() =>
         parseCredentials({
           email: "user@example.",
@@ -118,48 +115,37 @@ describe("template security fuzzing", () => {
         }),
       ).toThrow();
 
-      fc.assert(
+      assertFuzzProperty(
         fc.property(arbitraryBody, (body) => {
-          const expectedValid =
-            !!body &&
-            typeof body === "object" &&
-            !Array.isArray(body) &&
-            isValidEmail((body as { email?: unknown }).email) &&
-            isValidPassword((body as { password?: unknown }).password);
+          const expected = schema.safeParse(body);
 
-          if (expectedValid) {
-            const parsed = parseCredentials(body);
-
-            expect(parsed.email).toBe((body as { email: string }).email.trim().toLowerCase());
-            expect(parsed.password).toBe((body as { password: string }).password);
+          if (expected.success) {
+            expect(parseCredentials(body)).toEqual(expected.data);
           } else {
             expect(() => parseCredentials(body)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
   });
 
   it("accepts only valid refresh-token-shaped bodies", () => {
-    const parsers = [parseAuthRefreshToken, parseBaseRefreshToken];
+    const parsers = [
+      [parseAuthRefreshToken, authRefreshTokenBodySchema],
+      [parseBaseRefreshToken, baseRefreshTokenBodySchema],
+    ] as const;
 
-    for (const parseRefreshToken of parsers) {
-      fc.assert(
+    for (const [parseRefreshToken, schema] of parsers) {
+      assertFuzzProperty(
         fc.property(arbitraryBody, (body) => {
-          const expectedValid =
-            !!body &&
-            typeof body === "object" &&
-            !Array.isArray(body) &&
-            isValidRefreshToken((body as { refreshToken?: unknown }).refreshToken);
+          const expected = schema.safeParse(body);
 
-          if (expectedValid) {
-            expect(parseRefreshToken(body)).toBe((body as { refreshToken: string }).refreshToken);
+          if (expected.success) {
+            expect(parseRefreshToken(body)).toBe(expected.data.refreshToken);
           } else {
             expect(() => parseRefreshToken(body)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
   });
@@ -174,17 +160,16 @@ describe("template security fuzzing", () => {
     for (const [readerIndex, requiredSecret] of secretReaders.entries()) {
       const envName = `FUZZ_SECRET_${readerIndex}`;
 
-      fc.assert(
+      assertFuzzProperty(
         fc.property(secretArbitrary, (secret) => {
           vi.stubEnv(envName, secret);
 
           if (secret.trim().length >= 32) {
-            expect(requiredSecret(envName)).toBe(secret);
+            expect(requiredSecret(envName)).toBe(secret.trim());
           } else {
             expect(() => requiredSecret(envName)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
 

@@ -9,6 +9,8 @@ export const createApp = (auth: any) => {
   app.use(auth.helmet);
   app.use(auth.rateLimit);
 
+  app.get("/.well-known/jwks.json", (_req, res) => res.json(auth.getJwks()));
+
   app.use("/", createBaseRoutes(auth));
 
   return app;

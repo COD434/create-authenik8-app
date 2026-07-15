@@ -6,7 +6,7 @@ function selectedOAuthProviders(state: CliState): string[] {
     provider === "google" || provider === "github"
   );
 
-  return providers?.length ? providers : ["google", "github"];
+  return providers ?? ["google", "github"];
 }
 
 function oauthProviderLabel(state: CliState): string {
@@ -15,80 +15,85 @@ function oauthProviderLabel(state: CliState): string {
     .join("/");
 }
 
-function oauthRouteLines(state: CliState): string {
-  return selectedOAuthProviders(state)
-    .map((provider) => `  GET    /auth/${provider}`)
-    .join("\n");
+function authLabel(state: CliState): string {
+  if (state.authMode === "base") return "JWT";
+  if (state.authMode === "auth") return "Email and password";
+  const providers = oauthProviderLabel(state);
+  return providers ? `Email, password, and ${providers}` : "Email and password";
 }
 
-export function printSummary(state: CliState, isProduction: boolean): void {
-  console.log(chalk.green.bold("\n🎉 Authenik8 app created successfully!\n"));
-
-  console.log(chalk.white(`
-Next steps:
-
-cd ${state.projectName}
-${state.usePrisma ? "npm run prisma:migrate\n" : ""}redis-server --daemonize yes
-npm run dev
-
-Before running, review .env and replace generated development values for deployed environments.
-${state.authMode === "auth-oauth" ? `For OAuth, set real ${oauthProviderLabel(state)} client IDs, secrets, and redirect URLs in .env.\n` : ""}
-
-Auth Features:
-${
-  state.authMode === "base"
-    ? "✓ JWT only"
-    : state.authMode === "auth"
-    ? "✓ Email + Password"
-    : `✓ Password + OAuth (${oauthProviderLabel(state)})`
+function presetLabel(state: CliState): string {
+  if (state.authMode === "fullstack") return "Full-stack application";
+  if (state.authMode === "auth-oauth") return "Express API + OAuth";
+  if (state.authMode === "auth") return "Express API + email/password";
+  return "Express API (JWT only)";
 }
 
-🛠 Stack:
-✔ Express
-✔ ${state.usePrisma ? (state.database === "postgresql" ? "PostgreSQL" : "SQLite") : "No database"}
-✔ ${state.usePrisma ? "Prisma ORM" : "No ORM"}
-
-📡 API Routes:
-${
-  state.authMode === "base"
-    ? `
-  GET    /public
-  GET    /guest
-  GET    /protected
-  POST   /refresh
-`
-    : state.authMode === "auth"
-    ? `
-  POST   /auth/register
-  POST   /auth/login
-  POST   /auth/refresh
-  GET    /protected
-`
-    : `
-  POST   /auth/register
-  POST   /auth/login
-  POST   /auth/refresh
-${oauthRouteLines(state)}
-  GET    /protected
-`
+function databaseLabel(state: CliState): string {
+  if (!state.usePrisma) return "None";
+  return state.database === "postgresql" ? "PostgreSQL with Prisma" : "SQLite with Prisma";
 }
-✅ Done! Enjoying authenik8?
-⭐ Star us → github.com/COD434/create-authenik8-app
-💬 Drop feedback → github.com/COD434/create-authenik8-app/discussions
 
-🔥 You're ready to build.
-`));
+function runCommand(state: CliState, script: string): string {
+  return `${state.packageManager ?? "npm"} run ${script}`;
+}
 
-  if (isProduction) {
-    console.log(`
-🚀 Production Ready Enabled:
+export function printSummary(
+  state: CliState,
+  isProduction: boolean,
+  hasDockerCompose = true,
+  hasDockerDaemon = true,
+): void {
+  const packageManager = state.packageManager ?? "npm";
+  const commands = [
+    `cd ${state.projectName}`,
+    ...(state.installDeps === false ? [`${packageManager} install`] : []),
+    ...(hasDockerCompose && hasDockerDaemon ? [runCommand(state, "docker:up")] : []),
+    ...(state.usePrisma
+      ? [runCommand(state, state.authMode === "fullstack" ? "db:migrate" : "prisma:migrate")]
+      : []),
+    ...(state.authMode === "fullstack" ? [runCommand(state, "db:seed")] : []),
+    runCommand(state, "dev"),
+  ];
+  const details: Array<[string, string]> = [
+    ["Location", `./${state.projectName}`],
+    ["Preset", presetLabel(state)],
+    ["Authentication", authLabel(state)],
+    ["Database", databaseLabel(state)],
+    ["Package manager", packageManager],
+  ];
+  const labelWidth = Math.max(...details.map(([label]) => label.length));
 
-✔ PM2 installed
-✔ Cluster mode enabled
-✔ Memory auto-restart (300MB)
-
-Run:
-npm run pm2:start
-`);
+  console.log("");
+  console.log(`${chalk.green("◆")} ${chalk.green.bold(`${state.projectName} is ready`)}`);
+  console.log(chalk.dim("│"));
+  for (const [label, value] of details) {
+    console.log(`${chalk.green("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
   }
+  console.log(chalk.dim("│"));
+  if (!hasDockerCompose) {
+    const services = state.database === "postgresql" ? "Redis and PostgreSQL" : "Redis";
+    console.log(`${chalk.yellow("!")}  Docker Compose was not found. Install it or start ${services} manually.`);
+    console.log(chalk.dim("│"));
+  } else if (!hasDockerDaemon) {
+    console.log(`${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`);
+    console.log(chalk.dim("│"));
+  }
+  console.log(`${chalk.cyan("└")} ${chalk.bold("Next steps")}`);
+  for (const command of commands) {
+    console.log(`  ${chalk.cyan(command)}`);
+  }
+
+  if (state.authMode === "fullstack") {
+    console.log(chalk.dim("\n  Web  http://localhost:5173"));
+    console.log(chalk.dim("  API  http://localhost:3000/api"));
+  }
+  if (state.authMode === "auth-oauth") {
+    console.log(chalk.dim(`\n  Configure ${oauthProviderLabel(state)} OAuth credentials in .env before testing sign-in.`));
+  }
+  if (isProduction && state.authMode !== "fullstack") {
+    console.log(chalk.dim(`\n  Production process  ${runCommand(state, "pm2:start")}`));
+  }
+
+  console.log(chalk.dim("\n  Review .env, README.md, and THREAT_MODEL.md before deployment.\n"));
 }

@@ -1,47 +1,45 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import fs from 'fs-extra';
 import path from 'path';
-import { execSync } from 'child_process';
 
 import * as finalSetup from '../../src/steps/finalSetup';
 import * as processLib from '../../src/lib/process';
-import * as uiLib from '../../src/lib/ui';
 
 vi.mock('fs-extra');
 vi.mock('path');
-vi.mock('child_process');
 vi.mock('../../src/lib/process');
-vi.mock('../../src/lib/ui');
 
 describe('finalSetup.ts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(processLib.commandExists).mockReturnValue(false);
+    vi.mocked(processLib.isCommandNotFoundError).mockReturnValue(false);
   });
 
   describe('hasBun()', () => {
     it('returns true when bun is available', () => {
-      vi.mocked(execSync).mockImplementationOnce(() => {});
+      vi.mocked(processLib.commandExists).mockReturnValueOnce(true);
       expect(finalSetup.hasBun()).toBe(true);
     });
 
     it('returns false when bun is not available', () => {
-      vi.mocked(execSync).mockImplementationOnce(() => { throw new Error(); });
+      vi.mocked(processLib.commandExists).mockReturnValueOnce(false);
       expect(finalSetup.hasBun()).toBe(false);
     });
   });
 
   describe('resolveRuntime()', () => {
     it('returns "bun" when runtime is bun and bun is available', () => {
-      vi.mocked(execSync).mockImplementationOnce(() => {});
+      vi.mocked(processLib.commandExists).mockReturnValueOnce(true);
       expect(finalSetup.resolveRuntime('bun')).toBe('bun');
     });
 
     it('falls back to "node" and logs warning when bun is chosen but not available', () => {
-      vi.mocked(execSync).mockImplementationOnce(() => { throw new Error(); });
+      vi.mocked(processLib.commandExists).mockReturnValueOnce(false);
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
 
       expect(finalSetup.resolveRuntime('bun')).toBe('node');
-      expect(consoleSpy).toHaveBeenCalledWith('⚠️ Bun not found, falling back to Node');
+      expect(consoleSpy).toHaveBeenCalledWith('Bun was not found; using Node instead.');
     });
 
     it('returns "node" for any other runtime', () => {
@@ -69,7 +67,7 @@ describe('finalSetup.ts', () => {
       );
     });
 
-    it('creates node ecosystem.config.js with ts-node when runtime is node', () => {
+    it('creates node ecosystem.config.js for the compiled artifact', () => {
       finalSetup.createPm2Config(targetDir, projectName, 'node');
 
       expect(fs.writeFileSync).toHaveBeenCalledWith(
@@ -92,7 +90,7 @@ describe('finalSetup.ts', () => {
       vi.mocked(fs.writeFileSync).mockImplementation(() => {});
     });
 
-    it('adds pm2 + ts-node and creates config for node runtime', async () => {
+    it('adds pm2 and runs the compiled artifact for node runtime', async () => {
       await finalSetup.configureProduction(targetDir, projectName, 'node');
 
       const writeCalls = vi.mocked(fs.writeFileSync).mock.calls;
@@ -101,13 +99,14 @@ describe('finalSetup.ts', () => {
       const pkgCall = writeCalls.find((call) => call[0].includes('package.json'));
       expect(pkgCall).toBeDefined();
       expect(pkgCall![1]).toContain('"pm2": "^5.4.2"');
-      expect(pkgCall![1]).toContain('"ts-node": "^10.9.2"');
+      expect(pkgCall![1]).not.toContain('ts-node');
+      expect(pkgCall![1]).toContain('npm run build && npx pm2 start');
 
       // ecosystem.config.js write (from createPm2Config)
       const configCall = writeCalls.find((call) => call[0].includes('ecosystem.config.js'));
       expect(configCall).toBeDefined();
       expect(configCall![1]).toContain('interpreter:"node"');
-      expect(configCall![1]).toContain('-r ts-node/register');
+      expect(configCall![1]).toContain('script: "dist/server.js"');
     });
 
     it('adds only pm2 for bun runtime', async () => {
@@ -132,29 +131,37 @@ describe('finalSetup.ts', () => {
     const targetDir = '/tmp/test-project';
 
     beforeEach(() => {
+      vi.mocked(processLib.commandExists).mockReturnValue(true);
       vi.mocked(processLib.run).mockResolvedValue(undefined);
       vi.mocked(processLib.getCommand).mockReturnValue('git');
-      vi.mocked(uiLib.spinner.stop).mockImplementation(() => {});
-      vi.mocked(uiLib.spinner.fail).mockImplementation(() => {});
     });
 
     it('successfully runs git init', async () => {
-      await finalSetup.initGit(targetDir);
+      await expect(finalSetup.initGit(targetDir)).resolves.toBe(true);
 
       expect(processLib.run).toHaveBeenCalledWith(
         'git',
         ['init'],
         { cwd: targetDir, stdio: 'ignore' }
       );
-      expect(uiLib.spinner.stop).toHaveBeenCalled();
     });
 
-    it('handles git init failure gracefully', async () => {
+    it('warns and continues when optional git initialization fails', async () => {
+      const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
       vi.mocked(processLib.run).mockRejectedValueOnce(new Error('git failed'));
 
-      await finalSetup.initGit(targetDir);
+      await expect(finalSetup.initGit(targetDir)).resolves.toBe(false);
 
-      expect(uiLib.spinner.fail).toHaveBeenCalledWith('Git init failed');
+      expect(processLib.exitForInterrupt).toHaveBeenCalledWith(expect.any(Error));
+      expect(warning).toHaveBeenCalledWith('Git initialization skipped: git failed');
+    });
+
+    it('returns false when Git is not installed', async () => {
+      vi.mocked(processLib.commandExists).mockReturnValueOnce(false);
+
+      await expect(finalSetup.initGit(targetDir)).resolves.toBe(false);
+      expect(processLib.run).not.toHaveBeenCalled();
+      expect(processLib.exitForInterrupt).not.toHaveBeenCalled();
     });
   });
 
@@ -172,7 +179,7 @@ describe('finalSetup.ts', () => {
 
       expect(fs.appendFileSync).toHaveBeenCalledWith(
         expect.stringContaining('README.md'),
-        expect.stringContaining('🚀 Production Mode')
+        expect.stringContaining('## Production Mode')
       );
     });
   });

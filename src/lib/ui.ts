@@ -1,139 +1,97 @@
 import chalk from "chalk";
 import ora from "ora";
-import type { StepName } from "./types.js";
-import { stepLabels, stepOrder } from "./constants.js";
-import { hasReachedStep } from "./state.js";
+import type { CliState, StepName } from "./types.js";
+import { stepLabels } from "./constants.js";
 
-export const spinner = ora().start();
+export const animatedProgress = Boolean(process.stderr.isTTY && !process.env.CI);
+export const spinner = ora({ color: "cyan", isEnabled: animatedProgress });
 
-export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+function stepText(step: StepName, detail?: string): string {
+  return detail ? `${stepLabels[step]} ${chalk.dim(`(${detail})`)}` : stepLabels[step];
+}
 
-const cleanLogo = `
+export function formatDuration(durationMs: number): string {
+  if (durationMs < 1_000) return `${durationMs}ms`;
+  if (durationMs < 10_000) return `${(durationMs / 1_000).toFixed(1)}s`;
+  return `${Math.round(durationMs / 1_000)}s`;
+}
 
-█████╗      █████╗
-██╔══██╗    ██╔══██╗
-███████║    ╚█████╔╝
-██╔══██║    ██╔══██╗
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-
-A8
-
-Authenik8 CLI
-Build  Faster
-More , Secure
-`;
-
-const glitchFrames = [
-  `
-█████╗      █████╗
-██╔══██╗    ██▒▒▒▒██
-███████║    ╚█████╔╝
-██╔══██║    ██▒▒▒▒██
-██║  ██║    ╚█████╔╝
-╚═╝  ╚═╝     ╚════╝
-
-A8
-  Authenik8 CLI
-
-  More
-`,
-  `
-██▓▓██╗    ██▓▓██╗
-██▒▒██╔╝    ██▒▒██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▒▒██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
-A8
-  Authenik8 CLI
-         Faster
-`,
-  `
-██▒▒██╗    ██▒▒██╗
-██▓▓██╔╝    ██▓▓██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▓▓██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
-A8
-  Authenik8 CLI
-  Build
-`,
-  `
-██▓▓██╗    ██▓▓██╗
-██▒▒██╔╝    ██▒▒██╔╝
-██▒▒▒▒██    ╚█████╔╝
-██▓▓██╔╝    ██▒▒██╗
-██▒▒██║     ╚█████╔╝
-╚═════╝      ╚════╝
-
-A8
-  Authenik8 CLI
-
-`,
-];
-
-export function renderHeader() {
-  console.log(chalk.cyan.bold("Happy building \nAuthenik8 CLI"));
-  console.log(chalk.gray("────────────────────"));
+export function renderHeader(): void {
+  console.log("");
+  console.log(`${chalk.bgCyan.black.bold(" AUTHENIK8 ")} ${chalk.bold("create-authenik8-app")}`);
+  console.log(chalk.dim(" Secure application scaffolding"));
   console.log("");
 }
 
-export function renderStep(current: StepName, isProduction: boolean) {
-  console.clear();
+export async function showBootLogo(): Promise<void> {
   renderHeader();
-
-  for (const step of stepOrder) {
-    const label = stepLabels[step];
-
-    if (step === "production-configured" && !isProduction) {
-      continue;
-    }
-
-    if (step === current) {
-      console.log(chalk.yellow(`⏳ ${label}...`));
-      break;
-    }
-
-    if (hasReachedStep(current, step)) {
-      console.log(chalk.green(`✔ ${label}`));
-    } else {
-      console.log(chalk.gray(`○ ${label}`));
-    }
-  }
-
-  console.log("");
 }
 
-export async function showBootLogo() {
-  console.clear();
-  spinner.text = "Initializing Authenik8 engine...";
+export function renderConfiguration(state: CliState): void {
+  const preset = state.authMode === "fullstack"
+    ? "Full-stack application"
+    : state.authMode === "auth-oauth"
+      ? "Express API + OAuth"
+      : state.authMode === "auth"
+        ? "Express API + email/password"
+        : "Express API (JWT only)";
+  const database = state.usePrisma
+    ? state.database === "postgresql" ? "PostgreSQL" : "SQLite"
+    : "No database";
+  const oauthProviders = (state.oauthProviders ?? ["google", "github"])
+    .map((provider) => provider === "github" ? "GitHub" : "Google")
+    .join(" + ");
+  const authentication = state.authMode === "base"
+    ? "JWT"
+    : state.authMode === "auth"
+      ? "Email and password"
+      : oauthProviders ? `Email, password, and ${oauthProviders}` : "Email and password";
+  const rows: Array<[string, string]> = [
+    ["Project", state.projectName],
+    ["Preset", preset],
+    ["Authentication", authentication],
+    ["Database", database],
+    ["Package manager", state.packageManager ?? "npm"],
+    ["Dependencies", state.installDeps === false ? "Skip installation" : "Install now"],
+  ];
+  const labelWidth = Math.max(...rows.map(([label]) => label.length));
 
-  console.clear();
-  console.log(chalk.cyan(cleanLogo));
-  await sleep(200);
+  console.log(`${chalk.cyan("◆")} ${chalk.bold("Project configuration")}`);
+  console.log(chalk.dim("│"));
+  for (const [label, value] of rows) {
+    // Provider names are public CLI choices; OAuth credentials never enter this state.
+    // codeql[js/clear-text-logging]
+    console.log(`${chalk.cyan("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
+  }
+  console.log(chalk.dim("│"));
+}
 
-  for (let i = 0; i < 5; i++) {
-    console.clear();
-    const frame = glitchFrames[Math.floor(Math.random() * glitchFrames.length)];
-    console.log(chalk.cyan(frame));
-    await sleep(120 + Math.random() * 120);
+export function startStep(step: StepName, detail?: string): void {
+  const text = stepText(step, detail);
+  if (animatedProgress) {
+    spinner.start(text);
+  } else {
+    spinner.text = text;
+  }
+}
+
+export function completeStep(step: StepName, detail?: string): void {
+  const text = stepText(step, detail);
+  if (animatedProgress) {
+    spinner.succeed(text);
+    return;
   }
 
-  for (let i = 0; i < 2; i++) {
-    console.clear();
-    console.log(chalk.cyan(cleanLogo));
-    await sleep(180);
-    console.clear();
-    console.log(chalk.gray(cleanLogo));
-    await sleep(120);
-  }
+  console.log(`${chalk.green("◇")} ${text}`);
+}
 
-  console.clear();
-  console.log(chalk.cyan.bold(cleanLogo));
-  await sleep(800);
-  spinner.succeed("Engine ready");
+export function skipStep(step: StepName, reason: string): void {
+  spinner.stop();
+  console.log(`${chalk.dim("◇")} ${stepLabels[step]} ${chalk.dim(`(${reason})`)}`);
+}
+
+export function finishSteps(): void {
+  spinner.stop();
+  console.log(chalk.dim("│"));
+  console.log(`${chalk.green("└")} ${chalk.green.bold("Scaffold complete")}`);
 }

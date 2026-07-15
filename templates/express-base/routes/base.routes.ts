@@ -7,7 +7,7 @@ export const createBaseRoutes = (auth: any) => {
 
   router.get("/public", controller.publicRoute);
   router.get("/guest", controller.guest);
-  router.get("/protected", controller.protected);
+  router.get("/protected", auth.requireAuth, controller.protected);
   router.post("/refresh", controller.refresh);
 
   router.get("/admin", auth.requireAdmin, controller.admin);

@@ -1,5 +1,7 @@
 import type { StepName } from "./types.js";
 
+export const PRISMA_VERSION = "7.8.0";
+
 export const stepOrder: StepName[] = [
   "start",
   "prompts",
@@ -8,20 +10,18 @@ export const stepOrder: StepName[] = [
   "prisma-configured",
   "production-configured",
   "deps-installed",
-  "prisma-generated",
   "git-initialized",
   "done",
 ];
 
 export const stepLabels: Record<StepName, string> = {
-  start: "Starting",
-  prompts: "Collecting inputs",
-  "project-created": "Project scaffold",
-  "auth-installed": "Auth setup",
-  "prisma-configured": "Prisma setup",
-  "deps-installed": "Dependencies install",
-  "prisma-generated": "Prisma generate",
-  "production-configured": "Production setup",
-  "git-initialized": "Git init",
-  done: "Completed",
+  start: "Start setup",
+  prompts: "Collect configuration",
+  "project-created": "Create project files",
+  "auth-installed": "Configure authentication",
+  "prisma-configured": "Configure database",
+  "deps-installed": "Install dependencies",
+  "production-configured": "Configure production runtime",
+  "git-initialized": "Initialize Git repository",
+  done: "Project ready",
 };

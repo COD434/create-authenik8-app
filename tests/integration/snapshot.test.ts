@@ -19,7 +19,9 @@ describe("generator snapshots", () => {
         "controllers/base.controller.ts",
         "routes/base.routes.ts",
         "src/server.ts",
+        "src/prisma/client.ts",
         "prisma/schema.prisma",
+        "prisma.config.ts",
       ],
     },
     {
@@ -35,8 +37,10 @@ describe("generator snapshots", () => {
         "src/controllers/protected.controller.ts",
         "src/routes/auth.routes.ts",
         "src/routes/protected.routes.ts",
+        "src/prisma/client.ts",
         "src/utils/hash.ts",
         "prisma/schema.prisma",
+        "prisma.config.ts",
       ],
     },
     //{

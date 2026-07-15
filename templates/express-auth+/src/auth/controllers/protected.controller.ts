@@ -1,8 +1,19 @@
 import { Request, Response } from "express";
-import { sanitizeSessionResponse } from "../../utils/security";
+import {
+  InputValidationError,
+  parseIdentifier,
+  sanitizeSessionResponse,
+} from "../../utils/security";
+
+function sessionError(res: Response, error: unknown, fallback: string) {
+  if (error instanceof InputValidationError) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+  return res.status(500).json({ success: false, message: fallback });
+}
 
 export const protectedController = {
-  protected( res: Response) {
+  protected(_req: Request, res: Response) {
     res.json({ message: "Protected route" });
   },
 
@@ -13,10 +24,11 @@ export const protectedController = {
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      const sessions = await actions.listSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessions = await actions.listSessions(userId);
       res.json({ sessions: sanitizeSessionResponse(sessions) });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to retrieve sessions" });
+    } catch (error) {
+      sessionError(res, error, "Failed to retrieve sessions");
     }
   },
 
@@ -27,10 +39,12 @@ export const protectedController = {
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeSession(req.params.userId, req.params.sessionId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      const sessionId = parseIdentifier(req.params.sessionId, "Session ID");
+      await actions.revokeSession(userId, sessionId);
       res.json({ success: true, message: "Session revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke session" });
+    } catch (error) {
+      sessionError(res, error, "Failed to revoke session");
     }
   },
 
@@ -41,10 +55,11 @@ export const protectedController = {
         return res.status(503).json({ success: false, message: "Session management unavailable" });
       }
 
-      await actions.revokeAllSessions(req.params.userId);
+      const userId = parseIdentifier(req.params.userId, "User ID");
+      await actions.revokeAllSessions(userId);
       res.json({ success: true, message: "All sessions revoked" });
-    } catch {
-      res.status(500).json({ success: false, message: "Failed to revoke sessions" });
+    } catch (error) {
+      sessionError(res, error, "Failed to revoke sessions");
     }
   },
 };

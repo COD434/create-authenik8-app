@@ -3,6 +3,7 @@ import passwordRoutes from "./auth/routes/password.route";
 import oauthRoutes from "./auth/routes/oauth.routes";
 import protectedRoutes from "./auth/routes/protected.routes";
 import { getAuth, initAuth } from "./auth/auth";
+import { requiredPort } from "./utils/security";
 
 async function start(){
 		await initAuth();
@@ -12,13 +13,15 @@ async function start(){
   app.use(express.json({ limit: "16kb", strict: true }));
   app.use(auth.helmet);
   app.use(auth.rateLimit);
+  app.get("/.well-known/jwks.json", (_req, res) => res.json(auth.getJwks()));
 
   app.use("/auth", passwordRoutes);
   app.use("/auth", oauthRoutes);
   app.use("/", protectedRoutes);
 
-  app.listen(3000, () => {
-    console.log("Auth system running on http://localhost:3000");
+  const port = requiredPort();
+  app.listen(port, () => {
+    console.log(`Auth system running on http://localhost:${port}`);
   });
 }
 
@@ -32,11 +35,3 @@ process.on("unhandledRejection", (err) => {
   console.error(" Unhandled Rejection:", err);
   process.exit(1);
 });
-setInterval(() => {
-  const used = process.memoryUsage().heapUsed / 1024 / 1024;
-
-  if (used > 300) {
-    console.error(` Memory exceeded: ${used.toFixed(2)} MB`);
-    process.exit(1);
-  }
-}, 10000);

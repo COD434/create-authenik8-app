@@ -1,8 +1,8 @@
-import { spawn } from "child_process";
+import { spawnSync } from "child_process";
 import { mkdtemp } from "fs/promises";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -17,18 +17,30 @@ const mockModules = vi.hoisted(() => {
       runtime: "node",
     },
     showBootLogo: vi.fn(async () => {}),
-    renderStep: vi.fn(),
+    renderConfiguration: vi.fn(),
+    startStep: vi.fn(),
+    completeStep: vi.fn(),
+    skipStep: vi.fn(),
+    finishSteps: vi.fn(),
+    formatDuration: vi.fn(() => "1.3s"),
     runPrompts: vi.fn(async () => state.promptAnswers),
     createProject: vi.fn(async () => {}),
     configurePackageJson: vi.fn(),
     installAuth: vi.fn(async () => "bcryptjs"),
     configurePrisma: vi.fn(async () => {}),
-    installDependencies: vi.fn(async () => {}),
+    installDependencies: vi.fn(async () => ({ packageManager: "npm", durationMs: 1_250 })),
     detectPackageManager: vi.fn(() => "npm"),
+    isPackageManagerAvailable: vi.fn(() => true),
+    resolvePackageManagerForPreset: vi.fn((authMode, requested) =>
+      authMode === "fullstack" ? "npm" : requested ?? "npm"
+    ),
     configureProduction: vi.fn(async () => {}),
-    initGit: vi.fn(async () => {}),
+    initGit: vi.fn(async () => true),
     appendProductionReadme: vi.fn(),
     resolveRuntime: vi.fn((runtime: "node" | "bun" | undefined) => runtime ?? "node"),
+    dockerComposeAvailable: vi.fn(() => false),
+    dockerDaemonAvailable: vi.fn(() => false),
+    killAllProcesses: vi.fn(),
     printSummary: vi.fn(),
     spinner: {
       start: vi.fn(),
@@ -36,6 +48,7 @@ const mockModules = vi.hoisted(() => {
       succeed: vi.fn(),
       fail: vi.fn(),
       text: "",
+      isSpinning: false,
     },
   };
 
@@ -44,7 +57,12 @@ const mockModules = vi.hoisted(() => {
 
 vi.mock("../../src/lib/ui.js", () => ({
   showBootLogo: mockModules.showBootLogo,
-  renderStep: mockModules.renderStep,
+  renderConfiguration: mockModules.renderConfiguration,
+  startStep: mockModules.startStep,
+  completeStep: mockModules.completeStep,
+  skipStep: mockModules.skipStep,
+  finishSteps: mockModules.finishSteps,
+  formatDuration: mockModules.formatDuration,
   spinner: mockModules.spinner,
 }));
 
@@ -68,6 +86,8 @@ vi.mock("../../src/steps/configurePrisma.js", () => ({
 vi.mock("../../src/steps/installDeps.js", () => ({
   installDependencies: mockModules.installDependencies,
   detectPackageManager: mockModules.detectPackageManager,
+  isPackageManagerAvailable: mockModules.isPackageManagerAvailable,
+  resolvePackageManagerForPreset: mockModules.resolvePackageManagerForPreset,
 }));
 
 vi.mock("../../src/steps/finalSetup.js", () => ({
@@ -79,6 +99,12 @@ vi.mock("../../src/steps/finalSetup.js", () => ({
 
 vi.mock("../../src/utils/output.js", () => ({
   printSummary: mockModules.printSummary,
+}));
+
+vi.mock("../../src/lib/process.js", () => ({
+  dockerComposeAvailable: mockModules.dockerComposeAvailable,
+  dockerDaemonAvailable: mockModules.dockerDaemonAvailable,
+  killAllProcesses: mockModules.killAllProcesses,
 }));
 
 type CliRunResult = {
@@ -98,43 +124,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../..");
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
+const tsxLoaderUrl = pathToFileURL(tsxLoaderPath).href;
 
 function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").trim();
 }
 
 async function runCliSubprocess(argv: string[], cwd: string): Promise<CliSubprocessResult> {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", tsxLoaderPath, path.join(repoRoot, "src/bin/index.ts"), ...argv], {
+  const child = spawnSync(
+    process.execPath,
+    ["--import", tsxLoaderUrl, path.join(repoRoot, "src/bin/index.ts"), ...argv],
+    {
       cwd,
+      encoding: "utf8",
       env: {
         ...process.env,
         FORCE_COLOR: "0",
         CI: "true",
       },
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    },
+  );
 
-    let stdout = "";
-    let stderr = "";
+  if (child.error) {
+    throw child.error;
+  }
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      resolve({
-        code,
-        stdout: normalizeText(stdout),
-        stderr: normalizeText(stderr),
-      });
-    });
-  });
+  return {
+    code: child.status,
+    stdout: normalizeText(child.stdout ?? ""),
+    stderr: normalizeText(child.stderr ?? ""),
+  };
 }
 
 async function runCli(
@@ -162,7 +182,10 @@ async function runCli(
     ...options.promptAnswers,
   };
 
-  const projectName = argv.find((arg) => !arg.startsWith("--"));
+    const packageManagerIndex = argv.findIndex((arg) => arg === "--package-manager");
+    const projectName = argv.find((arg, index) =>
+      !arg.startsWith("--") && index !== packageManagerIndex + 1
+    );
 
   if (options.createExistingTargetDir && projectName) {
     await fs.ensureDir(path.join(cwd, projectName));
@@ -233,17 +256,18 @@ describe("CLI", () => {
     const result = await runCliSubprocess(["--production-ready"], cwd);
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain("Please provide a project name");
+    expect(result.stderr).toContain("A project name is required");
     expect(mockModules.runPrompts).not.toHaveBeenCalled();
   });
 
-  it("prints help output for --help without starting generation", async () => {
+  it("prints help without requiring a project name or starting generation", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
-    const result = await runCliSubprocess(["demo-app", "--help"], cwd);
+    const result = await runCliSubprocess(["--help"], cwd);
 
     expect(result.code).toBe(0);
-    expect(result.stdout).toContain("Authenik8 CLI");
+    expect(result.stdout).toContain("AUTHENIK8");
     expect(result.stdout).toContain("Usage:");
+    expect(result.stdout).not.toContain("Engine ready");
     expect(mockModules.runPrompts).not.toHaveBeenCalled();
     expect(mockModules.createProject).not.toHaveBeenCalled();
   });
@@ -254,7 +278,7 @@ describe("CLI", () => {
     const result = await runCliSubprocess(["demo-app"], cwd);
 
     expect(result.code).toBe(1);
-    expect(result.stdout).toContain('Directory "demo-app" already exists.');
+    expect(result.stderr).toContain('Directory "demo-app" already exists.');
     expect(mockModules.runPrompts).not.toHaveBeenCalled();
   });
 
@@ -266,6 +290,7 @@ describe("CLI", () => {
     expect(mockModules.createProject).toHaveBeenCalledTimes(1);
     expect(mockModules.configurePrisma).toHaveBeenCalledTimes(1);
     expect(mockModules.installDependencies).toHaveBeenCalledTimes(1);
+    expect(mockModules.installDependencies).toHaveBeenCalledWith(expect.any(String), "npm");
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({
         projectName: "demo-app",
@@ -273,8 +298,24 @@ describe("CLI", () => {
         usePrisma: true,
       }),
       false,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
     expect(result.errors).toHaveLength(0);
+  });
+
+  it("can scaffold without installing dependencies", async () => {
+    const result = await runCli(["demo-app", "--no-install"]);
+
+    expect(result.exitCode).toBeUndefined();
+    expect(mockModules.configurePackageJson).toHaveBeenCalledTimes(1);
+    expect(mockModules.installDependencies).not.toHaveBeenCalled();
+    expect(mockModules.printSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ installDeps: false }),
+      false,
+      expect.any(Boolean),
+      expect.any(Boolean),
+    );
   });
 
   it("parses flags around the project name and runs the production auth flow", async () => {
@@ -299,7 +340,42 @@ describe("CLI", () => {
         database: "postgresql",
       }),
       true,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
     expect(result.logs.join("\n")).toContain("require Prisma");
+  });
+
+  it("passes an explicit package manager through the Express flow", async () => {
+    mockModules.installDependencies.mockResolvedValueOnce({
+      packageManager: "pnpm",
+      durationMs: 800,
+    });
+    const result = await runCli(["--package-manager", "pnpm", "demo-app"]);
+
+    expect(result.exitCode).toBeUndefined();
+    expect(mockModules.installDependencies).toHaveBeenCalledWith(expect.any(String), "pnpm");
+    expect(mockModules.printSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ packageManager: "pnpm" }),
+      false,
+      expect.any(Boolean),
+      expect.any(Boolean),
+    );
+  });
+
+  it("rejects unsupported package managers before prompting", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
+    const result = await runCliSubprocess(["demo-app", "--package-manager", "yarn"], cwd);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("Unsupported package manager");
+  });
+
+  it("prints the package version without requiring a project name", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
+    const result = await runCliSubprocess(["--version"], cwd);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toMatch(/^\d+\.\d+\.\d+$/);
   });
 });

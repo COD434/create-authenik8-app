@@ -15,14 +15,18 @@ For SQLite, Postgres in `docker-compose.yml` is optional. Redis is required for 
 
 ## Environment
 
-Review `.env` before running. The generated secrets are development placeholders and must be replaced before deployment.
+The generator writes a unique signing key and refresh secret to git-ignored `.env`. Move them into your deployment secret manager and never commit the private JWK.
 
 Required:
 
 ```bash
 DATABASE_URL=file:./dev.db
-JWT_SECRET=dev-jwt-secret-change-before-production-123456
-REFRESH_SECRET=dev-refresh-secret-change-before-production-123456
+AUTHENIK8_SIGNING_JWKS='[{"kty":"EC","crv":"P-256","kid":"<generated>","x":"...","y":"...","d":"...","alg":"ES256"}]'
+AUTHENIK8_ACTIVE_KID=<generated>
+AUTHENIK8_ISSUER=http://localhost:3000
+AUTHENIK8_AUDIENCE=your-app-api
+AUTHENIK8_AGENTS={}
+REFRESH_SECRET=<generated-random-secret>
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
@@ -101,10 +105,6 @@ Expected shape:
 
 ```json
 {
-  "user": {
-    "id": "user-id",
-    "email": "dev@example.com"
-  },
   "accessToken": "access-token",
   "refreshToken": "refresh-token"
 }
@@ -128,7 +128,10 @@ curl -s -X POST http://localhost:3000/auth/refresh \
 ## Environment Variables
 
 - `DATABASE_URL`: Prisma database connection. SQLite uses `file:./dev.db`; Postgres uses a `postgresql://...` URL.
-- `JWT_SECRET`: signs short-lived access tokens. Use a long random value in production.
+- `AUTHENIK8_SIGNING_JWKS`: JSON array containing the active private ES256 key and any previous public verification keys.
+- `AUTHENIK8_ACTIVE_KID`: selects the private key used to sign new access tokens.
+- `AUTHENIK8_ISSUER` / `AUTHENIK8_AUDIENCE`: required claims checked during verification.
+- `AUTHENIK8_AGENTS`: optional JSON map of agent IDs to exact `resource:action` scopes; keep `{}` to disable agent identity. See `AGENT_IDENTITY.md`.
 - `REFRESH_SECRET`: signs refresh tokens. Use a different long random value in production.
 - `REDIS_HOST`: Redis host for refresh-token/session security.
 - `REDIS_PORT`: Redis port, usually `6379` locally.
@@ -177,13 +180,13 @@ export async function getProtected() {
 
 `Prisma Client did not initialize`: run `npm run prisma:migrate`, then restart `npm run dev`.
 
-`JWT_SECRET must be set to at least 32 characters`: check `.env`; both token secrets must be long strings.
+`AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.
 
 `Cannot POST /auth/login`: confirm the server is running and you generated the password auth template, not the JWT-only base template.
 
 `Invalid email or password`: register the user first, then login with the same email/password.
 
-`Port 3000 already in use`: stop the other process or change the `app.listen(3000)` port in `src/server.ts`.
+`Port 3000 already in use`: stop the other process or set `PORT` in `.env`.
 
 `DATABASE_URL is wrong`: for SQLite use `file:./dev.db`; for local Docker Postgres use `postgresql://postgres:postgres@localhost:5432/authenik8?schema=public`.
 

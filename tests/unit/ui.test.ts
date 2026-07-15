@@ -1,79 +1,82 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as ui from '../../src/lib/ui';
-import { hasReachedStep } from '../../src/lib/state';
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock('ora', () => ({
-  default: vi.fn(() => ({
-    start: vi.fn().mockReturnThis(),
-    succeed: vi.fn(),
-    fail: vi.fn(),
-    stop: vi.fn(),
-    text: '',
-  })),
+const spinnerMock = vi.hoisted(() => ({
+  start: vi.fn(),
+  succeed: vi.fn(),
+  fail: vi.fn(),
+  stop: vi.fn(),
+  text: "",
+  isSpinning: true,
 }));
-vi.mock('../../src/lib/state');
 
-describe('ui.ts', () => {
+vi.mock("ora", () => ({ default: vi.fn(() => spinnerMock) }));
+
+import * as ui from "../../src/lib/ui.js";
+
+describe("CLI progress UI", () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
-  let consoleClearSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers();
-
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    consoleClearSpy = vi.spyOn(console, 'clear').mockImplementation(() => {});
-
-    vi.mocked(hasReachedStep).mockReturnValue(false);
+    spinnerMock.isSpinning = true;
+    consoleLogSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   });
 
   afterEach(() => {
-    vi.useRealTimers();
+    consoleLogSpy.mockRestore();
   });
 
-  describe('renderHeader()', () => {
-    it('prints the header with branding', () => {
-      ui.renderHeader();
+  it("renders a compact static title without clearing the terminal", async () => {
+    const clearSpy = vi.spyOn(console, "clear").mockImplementation(() => {});
 
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Happy building'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Authenik8 CLI'));
-    });
+    await ui.showBootLogo();
+
+    expect(consoleLogSpy.mock.calls.flat().join(" ")).toContain("create-authenik8-app");
+    expect(clearSpy).not.toHaveBeenCalled();
+    clearSpy.mockRestore();
   });
 
-  describe('renderStep()', () => {
-    it('marks completed steps with green ✔', () => {
-      vi.mocked(hasReachedStep).mockReturnValue(true);
-
-      ui.renderStep('project-scaffold', false);
-
-      const hasCheck = consoleLogSpy.mock.calls.some(call =>
-        typeof call[0] === 'string' && call[0].includes('✔')
-      );
-      expect(hasCheck).toBe(true);
+  it("prints the selected configuration", () => {
+    ui.renderConfiguration({
+      step: "prompts",
+      projectName: "demo-app",
+      authMode: "fullstack",
+      usePrisma: true,
+      database: "postgresql",
+      installDeps: true,
     });
 
-    it('skips production step when not in production mode', () => {
-      ui.renderStep('production-configured', false);
-
-      const allLogs = consoleLogSpy.mock.calls.flat().join(' ');
-      expect(allLogs).not.toContain('production');
-    });
-
-    it('shows production step when isProduction = true', () => {
-      ui.renderStep('production-configured', true);
-
-      const hasSpinner = consoleLogSpy.mock.calls.some(call =>
-        typeof call[0] === 'string' && call[0].includes('⏳')
-      );
-      expect(hasSpinner).toBe(true);
-    });
+    const output = consoleLogSpy.mock.calls.flat().join(" ");
+    expect(output).toContain("Full-stack application");
+    expect(output).toContain("PostgreSQL");
+    expect(output).toContain("Package manager");
   });
 
-  describe('sleep()', () => {
-    it('resolves after the given milliseconds', async () => {
-      const promise = ui.sleep(100);
-      vi.advanceTimersByTime(100);
-      await expect(promise).resolves.toBeUndefined();
-    });
+  it("uses one task state and a durable completion line", () => {
+    ui.startStep("project-created");
+    ui.completeStep("project-created");
+
+    if (ui.animatedProgress) {
+      expect(spinnerMock.start).toHaveBeenCalledWith("Create project files");
+      expect(spinnerMock.succeed).toHaveBeenCalledWith("Create project files");
+    } else {
+      expect(spinnerMock.text).toBe("Create project files");
+      expect(consoleLogSpy.mock.calls.flat().join(" ")).toContain("Create project files");
+    }
+  });
+
+  it("renders skipped and final states without redrawing prior output", () => {
+    ui.skipStep("git-initialized", "not selected");
+    ui.finishSteps();
+
+    const output = consoleLogSpy.mock.calls.flat().join(" ");
+    expect(output).toContain("Initialize Git repository");
+    expect(output).toContain("Scaffold complete");
+  });
+
+  it("formats step duration for readable progress output", () => {
+    expect(ui.formatDuration(420)).toBe("420ms");
+    expect(ui.formatDuration(1_250)).toBe("1.3s");
+    expect(ui.formatDuration(12_400)).toBe("12s");
   });
 });
