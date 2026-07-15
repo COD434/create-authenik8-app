@@ -1,0 +1,436 @@
+ create-authenik8-app@2.4.4 test
+> vitest run
+
+
+ RUN  v4.1.8 /Users/runner/work/create-authenik8-app/create-authenik8-app
+
+ ❯ tests/integration/generator.test.ts (15 tests | 2 failed) 2425ms
+     ✓ generates the base template with Prisma SQLite wiring 35ms
+     ✓ generates a base template without Prisma dependencies or scripts 36ms
+     ✓ writes pnpm and Bun build approvals for Prisma dependencies 53ms
+     ✓ propagates Prisma configuration failures 19ms
+     ✓ leaves no partial destination when project creation fails 21ms
+     ✓ generates the email/password template with a mocked bcrypt hash module 27ms
+     ✓ generates the OAuth template with production runtime files 21ms
+     ✓ writes generated docs, Docker Compose, and selected OAuth providers 16ms
+     ✓ generates GitHub-only OAuth files when only GitHub is selected 28ms
+     × OAuth callback 'uses sessions returned by the current…' 319ms
+     × OAuth callback 'returns an actionable conflict when e…' 182ms
+     ✓ generates the connected full-stack workspace without legacy package rewrites 37ms
+     ✓ boots the generated 'base' server with mocked runtime packages  522ms
+     ✓ boots the generated 'auth' server with mocked runtime packages  483ms
+     ✓ boots the generated 'auth-oauth' server with mocked runtime packages  624ms
+ ✓ src/tests/templated-routes.test.ts (59 tests) 506ms
+ ✓ tests/unit/cli.test.ts (9 tests) 2307ms
+     ✓ fails fast when no project name is provided  509ms
+     ✓ prints help without requiring a project name or starting generation  428ms
+     ✓ reports an existing target directory before running prompts  406ms
+     ✓ rejects unsupported package managers before prompting  396ms
+     ✓ prints the package version without requiring a project name  429ms
+stdout | tests/generated-auth-acceptance.test.ts > generated authentication acceptance > registers, logs in, authorizes, and refreshes with the published core package
+◇ injected env (0) from .env // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+
+ ✓ tests/generated-auth-acceptance.test.ts (1 test) 635ms
+     ✓ registers, logs in, authorizes, and refreshes with the published core package  634ms
+ ✓ tests/unit/finalSetup.test.ts (13 tests) 17ms
+ ✓ tests/unit/prompts.test.ts (9 tests) 7ms
+ ✓ tests/fuzz/template-security.fuzz.test.ts (4 tests) 156ms
+ ✓ tests/unit/process.test.ts (11 tests) 8ms
+ ✓ src/tests/template-validation.test.ts (8 tests) 10ms
+ ✓ tests/template-auth-flows.test.ts (3 tests) 54ms
+ ✓ tests/unit/output.test.ts (8 tests) 7ms
+ ✓ tests/unit/installDeps.test.ts (16 tests) 7ms
+ ✓ tests/integration/snapshot.test.ts (2 tests) 45ms
+ ✓ tests/unit/ui.test.ts (5 tests) 4ms
+ ✓ tests/unit/state.test.ts (4 tests) 11ms
+ ✓ tests/unit/args.test.ts (6 tests) 5ms
+ ✓ tests/unit/preflight.test.ts (8 tests) 4ms
+ ✓ tests/unit/projectName.test.ts (9 tests) 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/generator.test.ts > generator happy paths > OAuth callback 'uses sessions returned by the current…'
+AssertionError: {"error":"Auth not initialized. Call initAuth() first."}: expected 400 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 400
+
+ ❯ tests/integration/generator.test.ts:431:66
+    429|       await oauthController.googleCallback({ query: {} }, response);
+
+    430|
+ Test Files  1 failed | 17 passed (18)
+    431|       expect(response.statusCode, JSON.stringify(response.body)).toBe(…
+      Tests  2 failed | 188 passed (190)
+       |                                                                  ^
+   Start at  16:22:13
+    432|       expect(response.body).toMatchObject(expected);
+    433|       if (mode === "link") {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  tests/integration/generator.test.ts > generator happy paths > OAuth callback 'returns an actionable conflict when e…'
+AssertionError: {"error":"Auth not initialized. Call initAuth() first."}: expected 400 to be 409 // Object.is equality
+
+- Expected
++ Received
+
+- 409
++ 400
+
+ ❯ tests/integration/generator.test.ts:431:66
+    429|       await oauthController.googleCallback({ query: {} }, response);
+    430|
+    431|       expect(response.statusCode, JSON.stringify(response.body)).toBe(…
+       |                                                                  ^
+    432|       expect(response.body).toMatchObject(expected);
+    433|       if (mode === "link") {
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+   Duration  9.73s (transform 763ms, setup 140ms, import 1.39s, tests 6.21s, environment 1ms)
+
+
+Error: AssertionError: {"error":"Auth not initialized. Call initAuth() first."}: expected 400 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 400
+
+ ❯ tests/integration/generator.test.ts:431:66
+
+
+
+Error: AssertionError: {"error":"Auth not initialized. Call initAuth() first."}: expected 400 to be 409 // Object.is equality
+
+- Expected
++ Received
+
+- 409
++ 400
+
+ ❯ tests/integration/generator.test.ts:431:66
+
+
+
+Error: Process completed with exit code 1.
+
+
+create-authenik8-app
+
+ ❯ tests/integration/generator.test.ts (15 tests | 2 failed) 6104ms
+     × generates the base template with Prisma SQLite wiring 63ms
+     ✓ generates a base template without Prisma dependencies or scripts 64ms
+     ✓ writes pnpm and Bun build approvals for Prisma dependencies 66ms
+     ✓ propagates Prisma configuration failures 31ms
+     ✓ leaves no partial destination when project creation fails 43ms
+     ✓ generates the email/password template with a mocked bcrypt hash module 70ms
+     ✓ generates the OAuth template with production runtime files 52ms
+     × writes generated docs, Docker Compose, and selected OAuth providers 50ms
+     ✓ generates GitHub-only OAuth files when only GitHub is selected 105ms
+     ✓ OAuth callback 'uses sessions returned by the current…'  820ms
+     ✓ OAuth callback 'returns an actionable conflict when e…'  1025ms
+     ✓ generates the connected full-stack workspace without legacy package rewrites 106ms
+     ✓ boots the generated 'base' server with mocked runtime packages  1164ms
+     ✓ boots the generated 'auth' server with mocked runtime packages  1185ms
+     ✓ boots the generated 'auth-oauth' server with mocked runtime packages  1258ms
+ ✓ src/tests/templated-routes.test.ts (59 tests) 649ms
+ ✓ tests/unit/cli.test.ts (9 tests) 11481ms
+     ✓ fails fast when no project name is provided  790ms
+     ✓ prints help without requiring a project name or starting generation  705ms
+     ✓ reports an existing target directory before running prompts  711ms
+     ✓ runs the common base-template flow without crashing  7007ms
+     ✓ can scaffold without installing dependencies  317ms
+     ✓ rejects unsupported package managers before prompting  710ms
+     ✓ prints the package version without requiring a project name  702ms
+stdout | tests/generated-auth-acceptance.test.ts > generated authentication acceptance > registers, logs in, authorizes, and refreshes with the published core package
+◇ injected env (0) from .env // tip: ◈ secrets for agents [www.dotenvx.com]
+
+ ✓ tests/generated-auth-acceptance.test.ts (1 test) 1234ms
+     ✓ registers, logs in, authorizes, and refreshes with the published core package  1232ms
+ ✓ tests/unit/finalSetup.test.ts (13 tests) 21ms
+ ✓ tests/unit/prompts.test.ts (9 tests) 15ms
+ ✓ tests/fuzz/template-security.fuzz.test.ts (4 tests) 302ms
+ ❯ tests/unit/process.test.ts (11 tests | 1 failed) 25ms
+     ✓ resolves platform executable names without mutating process.platform 4ms
+     × runs commands with hidden Windows consoles and no Unix shell 11ms
+     ✓ captures buffered output and includes it in failures 2ms
+     ✓ preserves interrupt signals 1ms
+     ✓ rejects executable spawn errors 1ms
+     ✓ probes commands with the correct Windows shell behavior 1ms
+     ✓ returns false when an executable probe fails 0ms
+     ✓ checks the Docker Compose plugin instead of only the Docker executable 1ms
+     ✓ checks whether the Docker daemon is reachable 1ms
+     ✓ terminates child trees with taskkill on Windows 1ms
+     ✓ classifies only supported interrupt signals 1ms
+ ✓ src/tests/template-validation.test.ts (8 tests) 18ms
+ ✓ tests/template-auth-flows.test.ts (3 tests) 109ms
+ ✓ tests/unit/output.test.ts (8 tests) 12ms
+ ✓ tests/unit/installDeps.test.ts (16 tests) 17ms
+ ✓ tests/integration/snapshot.test.ts (2 tests) 106ms
+ ✓ tests/unit/ui.test.ts (5 tests) 10ms
+ ✓ tests/unit/state.test.ts (4 tests) 17ms
+ ✓ tests/unit/args.test.ts (6 tests) 11ms
+ ✓ tests/unit/preflight.test.ts (8 tests) 7ms
+ ✓ tests/unit/projectName.test.ts (9 tests) 8ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  tests/integration/generator.test.ts > generator happy paths > generates the base template with Prisma SQLite wiring
+AssertionError: expected 'services:\n  redis:\n    image: redis…' not to contain 'postgres:16-alpine'
+
+- Expected
++ Received
+
+- postgres:16-alpine
++ services:
++   redis:
++     image: redis:7-alpine
++     ports:
++       - "6379:6379"
++     command: ["redis-server", "--appendonly", "yes"]
++     volumes:
++       - redis-data:/data
++     healthcheck:
++       test: ["CMD", "redis-cli", "ping"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++   postgres:
++     image: postgres:16-alpine
++     ports:
++       - "5432:5432"
++     environment:
++       POSTGRES_USER: postgres
++       POSTGRES_PASSWORD: postgres
++       POSTGRES_DB: authenik8
++     volumes:
++       - postgres-data:/var/lib/postgresql/data
++     healthcheck:
++       test: ["CMD-SHELL", "pg_isready -U postgres -d authenik8"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++ volumes:
++   redis-data:
+
+ ❯ tests/integration/generator.test.ts:55:47
+     53|       expect(files["prisma.config.ts"]).toContain('url: env("DATABASE_…
+     54|       expect(files["docker-compose.yml"]).toContain("redis-cli");
+     55|       expect(files["docker-compose.yml"]).not.toContain("postgres:16-a…
+       |                                               ^
+     56|     } finally {
+     57|       await project.cleanup();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  tests/integration/generator.test.ts > generator happy paths > writes generated docs, Docker Compose, and selected OAuth providers
+AssertionError: expected 'services:\n  redis:\n    image: redis…' not to contain 'postgres:16-alpine'
+
+- Expected
++ Received
+
+- postgres:16-alpine
++ services:
++   redis:
++     image: redis:7-alpine
++     ports:
++       - "6379:6379"
++     command: ["redis-server", "--appendonly", "yes"]
++     volumes:
++       - redis-data:/data
++     healthcheck:
++       test: ["CMD", "redis-cli", "ping"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++   postgres:
++     image: postgres:16-alpine
++     ports:
++       - "5432:5432"
+
++     environment:
++       POSTGRES_USER: postgres
++       POSTGRES_PASSWORD: postgres
++       POSTGRES_DB: authenik8
++     volumes:
++       - postgres-data:/var/lib/postgresql/data
++     healthcheck:
++       test: ["CMD-SHELL", "pg_isready -U postgres -d authenik8"]
+ Test Files  2 failed | 16 passed (18)
+      Tests  3 failed | 187 passed (190)
++       interval: 5s
+   Start at  16:22:50
++       timeout: 3s
+   Duration  25.31s (transform 648ms, setup 224ms, import 1.82s, tests 20.15s, environment 2ms)
++       retries: 10
++
+
++ volumes:
++   redis-data:
+
+ ❯ tests/integration/generator.test.ts:300:47
+    298|       expect(files["docker-compose.yml"]).toContain("redis:7-alpine");
+    299|       expect(files["docker-compose.yml"]).toContain("redis-cli");
+    300|       expect(files["docker-compose.yml"]).not.toContain("postgres:16-a…
+       |                                               ^
+    301|       expect(files["docker-compose.yml"]).not.toContain("postgres-data…
+    302|       expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="goog…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  tests/unit/process.test.ts > cross-platform process execution > runs commands with hidden Windows consoles and no Unix shell
+AssertionError: expected "vi.fn()" to be called with arguments: [ 'npm', [ 'install' ], { …(5) } ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -4,10 +4,10 @@
+      "install",
+    ],
+    {
+      "cwd": "/tmp/project",
+      "env": undefined,
+-     "shell": false,
++     "shell": true,
+      "stdio": "ignore",
+      "windowsHide": true,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ tests/unit/process.test.ts:50:19
+     48|
+     49|     await expect(promise).resolves.toBeUndefined();
+     50|     expect(spawn).toHaveBeenCalledWith("npm", ["install"], {
+       |                   ^
+     51|       cwd: "/tmp/project",
+     52|       stdio: "ignore",
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+Error: AssertionError: expected 'services:\n  redis:\n    image: redis…' not to contain 'postgres:16-alpine'
+
+- Expected
++ Received
+
+- postgres:16-alpine
++ services:
++   redis:
++     image: redis:7-alpine
++     ports:
++       - "6379:6379"
++     command: ["redis-server", "--appendonly", "yes"]
++     volumes:
++       - redis-data:/data
++     healthcheck:
++       test: ["CMD", "redis-cli", "ping"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++   postgres:
++     image: postgres:16-alpine
++     ports:
++       - "5432:5432"
++     environment:
++       POSTGRES_USER: postgres
++       POSTGRES_PASSWORD: postgres
++       POSTGRES_DB: authenik8
++     volumes:
++       - postgres-data:/var/lib/postgresql/data
++     healthcheck:
++       test: ["CMD-SHELL", "pg_isready -U postgres -d authenik8"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++ volumes:
++   redis-data:
+
+ ❯ tests/integration/generator.test.ts:55:47
+
+
+
+Error: AssertionError: expected 'services:\n  redis:\n    image: redis…' not to contain 'postgres:16-alpine'
+
+- Expected
++ Received
+
+- postgres:16-alpine
++ services:
++   redis:
++     image: redis:7-alpine
++     ports:
++       - "6379:6379"
++     command: ["redis-server", "--appendonly", "yes"]
++     volumes:
++       - redis-data:/data
++     healthcheck:
++       test: ["CMD", "redis-cli", "ping"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++   postgres:
++     image: postgres:16-alpine
++     ports:
++       - "5432:5432"
++     environment:
++       POSTGRES_USER: postgres
++       POSTGRES_PASSWORD: postgres
++       POSTGRES_DB: authenik8
++     volumes:
++       - postgres-data:/var/lib/postgresql/data
++     healthcheck:
++       test: ["CMD-SHELL", "pg_isready -U postgres -d authenik8"]
++       interval: 5s
++       timeout: 3s
++       retries: 10
++
++ volumes:
++   redis-data:
+
+ ❯ tests/integration/generator.test.ts:300:47
+
+
+
+Error: AssertionError: expected "vi.fn()" to be called with arguments: [ 'npm', [ 'install' ], { …(5) } ]
+
+Received:
+
+  1st vi.fn() call:
+
+@@ -4,10 +4,10 @@
+      "install",
+    ],
+    {
+      "cwd": "/tmp/project",
+      "env": undefined,
+-     "shell": false,
++     "shell": true,
+      "stdio": "ignore",
+      "windowsHide": true,
+    },
+  ]
+
+
+Number of calls: 1
+
+ ❯ tests/unit/process.test.ts:50:19
+
+
+Error: Process completed with exit code 1.
+
