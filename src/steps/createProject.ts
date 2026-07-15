@@ -236,7 +236,7 @@ export default router;
 `);
 
   await fs.writeFile(controllerPath, `import { Request, Response } from "express";
-import { getAuth } from "../auth";
+import { getAuth } from "../auth.js";
 import { identityAdapter } from "../identity.adapter";
 
 type OAuthProvider = ${providerUnion};
