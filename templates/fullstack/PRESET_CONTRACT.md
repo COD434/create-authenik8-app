@@ -32,7 +32,7 @@ This document is the testable contract for the `fullstack` preset.
 
 ## Environment contract
 
-Required: `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET`, `REFRESH_SECRET`, and `WEB_ORIGIN`.
+Required: `DATABASE_URL`, `REDIS_URL`, `AUTHENIK8_SIGNING_JWKS`, `AUTHENIK8_ACTIVE_KID`, `AUTHENIK8_ISSUER`, `AUTHENIK8_AUDIENCE`, `REFRESH_SECRET`, and `WEB_ORIGIN`.
 OAuth variables are required only for an enabled provider. `RESEND_API_KEY` and `EMAIL_FROM` enable production verification and recovery delivery. See `.env.example` for the complete list.
 
 ## Security guarantees

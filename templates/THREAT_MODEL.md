@@ -13,6 +13,7 @@ A generated app includes:
 - Optional Google/GitHub OAuth.
 - Authenik8 security middleware: Helmet, rate limiting, and optional IP whitelist.
 - Optional PM2 production process config.
+- Optional scoped identities for agents, workers, bots, and M2M callers.
 
 External systems are outside the generated app boundary:
 
@@ -33,26 +34,28 @@ External systems are outside the generated app boundary:
 - User IDs, emails, roles, and provider links.
 - Redis-backed session state.
 - Admin-only routes.
+- Agent registry grants, delegated actor chains, and M2M sessions.
 
 ## Trust Assumptions
 
-- `JWT_SECRET` and `REFRESH_SECRET` are long, random, private values.
+- The active ES256 private JWK and `REFRESH_SECRET` are random, private, and stored outside source control.
 - Redis is private to the app and not exposed to the public internet.
 - Database credentials are private.
 - OAuth callback URLs match provider dashboard settings exactly.
 - Production traffic uses HTTPS.
 - Reverse proxy headers are trusted only when you control the proxy.
 - Developers validate and authorize their own business-domain routes.
+- Applications authenticate workloads before calling privileged agent-token issuance and explicitly authorize every user delegation.
 
 ## Threats Addressed
 
 ### Refresh-token replay
 
-Refresh tokens are stateful. The currently valid refresh token is stored in Redis under `refresh:<userId>`. When a refresh succeeds, Authenik8-core rotates the refresh token and replaces the Redis value. Reusing an old refresh token fails.
+Refresh tokens are stateful. The currently valid token for each session is stored under `refresh:<userId>:<sessionId>`. When a refresh succeeds, Authenik8-core atomically replaces it. Reusing an old refresh token fails and revokes that refresh family.
 
 ### Concurrent refresh abuse
 
-Refresh requests acquire a Redis lock under `lock:<userId>`. Two simultaneous refresh attempts for the same user should not both rotate successfully.
+Refresh requests acquire a Redis lock under `lock:<userId>:<sessionId>`. Two simultaneous refresh attempts for the same session cannot both rotate successfully.
 
 ### Stateless JWT logout limitations
 
@@ -76,11 +79,20 @@ OAuth profiles are normalized into provider, provider ID, email, name, and email
 
 ### Unverified OAuth email token issuance
 
-`issueTokensFromProfile` rejects OAuth profiles whose email is not verified.
+Provider callbacks verify the provider email before the Identity Engine issues an application session.
 
 ### Admin-route access
 
 `auth.requireAdmin` checks for a valid JWT with `role: "admin"`.
+
+### Agent identity and revocation
+
+Human and agent tokens have distinct purposes and middleware. Agent scopes must
+be an exact subset of the live registry grant. M2M sessions are stored under
+`agent-sessions:<agentId>`, and removing a grant, revoking one session, or
+revoking the whole agent invalidates its tokens. Delegated tokens record the
+human and agent actor chain and become invalid when the originating human
+session is revoked.
 
 ## Threats Not Fully Addressed
 
@@ -94,7 +106,7 @@ Generated examples use bearer tokens. If you move tokens into cookies, add CSRF 
 
 ### Weak or leaked secrets
 
-Authenik8 cannot protect tokens if `JWT_SECRET` or `REFRESH_SECRET` is short, reused, committed, logged, or leaked.
+Authenik8 cannot protect tokens if the private signing JWK or `REFRESH_SECRET` is committed, logged, reused, or leaked. Public keys from `/.well-known/jwks.json` are safe to distribute.
 
 ### Public Redis exposure
 
@@ -120,6 +132,15 @@ Global rate limiting is included. Add stricter per-email or per-account login th
 
 Short-lived access tokens reduce exposure, but a stolen access token can be used until it expires or is rejected by your session policy.
 
+### Workload authentication and offline agent verification
+
+The SDK issues agent tokens only after trusted application code calls it; your
+application must authenticate the workload using mTLS, cloud workload identity,
+a signed assertion, or another suitable credential. Never expose issuance as an
+unauthenticated route. Agent tokens remain bearer credentials. Public JWKS
+verification cannot observe Redis revocation without a trusted introspection or
+session-aware middleware boundary.
+
 ## Production Checklist
 
 - Replace generated development secrets with long random values.
@@ -131,6 +152,7 @@ Short-lived access tokens reduce exposure, but a stolen access token can be used
 - Review CORS policy before connecting a frontend.
 - Add business-level authorization checks to every protected resource route.
 - Add logging and alerting for refresh failures, OAuth failures, and admin actions.
+- Keep `AUTHENIK8_AGENTS={}` unless agent identity is intentionally configured; review every agent grant and delegation policy.
 - Keep `authenik8-core` and generated dependencies updated.
 
 ## Security Reporting

@@ -1,5 +1,5 @@
 import express, { type Express, type Router } from "express";
-import { createRequire } from "node:module";
+import { jwtVerify, SignJWT } from "jose";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,13 +18,7 @@ vi.mock("dotenv", () => ({
   config: dotenvMock.config,
 }));
 
-const require = createRequire(import.meta.url);
-const jwt = require("jsonwebtoken") as {
-  sign(payload: Record<string, unknown>, secret: string): string;
-  verify(token: string, secret: string): Record<string, unknown>;
-};
-
-const jwtSecret = "templated-route-test-secret";
+const jwtSecret = new TextEncoder().encode("templated-route-test-secret-32-bytes");
 
 type HttpMethod = "delete" | "get";
 
@@ -86,7 +80,15 @@ class InMemoryRedis {
 const redis = new InMemoryRedis();
 let redisForAuthFactory: InMemoryRedis | undefined;
 
-const signTestToken = (payload: { id: string; role: string }) => jwt.sign(payload, jwtSecret);
+const signTestToken = (payload: Record<string, unknown>) =>
+  new SignJWT(payload)
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+    .sign(jwtSecret);
+
+const verifyTestToken = async (token: string) => {
+  const { payload } = await jwtVerify(token, jwtSecret, { algorithms: ["HS256"] });
+  return payload;
+};
 
 const adminToken = () => signTestToken({ id: "admin-user", role: "admin" });
 const userToken = () => signTestToken({ id: "regular-user", role: "user" });
@@ -116,7 +118,20 @@ const createAdminActions = (sessionStore: InMemoryRedis) => ({
 });
 
 const createMockAuth = (sessionStore?: InMemoryRedis) => ({
-  requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
+  async requireAuth(req: express.Request, res: express.Response, next: express.NextFunction) {
+    const token = getBearerToken(req.headers.authorization);
+    if (!token) return res.status(401).json({ error: "Unauthorized" });
+
+    try {
+      (req as express.Request & { user?: Record<string, unknown> }).user =
+        await verifyTestToken(token);
+      return next();
+    } catch {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+  },
+
+  async requireAdmin(req: express.Request, res: express.Response, next: express.NextFunction) {
     const token = getBearerToken(req.headers.authorization);
 
     if (!token) {
@@ -124,7 +139,7 @@ const createMockAuth = (sessionStore?: InMemoryRedis) => ({
     }
 
     try {
-      const decoded = jwt.verify(token, jwtSecret);
+      const decoded = await verifyTestToken(token);
 
       if (decoded.role !== "admin") {
         return res.status(403).json({ error: "Forbidden" });
@@ -141,26 +156,21 @@ const createMockAuth = (sessionStore?: InMemoryRedis) => ({
     }
   },
 
-  authenticateJWT(req: express.Request, res: express.Response, next: express.NextFunction) {
-    const token = getBearerToken(req.headers.authorization);
-
-    if (!token) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
+  signToken: (payload: Record<string, unknown>) => signTestToken(payload),
+  verifyToken: async (token: string) => {
     try {
-      jwt.verify(token, jwtSecret);
-      next();
+      return await verifyTestToken(token);
     } catch {
-      res.status(403).json({ error: "Forbidden" });
+      return null;
     }
   },
-
-  signToken: (payload: Record<string, unknown>) => jwt.sign(payload, jwtSecret),
-  verifyToken: async (token: string) => jwt.verify(token, jwtSecret),
-  guestToken: async (payload: Record<string, unknown>) => jwt.sign(payload, jwtSecret),
+  issueTokens: async (payload: Record<string, unknown>) => ({
+    accessToken: await signTestToken(payload),
+    refreshToken: "refresh-token",
+  }),
+  guestToken: async (payload: Record<string, unknown>) => signTestToken(payload),
   refreshToken: async () => ({
-    accessToken: jwt.sign({ id: "refreshed-user", role: "user" }, jwtSecret),
+    accessToken: await signTestToken({ id: "refreshed-user", role: "user" }),
     refreshToken: "next-refresh-token",
   }),
   incognito: vi.fn(),
@@ -187,6 +197,7 @@ const send = (app: Express, method: HttpMethod, path: string) => {
 type RouteTemplate = {
   name: string;
   guardedRoute: { method: HttpMethod; path: string; expectedBody: Record<string, string> };
+  regularUserAllowed: boolean;
   createApp(redis?: InMemoryRedis): Promise<Express>;
 };
 
@@ -198,6 +209,7 @@ const routeTemplates: RouteTemplate[] = [
       path: "/protected",
       expectedBody: { message: "Protected route" },
     },
+    regularUserAllowed: true,
     async createApp(sessionStore?: InMemoryRedis) {
       const { createProtectedRoutes } = await import(
         "../../templates/express-auth/src/routes/protected.routes.js"
@@ -213,35 +225,32 @@ const routeTemplates: RouteTemplate[] = [
       path: "/admin",
       expectedBody: { message: "Admin only" },
     },
+    regularUserAllowed: false,
     async createApp(sessionStore?: InMemoryRedis) {
       const { createBaseRoutes } = await import("../../templates/express-base/routes/base.routes.js");
 
       return appWithRouter(createBaseRoutes(createMockAuth(sessionStore)));
     },
   },
-  //{
-    //name: "templates/express-auth+/src/auth/routes/protected.routes.ts",
-   // guardedRoute: {
-     // method: "get",
-      //path: "/protected",
-      //expectedBody: { message: "Protected route" },
-    //},
-    //async createApp(sessionStore?: InMemoryRedis) {
-      //redisForAuthFactory = sessionStore;
-      //const [  { default: protectedRoutes }] = await Promise.all([
-        //import("../../templates/express-auth+/src/auth/auth.js"),
-        //import("../../templates/express-auth+/src/auth/routes/protected.routes.js"),
-      //]);
-//const authModule = await import("../../templates/express-auth+/src/auth/auth.js");
-  //const routesModule = await import("../../templates/express-auth+/src/auth/routes/protected.routes.js");
+  {
+    name: "templates/express-auth+/src/auth/routes/protected.routes.ts",
+    guardedRoute: {
+      method: "get",
+      path: "/protected",
+      expectedBody: { message: "Protected route" },
+    },
+    regularUserAllowed: true,
+    async createApp(sessionStore?: InMemoryRedis) {
+      redisForAuthFactory = sessionStore;
+      const authModule = await import("../../templates/express-auth+/src/auth/auth.js");
+      await authModule.initAuth();
+      const routesModule = await import(
+        "../../templates/express-auth+/src/auth/routes/protected.routes.js"
+      );
 
-  //await authModule.initAuth();
-
-//      await initAuth();
-    // /const protectedRoutes = routesModule.default as unknown as Router ;
-    //  return appWithRouter(protectedRoutes);
-    //},
-  //},
+      return appWithRouter(routesModule.default as unknown as Router);
+    },
+  },
 ];
 
 const sessionRoutes = [
@@ -264,7 +273,19 @@ const sessionRoutes = [
 
 beforeEach(() => {
   vi.resetModules();
-  vi.stubEnv("JWT_SECRET", "templated-route-test-jwt-secret-32");
+  vi.stubEnv("AUTHENIK8_SIGNING_JWKS", JSON.stringify([{
+    kty: "EC",
+    crv: "P-256",
+    x: "test-x",
+    y: "test-y",
+    d: "test-d",
+    kid: "test-key",
+    alg: "ES256",
+    use: "sig",
+  }]));
+  vi.stubEnv("AUTHENIK8_ACTIVE_KID", "test-key");
+  vi.stubEnv("AUTHENIK8_ISSUER", "https://issuer.example.test");
+  vi.stubEnv("AUTHENIK8_AUDIENCE", "authenik8-tests");
   vi.stubEnv("REFRESH_SECRET", "templated-route-test-refresh-secret-32");
   vi.stubEnv("GOOGLE_CLIENT_ID", "google-client-id");
   vi.stubEnv("GOOGLE_CLIENT_SECRET", "google-client-secret");
@@ -281,9 +302,45 @@ beforeEach(() => {
   );
 });
 
+describe("templates/express-base protected route", () => {
+  async function createBaseApp() {
+    const { createBaseRoutes } = await import("../../templates/express-base/routes/base.routes.js");
+    return appWithRouter(createBaseRoutes(createMockAuth(redis)));
+  }
+
+  it("rejects missing and invalid access tokens", async () => {
+    const app = await createBaseApp();
+
+    const missing = await request(app).get("/protected");
+    const invalid = await request(app)
+      .get("/protected")
+      .set("Authorization", "Bearer invalid-token");
+
+    expect(missing.status).toBe(401);
+    expect(invalid.status).toBe(403);
+  });
+
+  it("returns protected data for a valid access token", async () => {
+    const app = await createBaseApp();
+
+    const response = await request(app)
+      .get("/protected")
+      .set("Authorization", `Bearer ${await userToken()}`);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      message: "Protected data",
+      user: { id: "regular-user", role: "user" },
+    });
+  });
+});
+
 describe.each(routeTemplates)("$name", (template) => {
-  describe("admin guard", () => {
-    const guardedRoutes = [template.guardedRoute, ...sessionRoutes];
+  describe("authorization guard", () => {
+    const guardedRoutes = [
+      { ...template.guardedRoute, regularUserAllowed: template.regularUserAllowed },
+      ...sessionRoutes.map((route) => ({ ...route, regularUserAllowed: false })),
+    ];
 
     it.each(guardedRoutes)("returns 401 with no token for $method $path", async (route) => {
       const app = await template.createApp(redis);
@@ -293,15 +350,15 @@ describe.each(routeTemplates)("$name", (template) => {
       expect(response.status).toBe(401);
     });
 
-    it.each(guardedRoutes)("returns 403 for non-admin users on $method $path", async (route) => {
+    it.each(guardedRoutes)("enforces the intended role for $method $path", async (route) => {
       const app = await template.createApp(redis);
 
       const response = await send(app, route.method, route.path).set(
         "Authorization",
-        `Bearer ${userToken()}`,
+        `Bearer ${await userToken()}`,
       );
 
-      expect(response.status).toBe(403);
+      expect(response.status).toBe(route.regularUserAllowed ? 200 : 403);
     });
 
     it.each(guardedRoutes)(
@@ -325,7 +382,10 @@ describe.each(routeTemplates)("$name", (template) => {
         app,
         template.guardedRoute.method,
         template.guardedRoute.path,
-      ).set("Authorization", `Bearer ${adminToken()}`);
+      ).set(
+        "Authorization",
+        `Bearer ${await (template.regularUserAllowed ? userToken() : adminToken())}`,
+      );
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual(template.guardedRoute.expectedBody);
@@ -340,7 +400,7 @@ describe.each(routeTemplates)("$name", (template) => {
 
         const response = await send(app, route.method, route.path).set(
           "Authorization",
-          `Bearer ${adminToken()}`,
+          `Bearer ${await adminToken()}`,
         );
 
         expect(response.status).toBe(503);
@@ -368,7 +428,7 @@ describe.each(routeTemplates)("$name", (template) => {
 
       const response = await request(app)
         .get("/admin/sessions/user-a")
-        .set("Authorization", `Bearer ${adminToken()}`);
+        .set("Authorization", `Bearer ${await adminToken()}`);
 
       expect(response.status).toBe(200);
       expect(response.body.sessions).toEqual([
@@ -399,7 +459,7 @@ describe.each(routeTemplates)("$name", (template) => {
 
       const response = await request(app)
         .delete("/admin/sessions/user-a/session-a")
-        .set("Authorization", `Bearer ${adminToken()}`);
+        .set("Authorization", `Bearer ${await adminToken()}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ success: true, message: "Session revoked" });
@@ -419,7 +479,7 @@ describe.each(routeTemplates)("$name", (template) => {
 
       const response = await request(app)
         .delete("/admin/sessions/user-a")
-        .set("Authorization", `Bearer ${adminToken()}`);
+        .set("Authorization", `Bearer ${await adminToken()}`);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({ success: true, message: "All sessions revoked" });

@@ -21,14 +21,10 @@ export const createAuthController = (auth: any) => ({
 
       const user = await AuthService.login(email, password);
 
-      const accessToken = auth.signToken({
+      const { accessToken, refreshToken } = await auth.issueTokens({
         userId: user.id,
         email: user.email,
-      });
-
-      const refreshToken = await auth.generateRefreshToken({
-        userId: user.id,
-        email: user.email,
+        role: String(user.role).toLowerCase(),
       });
 
       res.json({ accessToken, refreshToken });

@@ -111,6 +111,32 @@ describe("cross-platform process execution", () => {
     expect(processLib.commandExists("bun", "darwin")).toBe(false);
   });
 
+  it("checks the Docker Compose plugin instead of only the Docker executable", () => {
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
+
+    expect(processLib.dockerComposeAvailable("win32")).toBe(true);
+    expect(spawnSync).toHaveBeenCalledWith("docker", ["compose", "version"], {
+      stdio: "ignore",
+      shell: true,
+      windowsHide: true,
+    });
+  });
+
+  it("checks whether the Docker daemon is reachable", () => {
+    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
+
+    expect(processLib.dockerDaemonAvailable("win32")).toBe(true);
+    expect(spawnSync).toHaveBeenCalledWith(
+      "docker",
+      ["info", "--format", "{{.ServerVersion}}"],
+      {
+        stdio: "ignore",
+        shell: true,
+        windowsHide: true,
+      },
+    );
+  });
+
   it("terminates child trees with taskkill on Windows", async () => {
     const child = mockChild(9876);
     vi.mocked(spawn).mockReturnValue(child as never);

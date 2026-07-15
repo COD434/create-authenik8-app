@@ -8,7 +8,11 @@ import { fileURLToPath } from "url";
 import type { StepName } from "../lib/types.js";
 import { parseCliArguments } from "../lib/args.js";
 import { initState, saveState, loadState, clearState, hasReachedStep, getState } from "../lib/state.js";
-import { killAllProcesses } from "../lib/process.js";
+import {
+  dockerComposeAvailable,
+  dockerDaemonAvailable,
+  killAllProcesses,
+} from "../lib/process.js";
 import { assertPresetRequirements } from "../lib/preflight.js";
 import { projectNameError } from "../lib/projectName.js";
 import { configuredCliStateSchema, firstZodIssue } from "../lib/schemas.js";
@@ -38,13 +42,21 @@ import { printSummary } from "../utils/output.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function writeText(stream: { fd: number }, value: string): void {
+  fs.writeSync(stream.fd, value);
+}
+
+function writeLine(stream: { fd: number }, value: string): void {
+  writeText(stream, `${value}\n`);
+}
+
 const args = process.argv.slice(2);
 
 let cliArguments: ReturnType<typeof parseCliArguments>;
 try {
   cliArguments = parseCliArguments(args);
 } catch (error) {
-  console.error(chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
+  writeLine(process.stderr, chalk.red(`Error: ${error instanceof Error ? error.message : String(error)}`));
   process.exit(1);
 }
 
@@ -59,7 +71,7 @@ function readCliVersion(): string {
 }
 
 function printHelp(): void {
-  console.log(`
+  writeText(process.stdout, `
 AUTHENIK8
 Secure application scaffolding
 
@@ -93,22 +105,22 @@ if (cliArguments.help) {
 }
 
 if (cliArguments.version) {
-  console.log(readCliVersion());
+  writeLine(process.stdout, readCliVersion());
   process.exit(0);
 }
 
 const projectNameArg = cliArguments.projectName;
 
 if (!projectNameArg) {
-  console.error(chalk.red("Error: A project name is required."));
-  console.error("Usage: create-authenik8-app <project-name> [options]");
+  writeLine(process.stderr, chalk.red("Error: A project name is required."));
+  writeLine(process.stderr, "Usage: create-authenik8-app <project-name> [options]");
   process.exit(1);
 }
 
 const projectName: string = projectNameArg;
 const invalidProjectName = projectNameError(projectName);
 if (invalidProjectName) {
-  console.error(chalk.red(`Error: Invalid project name "${projectName}". ${invalidProjectName}`));
+  writeLine(process.stderr, chalk.red(`Error: Invalid project name "${projectName}". ${invalidProjectName}`));
   process.exit(1);
 }
 const skipInstall = cliArguments.skipInstall;
@@ -184,18 +196,19 @@ async function main() {
 
     if (!isResume && fs.existsSync(targetDir)) {
       if (savedState) {
-        console.error(
+        writeLine(
+          process.stderr,
           chalk.red(`Error: "${projectName}" contains an incomplete Authenik8 setup. Run again with --resume.`),
         );
       } else {
-        console.error(chalk.red(`Error: Directory "${projectName}" already exists.`));
+        writeLine(process.stderr, chalk.red(`Error: Directory "${projectName}" already exists.`));
       }
       process.exit(1);
     }
 
     if (isResume) {
       if (!savedState) {
-        console.error(chalk.red(`Error: No saved setup state found for "${projectName}".`));
+        writeLine(process.stderr, chalk.red(`Error: No saved setup state found for "${projectName}".`));
         process.exit(1);
       }
       initState(savedState, stateFile);
@@ -258,7 +271,7 @@ async function main() {
         completeStep(currentStep);
       } catch (err) {
         spinner.fail("Could not create project files");
-        console.error(err);
+        writeLine(process.stderr, errorMessage(err));
         process.exit(1);
       }
     } else {
@@ -343,7 +356,7 @@ async function main() {
         if (initialized) {
           completeStep("git-initialized");
         } else {
-          skipStep("git-initialized", "Git is not installed");
+          skipStep("git-initialized", "optional Git setup unavailable");
         }
       } else {
         skipStep("git-initialized", "not selected");
@@ -364,7 +377,13 @@ async function main() {
       appendProductionReadme(targetDir, projectName);
     }
 
-    printSummary(getState(), isProduction);
+    const hasDockerCompose = dockerComposeAvailable();
+    printSummary(
+      getState(),
+      isProduction,
+      hasDockerCompose,
+      hasDockerCompose && dockerDaemonAvailable(),
+    );
 
     saveState({ step: "done", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });
     clearState();
@@ -373,7 +392,7 @@ async function main() {
       throw err;
     }
     spinner.fail(spinner.text || "Setup failed");
-    console.error(chalk.red(`Error: ${errorMessage(err)}`));
+    writeLine(process.stderr, chalk.red(`Error: ${errorMessage(err)}`));
     process.exit(1);
   }
 }
@@ -385,7 +404,7 @@ main().catch(async (err) => {
     await cleanupIncompleteProject();
     process.exit(0);
   }
-  console.error(chalk.red(`\nUnexpected error: ${errorMessage(err)}`));
+  writeLine(process.stderr, chalk.red(`\nUnexpected error: ${errorMessage(err)}`));
   await cleanupIncompleteProject();
   process.exit(1);
 });

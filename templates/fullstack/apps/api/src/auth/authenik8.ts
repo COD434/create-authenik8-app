@@ -24,9 +24,35 @@ function oauthConfig() {
 export async function initAuthenik8(): Promise<AuthInstance> {
   if (instance) return instance;
   const oauth = oauthConfig();
+  const signingKeys = JSON.parse(env.AUTHENIK8_SIGNING_JWKS) as Array<{
+    kid: string;
+    d?: string;
+    [key: string]: unknown;
+  }>;
+  const activeKey = signingKeys.find((key) => key.kid === env.AUTHENIK8_ACTIVE_KID);
+  if (!activeKey?.d) {
+    throw new Error("AUTHENIK8_ACTIVE_KID must select a private signing JWK");
+  }
+  const agentRegistry = JSON.parse(env.AUTHENIK8_AGENTS) as Record<string, string[]>;
+  const agent = Object.keys(agentRegistry).length
+    ? {
+        resolveAgent: async (agentId: string) => {
+          const scopes = Object.prototype.hasOwnProperty.call(agentRegistry, agentId)
+            ? agentRegistry[agentId]
+            : undefined;
+          return scopes ? { agentId, scopes, active: true } : null;
+        },
+      }
+    : undefined;
   instance = await createAuthenik8({
-    jwtSecret: env.JWT_SECRET,
+    jwt: {
+      keys: signingKeys,
+      activeKid: env.AUTHENIK8_ACTIVE_KID,
+      issuer: env.AUTHENIK8_ISSUER,
+      audience: env.AUTHENIK8_AUDIENCE,
+    },
     refreshSecret: env.REFRESH_SECRET,
+    agent,
     jwtExpiry: "15m",
     redis,
     oauth: Object.keys(oauth).length ? oauth : undefined,

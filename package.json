@@ -29,7 +29,7 @@
   "author": "Karabo Seeisa",
   "type": "module",
   "engines": {
-    "node": ">=18.0.0"
+    "node": "^20.19 || ^22.12 || >=24"
   },
   "dependencies": {
     "@inquirer/core": "^10.3.2",
@@ -51,7 +51,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:templates": "node --import tsx --test tests/template-servers.test.mjs"
+    "test:templates": "node --import tsx --test tests/template-servers.test.mjs",
+    "test:fresh": "node scripts/verify-fresh-project.mjs"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -59,8 +60,9 @@
     "@types/node": "^25.9.3",
     "@types/supertest": "^7.2.0",
     "@vitest/coverage-v8": "^4.1.8",
-    "authenik8-core": "^1.0.38",
+    "authenik8-core": "2.0.3",
     "fast-check": "^4.8.0",
+    "jose": "6.2.3",
     "supertest": "^7.2.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",

@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import {
   InputValidationError,
-  getBearerToken,
   parseIdentifier,
   parseRefreshToken,
   sanitizeSessionResponse,
@@ -17,15 +16,8 @@ export const createBaseController = (auth: any) => ({
     res.json({ token });
   },
 
-  async protected(req: Request, res: Response) {
-    const token = getBearerToken(req.headers.authorization);
-
-    try {
-      const decoded = await auth.verifyToken(token);
-      res.json({ message: "Protected data", user: decoded });
-    } catch {
-      res.status(401).json({ error: "Unauthorized" });
-    }
+  protected(req: Request, res: Response) {
+    res.json({ message: "Protected data", user: (req as any).user });
   },
 
   async refresh(req: Request, res: Response) {

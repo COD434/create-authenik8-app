@@ -1,7 +1,7 @@
 
 <div align="center">
 
-<img src="./assets/logo.svg" alt="Authenik8" width="180" />
+![logo](https://raw.githubusercontent.com/COD434/authenik8-core-Beta-/main/assets/logo.svg)
 
 <h1>create-authenik8-app</h1>
 
@@ -55,7 +55,7 @@ Open `http://localhost:5173`. Vite proxies `/api` to Express on `http://localhos
 
 ### Express API
 
-Requirements: Node.js 18+ without Prisma. Prisma-backed presets require Node.js 20.19+, 22.12+, or 24+.
+Requirements: Node.js 20.19+, 22.12+, or 24+.
 
 ```bash
 cd my-app
@@ -154,9 +154,7 @@ Authenik8 provides these foundations so you can start with a secure API or a con
 
 ## Requirements
 
-• Node.js 18+ for the JWT-only API preset without Prisma
-
-• Node.js 20.19+, 22.12+, or 24+ for Prisma-backed API presets and the fullstack preset
+• Node.js 20.19+, 22.12+, or 24+ for every preset
 
 • Docker with Compose for the generated PostgreSQL and Redis services
 
@@ -180,14 +178,17 @@ Git initialization is skipped with a clear status when Git is unavailable. Insta
 
 ## Environment Variables
 
-The CLI creates development `.env` files. Replace placeholder secrets before deployment.
+The CLI creates a git-ignored `.env` with a unique ES256 signing key and refresh secret. Move those values into your deployment secret manager; never commit the private JWK.
 
 ### Express API presets
 
 ```dotenv
 DATABASE_URL=file:./dev.db
-JWT_SECRET=your-secret
-REFRESH_SECRET=your-refresh-secret
+AUTHENIK8_SIGNING_JWKS='[{"kty":"EC","crv":"P-256","kid":"<key-id>","x":"...","y":"...","d":"...","alg":"ES256"}]'
+AUTHENIK8_ACTIVE_KID=<key-id>
+AUTHENIK8_ISSUER=http://localhost:3000
+AUTHENIK8_AUDIENCE=my-app-api
+REFRESH_SECRET=<generated-random-secret>
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 ```
@@ -209,8 +210,11 @@ GITHUB_REDIRECT_URI=http://localhost:3000/auth/github/callback
 WEB_ORIGIN=http://localhost:5173
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/authenik8?schema=public
 REDIS_URL=redis://localhost:6379
-JWT_SECRET=replace-with-at-least-32-random-characters
-REFRESH_SECRET=replace-with-another-32-random-characters
+AUTHENIK8_SIGNING_JWKS='[{"kty":"EC","crv":"P-256","kid":"<key-id>","x":"...","y":"...","d":"...","alg":"ES256"}]'
+AUTHENIK8_ACTIVE_KID=<key-id>
+AUTHENIK8_ISSUER=http://localhost:3000
+AUTHENIK8_AUDIENCE=my-app-api
+REFRESH_SECRET=<generated-random-secret>
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/oauth/google/callback
 GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/oauth/github/callback
 ```
@@ -260,7 +264,7 @@ This design makes future additions (MFA, WebAuthn, etc.) much cleaner.
 ---
 ## Powered by
 
-authenik8-core (v1.0.38)  identity & token engine(beta)
+authenik8-core (v2.0.3)  JOSE/JWK human + agent identity engine (beta)
 
 ---
 
@@ -270,8 +274,9 @@ Generated projects call:
 
 ```ts
 const auth = await createAuthenik8({
-  jwtSecret: requiredSecret("JWT_SECRET"),
+  jwt: authJwkConfig(),
   refreshSecret: requiredSecret("REFRESH_SECRET"),
+  agent: agentIdentityConfig(),
   oauth: {
     google: {
       clientId: requiredEnv("GOOGLE_CLIENT_ID"),
@@ -293,6 +298,10 @@ That factory returns one auth object used by the generated routes:
 
 • `verifyToken(token)` verifies access tokens.
 
+• `requireAuth` verifies the token and rejects Redis-revoked sessions.
+
+• `getJwks()` returns only public verification keys for the generated JWKS endpoint.
+
 • `generateRefreshToken(payload)` creates stateful refresh tokens.
 
 • `refreshToken(refreshToken)` rotates refresh tokens and returns a new access/refresh pair.
@@ -303,22 +312,42 @@ That factory returns one auth object used by the generated routes:
 
 • `oauth.google` and `oauth.github` provide redirect and callback handlers.
 
-• `issueTokensFromProfile(profile)` turns a verified OAuth profile into app tokens through the Identity Engine.
+• `issueTokens(payload)` creates an access/refresh pair with one shared session ID.
+
+• `agent.issueToken(...)` creates a scoped, Redis-session-backed M2M identity after your application authenticates the workload.
+
+• `agent.issueDelegatedToken(...)` creates an agent token bound to an active human session and explicit delegation policy.
+
+• `agent.requireScopes(...)`, `agent.revokeSession(...)`, and `agent.revokeAgent(...)` enforce machine authorization and revocation.
+
+### Agent identity mapping
+
+Generated projects keep agent identity disabled with `AUTHENIK8_AGENTS={}`.
+Adding a validated agent-to-scope mapping enables the optional core API. Every
+project also receives `AGENT_IDENTITY.md` with a database-registry example,
+trusted workload exchange, scoped route, delegated-user flow, and revocation.
+
+The CLI intentionally does not scaffold a public token-minting endpoint. It
+cannot safely infer whether your workload uses mTLS, a cloud workload identity,
+or a signed client assertion. Applications must authenticate that workload
+before calling the privileged `agent.issueToken()` primitive.
 
 ### Redis-backed token lifecycle
 
 Authenik8-core intentionally makes JWT auth stateful:
 
-1. Access tokens are signed with `JWT_SECRET`.
+1. Access tokens are signed with the active ES256 JWK and carry its `kid`, issuer, audience, and token purpose.
 2. Refresh tokens are signed with `REFRESH_SECRET` and include a unique `jti`.
-3. The current valid refresh token is stored in Redis under `refresh:<userId>`.
-4. Refresh calls acquire a Redis lock with `lock:<userId>`.
+3. Each session's current refresh token is stored under `refresh:<userId>:<sessionId>` and indexed for complete user-wide revocation.
+4. Refresh calls acquire a Redis lock with `lock:<userId>:<sessionId>`.
 5. The submitted refresh token must match the Redis value.
 6. A new access token and refresh token are issued.
 7. The new refresh token atomically replaces the old one.
 8. Reusing the old refresh token fails.
 
 This is why Redis is required. It enables refresh-token replay protection, concurrent refresh protection, and server-side session control.
+
+To rotate keys, append a new private JWK to `AUTHENIK8_SIGNING_JWKS`, set `AUTHENIK8_ACTIVE_KID` to its `kid`, and retain old public JWKs until all tokens signed by them have expired. `/.well-known/jwks.json` publishes every verification key without private fields.
 
 ### OAuth identity resolution
 
@@ -391,7 +420,7 @@ Generated apps include a `THREAT_MODEL.md` file. It explains:
 
 • and what must be configured before production.
 
-Key protections include refresh-token replay detection, concurrent refresh locking, OAuth state validation, verified-email OAuth token issuance, Redis-backed rate limiting, secure headers, session tracking, and admin-route checks.
+Key protections include refresh-token replay detection, concurrent refresh locking, OAuth state validation, verified-email OAuth token issuance, Redis-backed rate limiting, secure headers, human and agent session tracking, scoped agent middleware, delegated actor chains, and revocation.
 
 Key non-goals include frontend XSS protection, CSRF for cookie-based auth, object-level authorization, MFA/WebAuthn, password reset, provider dashboard security, and protection from leaked secrets.
 

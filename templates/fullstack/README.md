@@ -2,6 +2,10 @@
 
 A connected React and Express application with secure Authenik8 sessions, account settings, administration, and an owned Project resource.
 
+Optional agent/service identities are disabled by default. Configure
+`AUTHENIK8_AGENTS` and follow `AGENT_IDENTITY.md` to add scoped M2M or delegated
+agent access without exposing an unsafe public token-minting route.
+
 ## Local development
 
 Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.

@@ -86,4 +86,20 @@ describe("completion output", () => {
     expect(printed()).toContain("Production process");
     expect(printed()).toContain("npm run pm2:start");
   });
+
+  it("warns instead of printing an unusable Docker command when Compose is unavailable", () => {
+    printSummary(baseState, false, false);
+
+    expect(printed()).toContain("Docker Compose was not found");
+    expect(printed()).toContain("start Redis manually");
+    expect(printed()).not.toContain("npm run docker:up");
+  });
+
+  it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
+    printSummary(baseState, false, true, false);
+
+    expect(printed()).toContain("daemon is not reachable");
+    expect(printed()).toContain("Start Docker Desktop or the Docker service");
+    expect(printed()).not.toContain("npm run docker:up");
+  });
 });

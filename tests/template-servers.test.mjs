@@ -58,6 +58,7 @@ const runtimeState = () => ({
   exitCalls: [],
   initAuthCalls: 0,
   appUseCalls: [],
+  appGetCalls: [],
   expressJsonCalls: 0,
 });
 
@@ -110,6 +111,9 @@ const installExpressStub = async (tempDir) => {
 
 function express() {
   return {
+    get(...args) {
+      globalThis.__templateServerTestState.appGetCalls.push(args);
+    },
     use(...args) {
       globalThis.__templateServerTestState.appUseCalls.push(args);
     },
@@ -209,6 +213,15 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
         `export function requiredSecret(name) {
   return process.env[name];
 }
+export function authJwkConfig() {
+  return { keys: [{ kid: "test-key" }], activeKid: "test-key", issuer: "test-issuer", audience: "test-api" };
+}
+export function agentIdentityConfig() {
+  return undefined;
+}
+export function requiredPort() {
+  return 3000;
+}
 `,
       );
       await writeModule(
@@ -225,7 +238,6 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
 `,
       );
 
-      process.env.JWT_SECRET = "jwt-secret-must-be-at-least-32-characters";
       process.env.REFRESH_SECRET = "refresh-secret-must-be-at-least-32-characters";
 
       await importServer(path.join(tempDir, "src/server.ts"));
@@ -233,8 +245,14 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
       assert.equal(state.dotenvConfigCalls, 1);
       assert.deepEqual(state.createAuthenik8Calls, [
         {
-          jwtSecret: "jwt-secret-must-be-at-least-32-characters",
+          jwt: {
+            keys: [{ kid: "test-key" }],
+            activeKid: "test-key",
+            issuer: "test-issuer",
+            audience: "test-api",
+          },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
+          agent: undefined,
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);
@@ -245,13 +263,8 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
         state.processEvents.map(({ event }) => event),
         ["uncaughtException", "unhandledRejection"],
       );
-      assert.equal(state.intervals.length, 1);
-      assert.equal(state.intervals[0].ms, 10000);
-
-      process.memoryUsage = (() => ({ heapUsed: 301 * 1024 * 1024 }));
-      assert.throws(() => state.intervals[0].handler(), /process\.exit:1/);
-      assert.deepEqual(state.exitCalls, [1]);
-      assert.match(state.errors.join("\n"), /Memory exceeded:/);
+      assert.equal(state.intervals.length, 0);
+      assert.deepEqual(state.exitCalls, []);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -277,6 +290,15 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
         `export function requiredSecret(name) {
   return process.env[name];
 }
+export function authJwkConfig() {
+  return { keys: [{ kid: "test-key" }], activeKid: "test-key", issuer: "test-issuer", audience: "test-api" };
+}
+export function agentIdentityConfig() {
+  return undefined;
+}
+export function requiredPort() {
+  return 3000;
+}
 `,
       );
       await writeModule(
@@ -293,7 +315,6 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
 `,
       );
 
-      process.env.JWT_SECRET = "jwt-secret-must-be-at-least-32-characters";
       process.env.REFRESH_SECRET = "refresh-secret-must-be-at-least-32-characters";
 
       await importServer(path.join(tempDir, "src/server.ts"));
@@ -301,8 +322,14 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
       assert.equal(state.dotenvConfigCalls, 1);
       assert.deepEqual(state.createAuthenik8Calls, [
         {
-          jwtSecret: "jwt-secret-must-be-at-least-32-characters",
+          jwt: {
+            keys: [{ kid: "test-key" }],
+            activeKid: "test-key",
+            issuer: "test-issuer",
+            audience: "test-api",
+          },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
+          agent: undefined,
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);
@@ -313,13 +340,8 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
         state.processEvents.map(({ event }) => event),
         ["uncaughtException", "unhandledRejection"],
       );
-      assert.equal(state.intervals.length, 1);
-      assert.equal(state.intervals[0].ms, 10000);
-
-      process.memoryUsage = (() => ({ heapUsed: 301 * 1024 * 1024 }));
-      assert.throws(() => state.intervals[0].handler(), /process\.exit:1/);
-      assert.deepEqual(state.exitCalls, [1]);
-      assert.match(state.errors.join("\n"), /Memory exceeded:/);
+      assert.equal(state.intervals.length, 0);
+      assert.deepEqual(state.exitCalls, []);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }
@@ -349,8 +371,14 @@ export function getAuth() {
   return {
     helmet: "helmet",
     rateLimit: "rate-limit",
+    getJwks() { return { keys: [] }; },
   };
 }
+`,
+      );
+      await writeModule(
+        path.join(tempDir, "src/utils/security.ts"),
+        `export function requiredPort() { return 3000; }
 `,
       );
       await writeModule(
@@ -381,19 +409,16 @@ export function getAuth() {
         ["/auth", "oauth-routes"],
         ["/", "protected-routes"],
       ]);
+      assert.equal(state.appGetCalls.length, 1);
+      assert.equal(state.appGetCalls[0][0], "/.well-known/jwks.json");
       assert.deepEqual(state.listenCalls, [3000]);
       assert.match(state.logs.join("\n"), /Auth system running on http:\/\/localhost:3000/);
       assert.deepEqual(
         state.processEvents.map(({ event }) => event),
         ["uncaughtException", "unhandledRejection"],
       );
-      assert.equal(state.intervals.length, 1);
-      assert.equal(state.intervals[0].ms, 10000);
-
-      process.memoryUsage = (() => ({ heapUsed: 301 * 1024 * 1024 }));
-      assert.throws(() => state.intervals[0].handler(), /process\.exit:1/);
-      assert.deepEqual(state.exitCalls, [1]);
-      assert.match(state.errors.join("\n"), /Memory exceeded:/);
+      assert.equal(state.intervals.length, 0);
+      assert.deepEqual(state.exitCalls, []);
     } finally {
       await rm(tempDir, { recursive: true, force: true });
     }

@@ -84,9 +84,41 @@ jobs:
       - name: Run template server tests
         run: npm run test:templates
 
+  fresh-project:
+    name: Fresh ${{ matrix.preset }} install / Node 22
+    needs: [quality]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [auth-oauth, fullstack]
+
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@8d3c67de8e2fe68ef647c8db1e6a09f647780f40 # v2.19.0
+        with:
+          egress-policy: audit
+
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.12.x
+          cache: npm
+
+      - name: Install and build the generator
+        run: npm ci --prefer-offline --no-audit --no-fund && npm run build
+
+      - name: Generate, install, and build a clean project
+        run: npm run test:fresh -- ${{ matrix.preset }}
+
   release:
     name: Semantic Release & Publish
-    needs: [quality, compatibility]
+    needs: [quality, compatibility, fresh-project]
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' 
 
@@ -186,4 +218,3 @@ jobs:
           gh release upload "$RELEASE_TAG" "$TARBALL" "$PROVENANCE" \
             --clobber \
             --repo "$GITHUB_REPOSITORY"
-

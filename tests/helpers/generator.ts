@@ -2,12 +2,16 @@ import { spawn } from "child_process";
 import { mkdtemp } from "fs/promises";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import fs from "fs-extra";
 import { vi } from "vitest";
 
 import type { CliState } from "../../src/lib/types.js";
-import { createProject, configurePackageJson } from "../../src/steps/createProject.js";
+import {
+  createProject,
+  configurePackageJson,
+  resolveTemplateName,
+} from "../../src/steps/createProject.js";
 import { configurePrisma } from "../../src/steps/configurePrisma.js";
 import { installAuth } from "../../src/steps/installAuth.js";
 import { configureProduction } from "../../src/steps/finalSetup.js";
@@ -31,6 +35,7 @@ export type GenerateProjectOptions = {
   hashLib?: "bcryptjs";
   oauthProviders?: string[];
   packageManager?: "npm" | "pnpm" | "bun";
+  templateLineEndings?: "lf" | "crlf";
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,6 +43,7 @@ const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../");
 const templateRoot = path.join(repoRoot, "templates");
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
+const tsxLoaderUrl = pathToFileURL(tsxLoaderPath).href;
 
 const templateToAuthMode: Record<TemplateKind, CliState["authMode"]> = {
   base: "base",
@@ -87,7 +93,31 @@ export async function generateProjectFixture(
     oauthProviders: options.oauthProviders,
   };
 
-  await createProject(state, targetDir, templateRoot);
+  let fixtureTemplateRoot = templateRoot;
+  if (options.templateLineEndings === "crlf") {
+    fixtureTemplateRoot = path.join(rootDir, "templates");
+    const templateName = resolveTemplateName(state.authMode ?? "base");
+    const fixtureTemplatePath = path.join(fixtureTemplateRoot, templateName);
+
+    await fs.copy(path.join(templateRoot, templateName), fixtureTemplatePath);
+    await fs.copy(path.join(templateRoot, "prisma"), path.join(fixtureTemplateRoot, "prisma"));
+    await fs.copy(
+      path.join(templateRoot, "THREAT_MODEL.md"),
+      path.join(fixtureTemplateRoot, "THREAT_MODEL.md"),
+    );
+    await fs.copy(
+      path.join(templateRoot, "AGENT_IDENTITY.md"),
+      path.join(fixtureTemplateRoot, "AGENT_IDENTITY.md"),
+    );
+
+    const readmePath = path.join(fixtureTemplatePath, "README.md");
+    if (await fs.pathExists(readmePath)) {
+      const readme = await fs.readFile(readmePath, "utf8");
+      await fs.writeFile(readmePath, readme.replace(/\r?\n/g, "\r\n"));
+    }
+  }
+
+  await createProject(state, targetDir, fixtureTemplateRoot);
 
   let hashLib: string | undefined;
 
@@ -103,7 +133,7 @@ export async function generateProjectFixture(
     }
   }
 
-  await configurePrisma(state, targetDir, templateRoot);
+  await configurePrisma(state, targetDir, fixtureTemplateRoot);
   configurePackageJson(targetDir, state.usePrisma ?? false, options.packageManager ?? "npm");
 
   if (options.productionRuntime) {
@@ -166,16 +196,31 @@ export async function readProjectFiles(rootDir: string, relativePaths: string[])
   return result;
 }
 
-export async function installGeneratedAppStubs(targetDir: string): Promise<void> {
+export async function installGeneratedAppStubs(
+  targetDir: string,
+  options: { realAuthCore?: boolean; realExpress?: boolean; authCorePath?: string } = {},
+): Promise<void> {
   await fs.copy(
     path.join(repoRoot, "node_modules", "zod"),
     path.join(targetDir, "node_modules", "zod"),
   );
 
-  await writePackageStub(
-    targetDir,
-    "authenik8-core",
-    `export async function createAuthenik8(config) {
+  if (options.realAuthCore) {
+    const siblingCore = path.resolve(repoRoot, "../authenik8-core");
+    const authCorePath = options.authCorePath
+      ?? process.env.AUTHENIK8_CORE_TEST_PATH
+      ?? (await fs.pathExists(path.join(siblingCore, "dist/index.js")) ? siblingCore : undefined)
+      ?? path.join(repoRoot, "node_modules", "authenik8-core");
+    await fs.ensureSymlink(
+      path.resolve(authCorePath),
+      path.join(targetDir, "node_modules", "authenik8-core"),
+      "junction",
+    );
+  } else {
+    await writePackageStub(
+      targetDir,
+      "authenik8-core",
+      `export async function createAuthenik8(config) {
   globalThis.__authenik8MockConfig = config;
   return {
     helmet(req, res, next) {
@@ -184,14 +229,26 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
     rateLimit(req, res, next) {
       if (typeof next === "function") next();
     },
-    authenticateJWT(req, res, next) {
-      if (typeof next === "function") next();
-    },
     requireAdmin(req, res, next) {
       if (typeof next === "function") next();
     },
-    signToken() {
+    requireAuth(req, res, next) {
+      if (typeof next === "function") next();
+    },
+    getJwks() {
+      return { keys: [] };
+    },
+    async signToken() {
       return "access-token";
+    },
+    verifyToken(token) {
+      return token === "access-token" ? { userId: "user-1" } : null;
+    },
+    async issueTokens() {
+      return {
+        accessToken: "access-token",
+        refreshToken: "refresh-token",
+      };
     },
     async generateRefreshToken() {
       return "refresh-token";
@@ -206,20 +263,69 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
       google: {
         redirect() {},
         async handleCallback() {
-          return { accessToken: "google-token" };
+          const result = {
+            profile: {
+              email: "google@example.com",
+              provider: "google",
+              providerId: "google-user",
+              email_verified: true,
+            },
+            mode: process.env.AUTHENIK8_TEST_OAUTH_MODE ?? "login",
+            userId: process.env.AUTHENIK8_TEST_OAUTH_MODE === "link" ? "user-1" : null,
+          };
+          if (process.env.AUTHENIK8_TEST_IDENTITY_RESULT === "LINK_REQUIRED") {
+            return {
+              ...result,
+              identity: { type: "LINK_REQUIRED", message: "please link manually" },
+            };
+          }
+          if (result.mode === "link") {
+            return { ...result, identity: { type: "LINK_PROVIDER", success: true } };
+          }
+          return {
+            ...result,
+            accessToken: "google-token",
+            refreshToken: "google-refresh-token",
+            identity: { type: "NEW_USER_CREATION" },
+          };
         },
       },
       github: {
         redirect() {},
         async handleCallback() {
-          return { accessToken: "github-token" };
+          const result = {
+            profile: {
+              email: "github@example.com",
+              provider: "github",
+              providerId: "github-user",
+              email_verified: true,
+            },
+            mode: process.env.AUTHENIK8_TEST_OAUTH_MODE ?? "login",
+            userId: process.env.AUTHENIK8_TEST_OAUTH_MODE === "link" ? "user-1" : null,
+          };
+          if (process.env.AUTHENIK8_TEST_IDENTITY_RESULT === "LINK_REQUIRED") {
+            return {
+              ...result,
+              identity: { type: "LINK_REQUIRED", message: "please link manually" },
+            };
+          }
+          if (result.mode === "link") {
+            return { ...result, identity: { type: "LINK_PROVIDER", success: true } };
+          }
+          return {
+            ...result,
+            accessToken: "github-token",
+            refreshToken: "github-refresh-token",
+            identity: { type: "NEW_USER_CREATION" },
+          };
         },
       },
     },
   };
 }
 `,
-  );
+    );
+  }
 
   await writePackageStub(
     targetDir,
@@ -247,10 +353,17 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
   );
   await fs.writeFile(path.join(dotenvDir, "config.js"), "export {};\n");
 
-  await writePackageStub(
-    targetDir,
-    "express",
-    `function createRouter() {
+  if (options.realExpress) {
+    await fs.ensureSymlink(
+      path.join(repoRoot, "node_modules", "express"),
+      path.join(targetDir, "node_modules", "express"),
+      "junction",
+    );
+  } else {
+    await writePackageStub(
+      targetDir,
+      "express",
+      `function createRouter() {
   return {
     get() {},
     post() {},
@@ -261,6 +374,7 @@ export async function installGeneratedAppStubs(targetDir: string): Promise<void>
 
 function express() {
   return {
+    get() {},
     use() {},
     listen(_port, callback) {
       if (typeof callback === "function") callback();
@@ -282,26 +396,40 @@ express.Router = createRouter;
 export const Router = createRouter;
 export default express;
 `,
-  );
+    );
+  }
 
   await writePackageStub(
     targetDir,
     "@prisma/client",
     `export class PrismaClient {
   constructor() {
+    globalThis.__generatedPrismaUsers ??= new Map();
     this.user = {
       async create({ data }) {
-        return { id: "user-1", ...data };
+        const user = { id: "user-1", role: "USER", ...data };
+        globalThis.__generatedPrismaUsers.set(user.email, user);
+        return user;
       },
       async findUnique({ where }) {
+        if (where?.id) {
+          return [...globalThis.__generatedPrismaUsers.values()].find(
+            (user) => user.id === where.id,
+          ) ?? null;
+        }
         if (!where?.email) {
           return null;
         }
-        return {
-          id: "user-1",
-          email: where.email,
-          password: "hashed:password",
-        };
+        return globalThis.__generatedPrismaUsers.get(where.email) ?? null;
+      },
+    };
+    this.identityProvider = {
+      async findUnique() {
+        return null;
+      },
+      async upsert({ create }) {
+        globalThis.__authenik8LinkedIdentity = create;
+        return create;
       },
     };
   }
@@ -342,6 +470,22 @@ export default express;
 export async function runGeneratedServerSmoke(targetDir: string, entryPath: string) {
   await installGeneratedAppStubs(targetDir);
 
+  const generatedEnv = Object.fromEntries(
+    (await fs.readFile(path.join(targetDir, ".env"), "utf8"))
+      .split(/\r?\n/)
+      .filter((line) => line && !line.startsWith("#") && line.includes("="))
+      .map((line) => {
+        const separator = line.indexOf("=");
+        const name = line.slice(0, separator);
+        const rawValue = line.slice(separator + 1);
+        const value = rawValue.length >= 2 && (
+          (rawValue.startsWith("'") && rawValue.endsWith("'"))
+          || (rawValue.startsWith('"') && rawValue.endsWith('"'))
+        ) ? rawValue.slice(1, -1) : rawValue;
+        return [name, value];
+      }),
+  );
+
   const smokeScriptPath = path.join(targetDir, "smoke-runner.mjs");
   const smokeResultPath = path.join(targetDir, "smoke-result.json");
   const entryImportPath = `./${toPosixPath(entryPath)}`;
@@ -355,6 +499,10 @@ const stderr = [];
 const format = (values) => values.map((value) => String(value)).join(" ");
 console.log = (...values) => stdout.push(format(values));
 console.error = (...values) => stderr.push(format(values));
+process.exit = (code) => {
+  failed = true;
+  process.exitCode = typeof code === "number" ? code : 1;
+};
 globalThis.setInterval = () => ({ unref() {} });
 process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
 
@@ -376,12 +524,12 @@ if (failed) process.exitCode = 1;
   );
 
   return await new Promise<{ code: number | null; stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", tsxLoaderPath, smokeScriptPath], {
+    const child = spawn(process.execPath, ["--import", tsxLoaderUrl, smokeScriptPath], {
       cwd: targetDir,
       env: {
         ...process.env,
+        ...generatedEnv,
         NODE_ENV: "test",
-        JWT_SECRET: "test-jwt-secret-must-be-at-least-32-characters",
         REFRESH_SECRET: "test-refresh-secret-must-be-at-least-32-characters",
         GOOGLE_CLIENT_ID: "google-client-id",
         GOOGLE_CLIENT_SECRET: "google-client-secret",

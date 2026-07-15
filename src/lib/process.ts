@@ -94,6 +94,30 @@ export function commandExists(cmd: string, platform = process.platform): boolean
   return !result.error && result.status === 0;
 }
 
+export function dockerComposeAvailable(platform = process.platform): boolean {
+  const result = spawnSync(getCommand("docker", platform), ["compose", "version"], {
+    stdio: "ignore",
+    shell: platform === "win32",
+    windowsHide: true,
+  });
+
+  return !result.error && result.status === 0;
+}
+
+export function dockerDaemonAvailable(platform = process.platform): boolean {
+  const result = spawnSync(
+    getCommand("docker", platform),
+    ["info", "--format", "{{.ServerVersion}}"],
+    {
+      stdio: "ignore",
+      shell: platform === "win32",
+      windowsHide: true,
+    },
+  );
+
+  return !result.error && result.status === 0;
+}
+
 export function isCommandNotFoundError(error: unknown): boolean {
   return error instanceof Error && "code" in error && (error as NodeJS.ErrnoException).code === "ENOENT";
 }

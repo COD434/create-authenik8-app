@@ -63,6 +63,8 @@ export const createApp = (auth: any) => {
   app.use(auth.helmet);
   app.use(auth.rateLimit);
 
+  app.get("/.well-known/jwks.json", (_req, res) => res.json(auth.getJwks()));
+
   app.use("/auth", createAuthRoutes(auth));
   app.use("/", createProtectedRoutes(auth));
 
@@ -91,14 +93,10 @@ export const createAuthController = (auth: any) => ({
 
       const user = await AuthService.login(email, password);
 
-      const accessToken = auth.signToken({
+      const { accessToken, refreshToken } = await auth.issueTokens({
         userId: user.id,
         email: user.email,
-      });
-
-      const refreshToken = await auth.generateRefreshToken({
-        userId: user.id,
-        email: user.email,
+        role: String(user.role).toLowerCase(),
       });
 
       res.json({ accessToken, refreshToken });
@@ -214,12 +212,14 @@ export const createAuthRoutes = (auth: any) => {
 };",
     "src/routes/protected.routes.ts": "import { Router } from "express";
 import { createProtectedController } from "../controllers/protected.controller";
+import { createAuthMiddleware } from "../middleware/auth.middleware";
 
 export const createProtectedRoutes = (auth: any) => {
   const router = Router();
   const controller = createProtectedController();
+  const requireAuth = createAuthMiddleware(auth);
 
-  router.get("/protected", auth.requireAdmin, controller.protected);
+  router.get("/protected", requireAuth, controller.protected);
   router.get("/admin/sessions/:userId", auth.requireAdmin, controller.listSessions);
   router.delete("/admin/sessions/:userId/:sessionId", auth.requireAdmin, controller.revokeSession);
   router.delete("/admin/sessions/:userId", auth.requireAdmin, controller.revokeAllSessions);
@@ -238,6 +238,8 @@ return bcrypt.compare(password, hash);
   },
   "template": "auth",
   "tree": [
+    ".gitignore",
+    "AGENT_IDENTITY.md",
     "README.md",
     "THREAT_MODEL.md",
     "docker-compose.yml",
@@ -250,6 +252,8 @@ return bcrypt.compare(password, hash);
     "src/controllers/",
     "src/controllers/auth.controller.ts",
     "src/controllers/protected.controller.ts",
+    "src/middleware/",
+    "src/middleware/auth.middleware.ts",
     "src/prisma/",
     "src/prisma/client.ts",
     "src/routes/",
@@ -280,6 +284,8 @@ export const createApp = (auth: any) => {
   app.use(auth.helmet);
   app.use(auth.rateLimit);
 
+  app.get("/.well-known/jwks.json", (_req, res) => res.json(auth.getJwks()));
+
   app.use("/", createBaseRoutes(auth));
 
   return app;
@@ -287,7 +293,6 @@ export const createApp = (auth: any) => {
     "controllers/base.controller.ts": "import { Request, Response } from "express";
 import {
   InputValidationError,
-  getBearerToken,
   parseIdentifier,
   parseRefreshToken,
   sanitizeSessionResponse,
@@ -303,15 +308,8 @@ export const createBaseController = (auth: any) => ({
     res.json({ token });
   },
 
-  async protected(req: Request, res: Response) {
-    const token = getBearerToken(req.headers.authorization);
-
-    try {
-      const decoded = await auth.verifyToken(token);
-      res.json({ message: "Protected data", user: decoded });
-    } catch {
-      res.status(401).json({ error: "Unauthorized" });
-    }
+  protected(req: Request, res: Response) {
+    res.json({ message: "Protected data", user: (req as any).user });
   },
 
   async refresh(req: Request, res: Response) {
@@ -438,7 +436,7 @@ export const createBaseRoutes = (auth: any) => {
 
   router.get("/public", controller.publicRoute);
   router.get("/guest", controller.guest);
-  router.get("/protected", controller.protected);
+  router.get("/protected", auth.requireAuth, controller.protected);
   router.post("/refresh", controller.refresh);
 
   router.get("/admin", auth.requireAdmin, controller.admin);
@@ -467,20 +465,22 @@ if (process.env.NODE_ENV !== "production") {
     "src/server.ts": "import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
-import { requiredSecret } from "../utils/security";
+import { agentIdentityConfig, authJwkConfig, requiredPort, requiredSecret } from "../utils/security";
 
 dotenv.config();
 
 async function start() {
   const auth = await createAuthenik8({
-    jwtSecret: requiredSecret("JWT_SECRET"),
+    jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
+    agent: agentIdentityConfig(),
   });
 
   const app = createApp(auth);
 
-  app.listen(3000, () => {
-    console.log("🚀 Server running on http://localhost:3000");
+  const port = requiredPort();
+  app.listen(port, () => {
+    console.log(\`🚀 Server running on http://localhost:\${port}\`);
   });
 }
 process.on("uncaughtException", (err) => {
@@ -492,18 +492,12 @@ process.on("unhandledRejection", (err) => {
   console.error(" Unhandled Rejection:", err);
   process.exit(1);
 });
-setInterval(() => {
-  const used = process.memoryUsage().heapUsed / 1024 / 1024;
-
-  if (used > 300) {
-    console.error(\`Memory exceeded: \${used.toFixed(2)} MB\`);
-    process.exit(1);
-  }
-}, 10000);
 start();",
   },
   "template": "base",
   "tree": [
+    ".gitignore",
+    "AGENT_IDENTITY.md",
     "README.md",
     "THREAT_MODEL.md",
     "app.ts",

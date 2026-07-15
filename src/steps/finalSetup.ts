@@ -5,11 +5,9 @@ import {
   run,
   getCommand,
   exitForInterrupt,
-  isCommandNotFoundError,
 } from "../lib/process.js";
 
 const PM2_VERSION = "^5.4.2";
-const TS_NODE_VERSION = "^10.9.2";
 
 export function hasBun(): boolean {
   return commandExists("bun");
@@ -28,6 +26,7 @@ export function createPm2Config(
   targetDir: string,
   projectName: string,
   runtime: "node" | "bun",
+  productionEntry = "dist/server.js",
 ): void {
   const configPath = path.join(targetDir, "ecosystem.config.js");
   const useBun = runtime === "bun";
@@ -37,7 +36,7 @@ export function createPm2Config(
   apps: [
     {
       name: "${projectName}",
-      script: "src/server.ts",
+      script: "${productionEntry}",
       interpreter: "bun",
       instances: "max",
       exec_mode: "cluster",
@@ -52,10 +51,9 @@ export function createPm2Config(
   apps: [
     {
       name: "${projectName}",
-      script: "src/server.ts",
+      script: "${productionEntry}",
       instances: "max",
       interpreter:"node",
-      interpreter_args: "-r ts-node/register",
       exec_mode: "cluster",
       watch: false,
       max_memory_restart: "300M",
@@ -79,19 +77,22 @@ export async function configureProduction(
 
   pkg.dependencies["pm2"] = PM2_VERSION;
 
-  if (runtime === "node") {
-    pkg.dependencies["ts-node"] = TS_NODE_VERSION;
-  }
-  pkg.scripts["pm2:start"] = "npx pm2 start ecosystem.config.js";
+  delete pkg.dependencies["ts-node"];
+  const productionEntry = String(pkg.scripts.start ?? "node dist/server.js")
+    .replace(/^node\s+/, "")
+    .trim();
+  pkg.scripts["pm2:start"] = "npm run build && npx pm2 start ecosystem.config.js";
   pkg.scripts["pm2:stop"] = `npx pm2 stop ${projectName}`;
   pkg.scripts["pm2:logs"] = "npx pm2 logs";
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
-  createPm2Config(targetDir, projectName, runtime);
+  createPm2Config(targetDir, projectName, runtime, productionEntry);
 }
 
 export async function initGit(targetDir: string): Promise<boolean> {
+  if (!commandExists("git")) return false;
+
   try {
     await run(getCommand("git"), ["init"], {
       cwd: targetDir,
@@ -99,9 +100,10 @@ export async function initGit(targetDir: string): Promise<boolean> {
     });
     return true;
   } catch (error) {
-    if (isCommandNotFoundError(error)) return false;
     await exitForInterrupt(error);
-    throw error;
+    const message = error instanceof Error ? error.message.split("\n")[0] : String(error);
+    console.warn(`Git initialization skipped: ${message}`);
+    return false;
   }
 }
 
@@ -114,7 +116,7 @@ export function appendProductionReadme(targetDir: string, projectName: string): 
 
 This project is configured for production using PM2.
 
-Start app in cluster mode:
+Build and start the compiled app in cluster mode:
 
 npm run pm2:start
 

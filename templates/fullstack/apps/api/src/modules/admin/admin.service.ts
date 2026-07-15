@@ -1,6 +1,6 @@
 import { adminUserUpdateSchema } from "@authenik8/contracts";
 import { prisma } from "../../config/prisma.js";
-import { redis } from "../../auth/authenik8.js";
+import { getAuthenik8 } from "../../auth/authenik8.js";
 import { AppError } from "../../utils/http.js";
 import { presentUser } from "../users/user.presenter.js";
 
@@ -29,7 +29,7 @@ export async function updateUser(actorId: string, targetId: string, body: unknow
 
 export async function revokeAllSessions(actorId: string, targetId: string, ipAddress: string, audit = true) {
   await prisma.session.updateMany({ where: { userId: targetId, revokedAt: null }, data: { revokedAt: new Date() } });
-  await redis.del(`refresh:${targetId}`, `sessions:${targetId}`);
+  await getAuthenik8().revokeAllSessions(targetId);
   if (audit) {
     await prisma.auditEvent.create({
       data: { actorId, action: "admin.sessions.revoked", targetType: "User", targetId, ipAddress },

@@ -1,8 +1,8 @@
-import { spawn } from "child_process";
+import { spawnSync } from "child_process";
 import { mkdtemp } from "fs/promises";
 import os from "os";
 import path from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath, pathToFileURL } from "url";
 import fs from "fs-extra";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -115,43 +115,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../..");
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
+const tsxLoaderUrl = pathToFileURL(tsxLoaderPath).href;
 
 function normalizeText(value: string): string {
   return value.replace(/\r\n/g, "\n").trim();
 }
 
 async function runCliSubprocess(argv: string[], cwd: string): Promise<CliSubprocessResult> {
-  return await new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, ["--import", tsxLoaderPath, path.join(repoRoot, "src/bin/index.ts"), ...argv], {
+  const child = spawnSync(
+    process.execPath,
+    ["--import", tsxLoaderUrl, path.join(repoRoot, "src/bin/index.ts"), ...argv],
+    {
       cwd,
+      encoding: "utf8",
       env: {
         ...process.env,
         FORCE_COLOR: "0",
         CI: "true",
       },
       stdio: ["ignore", "pipe", "pipe"],
-    });
+    },
+  );
 
-    let stdout = "";
-    let stderr = "";
+  if (child.error) {
+    throw child.error;
+  }
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
-    child.on("error", reject);
-    child.on("exit", (code) => {
-      resolve({
-        code,
-        stdout: normalizeText(stdout),
-        stderr: normalizeText(stderr),
-      });
-    });
-  });
+  return {
+    code: child.status,
+    stdout: normalizeText(child.stdout ?? ""),
+    stderr: normalizeText(child.stderr ?? ""),
+  };
 }
 
 async function runCli(
@@ -295,6 +289,8 @@ describe("CLI", () => {
         usePrisma: true,
       }),
       false,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
     expect(result.errors).toHaveLength(0);
   });
@@ -308,6 +304,8 @@ describe("CLI", () => {
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ installDeps: false }),
       false,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
   });
 
@@ -333,6 +331,8 @@ describe("CLI", () => {
         database: "postgresql",
       }),
       true,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
     expect(result.logs.join("\n")).toContain("require Prisma");
   });
@@ -349,6 +349,8 @@ describe("CLI", () => {
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ packageManager: "pnpm" }),
       false,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
   });
 

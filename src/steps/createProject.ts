@@ -1,7 +1,9 @@
 import fs from "fs-extra";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import type { CliState } from "../lib/types.js";
 import type { PackageManager } from "../lib/types.js";
+import { PRISMA_VERSION } from "../lib/constants.js";
 
 const supportedOAuthProviders = ["google", "github"] as const;
 type OAuthProvider = (typeof supportedOAuthProviders)[number];
@@ -52,6 +54,16 @@ export function configurePackageJson(
         ].join("\n"),
       );
     }
+
+    if (packageManager === "npm") {
+      pkg.allowScripts = {
+        [`prisma@${PRISMA_VERSION}`]: true,
+        [`@prisma/engines@${PRISMA_VERSION}`]: true,
+        ...(pkg.dependencies?.["@prisma/adapter-better-sqlite3"]
+          ? { "better-sqlite3": true }
+          : {}),
+      };
+    }
   } else {
     for (const scriptName of ["postinstall", "prisma:generate", "prisma:migrate"]) {
       if (pkg.scripts[scriptName]?.includes("prisma")) {
@@ -64,6 +76,7 @@ export function configurePackageJson(
     delete pkg.dependencies?.["@prisma/adapter-better-sqlite3"];
     delete pkg.devDependencies?.prisma;
     delete pkg.trustedDependencies;
+    delete pkg.allowScripts;
   }
 
   fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
@@ -91,24 +104,67 @@ function providerEnvBlock(provider: OAuthProvider): string {
 }
 
 function providerControllerBlock(provider: OAuthProvider): string {
-  return `${provider}Redirect(req: Request, res: Response) {
-    requireProvider("${provider}", res)?.redirect(req, res);
+  return `async ${provider}Redirect(req: Request, res: Response) {
+    try {
+      await requireProvider("${provider}", res)?.redirect(req, res);
+    } catch {
+      if (!res.headersSent) res.status(500).json({ error: "OAuth redirect failed" });
+    }
   },
 
   async ${provider}Callback(req: Request, res: Response) {
-    const provider = requireProvider("${provider}", res);
-    if (!provider) return;
+    try {
+      const provider = requireProvider("${provider}", res);
+      if (!provider) return;
 
-    const result = await provider.handleCallback(req);
+      const result = await provider.handleCallback(req);
+      let response = result;
 
-    res.json({
-      provider: "${provider}",
-      ...result,
-    });
+      if (result.mode === "link" && !result.identity) {
+        if (!result.userId) {
+          return res.status(400).json({ error: "Authenticated user is required to link a provider" });
+        }
+
+        await identityAdapter.linkProvider(
+          result.userId,
+          result.profile.provider,
+          result.profile.providerId,
+        );
+        response = {
+          ...result,
+          identity: { type: "LINK_PROVIDER", success: true },
+        };
+      }
+
+      if (
+        result.identity?.type === "LINK_REQUIRED" ||
+        result.identity?.type === "EXISTING_EMAIL_CONFLICT"
+      ) {
+        return res.status(409).json({ provider: "${provider}", ...result });
+      }
+
+      if (result.identity?.type === "INVALID_LINK_REQUEST") {
+        return res.status(400).json({ provider: "${provider}", ...result });
+      }
+
+      if (result.mode === "login" && (!result.accessToken || !result.refreshToken)) {
+        throw new Error("OAuth callback did not return an application session");
+      }
+
+      res.json({ provider: "${provider}", ...response });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : "OAuth callback failed",
+      });
+    }
   },
 
-  ${provider}Link(req: Request, res: Response) {
-    requireProvider("${provider}", res)?.redirect(req, res, "link");
+  async ${provider}Link(req: Request, res: Response) {
+    try {
+      await requireProvider("${provider}", res)?.redirect(req, res, "link");
+    } catch {
+      if (!res.headersSent) res.status(500).json({ error: "OAuth link redirect failed" });
+    }
   },`;
 }
 
@@ -127,7 +183,8 @@ async function writeProviderSpecificOAuthFiles(targetDir: string, providers: OAu
 
   await fs.writeFile(authPath, `import { createAuthenik8 } from "authenik8-core";
 import dotenv  from "dotenv";
-import { requiredEnv, requiredSecret } from "../utils/security";
+import { agentIdentityConfig, authJwkConfig, requiredEnv, requiredSecret } from "../utils/security";
+import { identityAdapter } from "./identity.adapter";
 
 dotenv.config();
 
@@ -141,9 +198,11 @@ function oauthConfig() {
 
 export async function initAuth() {
   authInstance= await createAuthenik8({
-    jwtSecret: requiredSecret("JWT_SECRET"),
+    jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
+    agent: agentIdentityConfig(),
     oauth: oauthConfig(),
+    identityAdapter,
   });
 
 }
@@ -178,6 +237,7 @@ export default router;
 
   await fs.writeFile(controllerPath, `import { Request, Response } from "express";
 import { getAuth } from "../auth";
+import { identityAdapter } from "../identity.adapter";
 
 type OAuthProvider = ${providerUnion};
 
@@ -211,7 +271,7 @@ export const oauthController = {
       .map((provider) => `${providerTitle(provider)} callback URL:\n\n\`\`\`text\nhttp://localhost:3000/auth/${provider}/callback\n\`\`\``)
       .join("\n\n");
 
-    let readme = await fs.readFile(readmePath, "utf-8");
+    let readme = (await fs.readFile(readmePath, "utf-8")).replace(/\r\n/g, "\n");
     readme = readme.replace("AUTHENIK8_OAUTH_PROVIDERS=google,github", `AUTHENIK8_OAUTH_PROVIDERS=${selectedList}`);
     readme = readme.replace(
       /GOOGLE_CLIENT_ID=your-google-client-id\nGOOGLE_CLIENT_SECRET=your-google-client-secret\nGOOGLE_REDIRECT_URI=http:\/\/localhost:3000\/auth\/google\/callback\nGITHUB_CLIENT_ID=your-github-client-id\nGITHUB_CLIENT_SECRET=your-github-client-secret\nGITHUB_REDIRECT_URI=http:\/\/localhost:3000\/auth\/github\/callback/,
@@ -275,31 +335,56 @@ export async function createProject(
   if (!pkgExists) {
     throw new Error(`Template "${templateName}" is missing package.json at ${templatePath}`);
   }
-  await fs.copy(templatePath, targetDir, {
-    filter: (source) => !source.split(path.sep).includes("oauth-providers"),
-  });
+  const stageDir = path.join(
+    path.dirname(targetDir),
+    `.${path.basename(targetDir)}.authenik8-${randomUUID()}`,
+  );
 
-  const generatedPkgPath = path.join(targetDir, "package.json");
-  const generatedPkg = await fs.readJson(generatedPkgPath);
-  generatedPkg.name = state.projectName;
-  await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
+  try {
+    await fs.copy(templatePath, stageDir, {
+      filter: (source) => !source.split(path.sep).includes("oauth-providers"),
+    });
 
-  if (state.authMode === "fullstack") {
-    await fs.move(path.join(targetDir, "gitignore.template"), path.join(targetDir, ".gitignore"), { overwrite: true });
-    await fs.copy(path.join(templatePath, ".env.example"), path.join(targetDir, ".env"));
-    const providers = state.oauthProviders === undefined
-      ? [...supportedOAuthProviders]
-      : resolveOAuthProviders(state).filter((provider) => state.oauthProviders?.includes(provider));
-    await fs.writeFile(
-      path.join(targetDir, "apps/web/src/auth/providers.ts"),
-      `export type OAuthProvider = "google" | "github";\n\nexport const enabledOAuthProviders: readonly OAuthProvider[] = ${JSON.stringify(providers)};\n`,
+    const generatedPkgPath = path.join(stageDir, "package.json");
+    const generatedPkg = await fs.readJson(generatedPkgPath);
+    generatedPkg.name = state.projectName;
+    await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
+
+    const packagedGitignore = path.join(stageDir, "gitignore.template");
+    if (await fs.pathExists(packagedGitignore)) {
+      await fs.move(packagedGitignore, path.join(stageDir, ".gitignore"), {
+        overwrite: true,
+      });
+    }
+
+    if (state.authMode === "fullstack") {
+      await fs.copy(path.join(templatePath, ".env.example"), path.join(stageDir, ".env"));
+      const providers = state.oauthProviders === undefined
+        ? [...supportedOAuthProviders]
+        : resolveOAuthProviders(state).filter((provider) => state.oauthProviders?.includes(provider));
+      await fs.writeFile(
+        path.join(stageDir, "apps/web/src/auth/providers.ts"),
+        `export type OAuthProvider = "google" | "github";\n\nexport const enabledOAuthProviders: readonly OAuthProvider[] = ${JSON.stringify(providers)};\n`,
+      );
+    }
+    if (state.authMode !== "fullstack") {
+      await fs.copy(path.join(templateRoot, "THREAT_MODEL.md"), path.join(stageDir, "THREAT_MODEL.md"));
+    }
+    await fs.copy(
+      path.join(templateRoot, "AGENT_IDENTITY.md"),
+      path.join(stageDir, "AGENT_IDENTITY.md"),
     );
-  }
-  if (state.authMode !== "fullstack") {
-    await fs.copy(path.join(templateRoot, "THREAT_MODEL.md"), path.join(targetDir, "THREAT_MODEL.md"));
-  }
-  if (state.authMode === "auth-oauth") {
-    await writeProviderSpecificOAuthFiles(targetDir, resolveOAuthProviders(state));
+    if (state.authMode === "auth-oauth") {
+      await writeProviderSpecificOAuthFiles(stageDir, resolveOAuthProviders(state));
+    }
+
+    if (await fs.pathExists(targetDir)) {
+      throw new Error(`Directory "${path.basename(targetDir)}" was created while setup was running.`);
+    }
+    await fs.move(stageDir, targetDir);
+  } catch (error) {
+    await fs.remove(stageDir);
+    throw error;
   }
 
 }

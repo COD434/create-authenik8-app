@@ -13,7 +13,7 @@ function sessionError(res: Response, error: unknown, fallback: string) {
 }
 
 export const protectedController = {
-  protected( res: Response) {
+  protected(_req: Request, res: Response) {
     res.json({ message: "Protected route" });
   },
 

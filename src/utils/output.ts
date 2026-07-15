@@ -38,12 +38,17 @@ function runCommand(state: CliState, script: string): string {
   return `${state.packageManager ?? "npm"} run ${script}`;
 }
 
-export function printSummary(state: CliState, isProduction: boolean): void {
+export function printSummary(
+  state: CliState,
+  isProduction: boolean,
+  hasDockerCompose = true,
+  hasDockerDaemon = true,
+): void {
   const packageManager = state.packageManager ?? "npm";
   const commands = [
     `cd ${state.projectName}`,
     ...(state.installDeps === false ? [`${packageManager} install`] : []),
-    runCommand(state, "docker:up"),
+    ...(hasDockerCompose && hasDockerDaemon ? [runCommand(state, "docker:up")] : []),
     ...(state.usePrisma
       ? [runCommand(state, state.authMode === "fullstack" ? "db:migrate" : "prisma:migrate")]
       : []),
@@ -66,6 +71,14 @@ export function printSummary(state: CliState, isProduction: boolean): void {
     console.log(`${chalk.green("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
   }
   console.log(chalk.dim("│"));
+  if (!hasDockerCompose) {
+    const services = state.database === "postgresql" ? "Redis and PostgreSQL" : "Redis";
+    console.log(`${chalk.yellow("!")}  Docker Compose was not found. Install it or start ${services} manually.`);
+    console.log(chalk.dim("│"));
+  } else if (!hasDockerDaemon) {
+    console.log(`${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`);
+    console.log(chalk.dim("│"));
+  }
   console.log(`${chalk.cyan("└")} ${chalk.bold("Next steps")}`);
   for (const command of commands) {
     console.log(`  ${chalk.cyan(command)}`);

@@ -3,16 +3,63 @@ import path from "path";
 import type { CliState } from "../lib/types.js";
 import { PRISMA_VERSION } from "../lib/constants.js";
 import { exitForInterrupt } from "../lib/process.js";
+import { configureSigningKeys } from "../utils/jwk.js";
+
+const oauthIdentityModel = `
+
+model IdentityProvider {
+  id         String @id @default(uuid())
+  userId     String
+  provider   String
+  providerId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerId])
+  @@unique([userId, provider])
+}
+`;
+
+function addOAuthIdentityModels(schema: string): string {
+  return schema
+    .replace(/^  password  String$/m, "  password  String?")
+    .replace(
+      /^  sessions  Session\[\]$/m,
+      "  sessions          Session[]\n  identityProviders IdentityProvider[]",
+    )
+    .replace(/\s*$/, oauthIdentityModel);
+}
+
+async function removeUnusedPostgresService(targetDir: string): Promise<void> {
+  const composePath = path.join(targetDir, "docker-compose.yml");
+  if (!(await fs.pathExists(composePath))) return;
+
+  const compose = await fs.readFile(composePath, "utf-8");
+  const redisOnly = compose
+    .replace(/\n  postgres:\n[\s\S]*?(?=\nvolumes:\n)/, "\n")
+    .replace(/\n  postgres-data:\s*(?=\n|$)/, "");
+  await fs.writeFile(composePath, redisOnly);
+}
 
 export async function configurePrisma(
   state: CliState,
   targetDir: string,
   templateRoot: string
 ): Promise<void> {
-  if (state.authMode === "fullstack") return;
+  if (state.authMode === "fullstack") {
+    await configureSigningKeys(targetDir, state.projectName);
+    return;
+  }
 
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = await fs.readJson(pkgPath);
+
+  if (state.database !== "postgresql") {
+    await removeUnusedPostgresService(targetDir);
+  }
 
   pkg.dependencies = {
     ...pkg.dependencies,
@@ -28,6 +75,12 @@ export async function configurePrisma(
         path.join(prismaTemplatePath, "schema.prisma"),
         path.join(targetDir, "prisma/schema.prisma")
       );
+
+      if (state.authMode === "auth-oauth") {
+        const schemaPath = path.join(targetDir, "prisma/schema.prisma");
+        const schema = await fs.readFile(schemaPath, "utf-8");
+        await fs.writeFile(schemaPath, addOAuthIdentityModels(schema));
+      }
 
       await fs.copy(
         path.join(prismaTemplatePath, "prisma.config.ts"),
@@ -103,7 +156,7 @@ export async function configurePrisma(
       throw err;
     }
   } else {
-    pkg.engines = { ...pkg.engines, node: ">=18.0.0" };
+    pkg.engines = { ...pkg.engines, node: "^20.19 || ^22.12 || >=24" };
     const templateEnvPath = path.join(targetDir, "src/.env.example");
     if (await fs.pathExists(templateEnvPath)) {
       await fs.move(templateEnvPath, path.join(targetDir, ".env.example"), { overwrite: true });
@@ -113,6 +166,7 @@ export async function configurePrisma(
     const readmePath = path.join(targetDir, "README.md");
     if (await fs.pathExists(readmePath)) {
       const readme = (await fs.readFile(readmePath, "utf-8"))
+        .replace(/\r\n/g, "\n")
         .replaceAll("npm run prisma:migrate\n", "")
         .replace(/^DATABASE_URL=.*\n/gm, "")
         .replace(/^- `DATABASE_URL`:.*\n/gm, "")
@@ -124,4 +178,5 @@ export async function configurePrisma(
   }
 
   await fs.writeJson(pkgPath, pkg, { spaces: 2 });
+  await configureSigningKeys(targetDir, state.projectName);
 }

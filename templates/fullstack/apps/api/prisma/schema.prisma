@@ -42,6 +42,7 @@ model OAuthAccount {
 model Session {
   id          String    @id @default(uuid())
   userId      String
+  coreSessionId String  @unique
   refreshHash String    @unique
   userAgent   String
   ipAddress   String

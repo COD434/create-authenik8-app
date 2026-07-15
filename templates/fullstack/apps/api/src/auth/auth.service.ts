@@ -42,18 +42,20 @@ export async function issueSession(user: User, req: Request) {
   const tokens = await getAuthenik8().issueTokens({ userId: user.id, email: user.email, role: user.role });
   const accessToken = await tokens.accessToken;
   const refreshToken = tokens.refreshToken;
+  const accessPayload = await getAuthenik8().verifyToken(accessToken);
+  if (!accessPayload?.sessionId) {
+    throw new AppError(500, "SESSION_ISSUE_FAILED", "Unable to create an authenticated session");
+  }
 
-  await prisma.$transaction([
-    prisma.session.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
-    prisma.session.create({
-      data: {
-        userId: user.id,
-        refreshHash: hashToken(refreshToken),
-        ...sessionMetadata(req),
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      },
-    }),
-  ]);
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      coreSessionId: accessPayload.sessionId,
+      refreshHash: hashToken(refreshToken),
+      ...sessionMetadata(req),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
 
   return { accessToken, refreshToken, user: presentUser(user) };
 }
@@ -116,7 +118,7 @@ export async function revokeRefreshToken(refreshToken: string | undefined) {
   const session = await prisma.session.findUnique({ where: { refreshHash: hashToken(refreshToken) } });
   if (!session) return;
   await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-  await redis.del(`refresh:${session.userId}`, `sessions:${session.userId}`);
+  await getAuthenik8().revokeSession(session.userId, session.coreSessionId);
 }
 
 export async function requestPasswordReset(email: string) {
@@ -145,7 +147,7 @@ export async function resetPassword(token: string, password: string) {
     prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await bcrypt.hash(password, 12), passwordUpdatedAt: now } }),
     prisma.session.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: now } }),
   ]);
-  await redis.del(`refresh:${reset.userId}`, `sessions:${reset.userId}`);
+  await getAuthenik8().revokeAllSessions(reset.userId);
 }
 
 export async function verifyEmail(token: string) {

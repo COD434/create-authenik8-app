@@ -37,6 +37,7 @@ export function createApp() {
   app.use(cookieParser());
 
   app.get("/api/health/live", (_req, res) => res.json({ status: "ok" }));
+  app.get("/.well-known/jwks.json", (_req, res) => res.json(getAuthenik8().getJwks()));
   app.get("/api/docs/openapi.json", (_req, res) => res.json(openApiDocument));
   app.get("/api/health/ready", asyncHandler(async (_req, res) => {
     await prisma.$queryRaw`SELECT 1`;

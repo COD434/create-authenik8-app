@@ -32,19 +32,15 @@ export const passwordController = {
       const { email, password } = parseCredentials(req.body);
       const user = await prisma.user.findUnique({ where: { email } });
 
-      if (!user || !(await comparePassword(password, user.password))) {
+      if (!user?.password || !(await comparePassword(password, user.password))) {
         return res.status(401).json({ error: "Invalid credentials" });
       }
 
       const auth = getAuth();
-      const accessToken = auth.signToken({
+      const { accessToken, refreshToken } = await auth.issueTokens({
         userId: user.id,
         email: user.email,
-      });
-
-      const refreshToken = await auth.generateRefreshToken({
-        userId: user.id,
-        email: user.email,
+        role: String(user.role).toLowerCase(),
       });
 
       res.json({ accessToken, refreshToken });

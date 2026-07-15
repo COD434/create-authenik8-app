@@ -2,7 +2,8 @@
 
 ## Secrets and transport
 
-- Generate independent high-entropy `JWT_SECRET` and `REFRESH_SECRET` values. Do not reuse development values.
+- Store the generated ES256 signing key ring and high-entropy `REFRESH_SECRET` in a deployment secret manager. Never commit private JWK fields.
+- Rotate access-token keys by appending a new private JWK, switching `AUTHENIK8_ACTIVE_KID`, and retaining old public keys until their tokens expire.
 - Terminate TLS at a maintained reverse proxy or load balancer and redirect HTTP to HTTPS.
 - Set `COOKIE_SECURE=true`, an exact HTTPS `WEB_ORIGIN`, and `TRUST_PROXY=true` only when requests pass through a trusted proxy that overwrites forwarding headers.
 
@@ -11,6 +12,7 @@
 - Keep PostgreSQL and Redis on private networks with authentication and encryption where supported.
 - Configure automated PostgreSQL backups and perform restore drills.
 - Configure Redis persistence appropriate to the session availability requirement. Never expose port 6379 publicly.
+- Keep `AUTHENIK8_AGENTS={}` unless machine identity is intentionally enabled. In production, prefer a database-backed registry and authenticate workloads with mTLS, cloud identity, or signed assertions before issuing tokens.
 - Run Prisma migrations as a controlled release step, not concurrently from every application replica.
 
 ## Identity operations

@@ -2,7 +2,7 @@
 
 ## Protected assets
 
-Account credentials, OAuth identities, access and refresh tokens, administrative actions, user profile data, and owned Project records.
+Account credentials, OAuth identities, access and refresh tokens, agent grants and M2M sessions, delegated actor chains, administrative actions, user profile data, and owned Project records.
 
 ## Trust boundaries
 
@@ -19,11 +19,12 @@ The browser is untrusted. React route guards provide navigation behavior only. E
 - OAuth login CSRF: provider state is handled by Authenik8; the SPA receives only a single-use, short-lived exchange code.
 - Password database compromise: passwords and recovery/verification tokens are stored as one-way hashes.
 - Basic abuse and injection: Redis-backed Authenik8 rate limiting, request size limits, Zod validation, Prisma parameterization, security headers, and structured logging.
+- Agent identity: human and machine token purposes are separated, exact scopes are checked against the live registry, M2M sessions are revocable, and delegated tokens remain bound to their human session.
 
 ## Residual risks
 
-An active XSS can make authenticated API calls while the page is open even though it cannot read the refresh cookie. Keep the content security policy strict and audit third-party scripts. Access tokens remain valid until their short expiry after some session revocations. OAuth provider compromise, malicious dependencies, host compromise, denial of service at volumes beyond one Redis limiter, and mistakes in deployment infrastructure require controls outside this starter.
+An active XSS can make authenticated API calls while the page is open even though it cannot read the refresh cookie. Keep the content security policy strict and audit third-party scripts. Access tokens remain valid until their short expiry after some session revocations. Agent-token issuance is privileged but does not authenticate the workload for you; use mTLS, cloud workload identity, or signed assertions and never expose an unauthenticated mint route. Public JWKS verification cannot observe Redis agent revocation. OAuth provider compromise, malicious dependencies, host compromise, denial of service at volumes beyond one Redis limiter, and mistakes in deployment infrastructure require controls outside this starter.
 
 ## Review triggers
 
-Repeat the threat review when adding a new identity provider, changing cookie scope or origins, introducing file uploads or billing, adding multiple tenants, exposing Redis, changing proxy topology, or adding third-party browser scripts.
+Repeat the threat review when adding a new identity provider or agent, changing agent scopes or delegation policy, changing cookie scope or origins, introducing file uploads or billing, adding multiple tenants, exposing Redis, changing proxy topology, or adding third-party browser scripts.

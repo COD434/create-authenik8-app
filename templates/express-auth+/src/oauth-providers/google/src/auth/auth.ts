@@ -1,6 +1,6 @@
 import { createAuthenik8 } from "authenik8-core";
 import dotenv  from "dotenv";
-import { requiredEnv, requiredSecret } from "../../../../src/utils/security";
+import { agentIdentityConfig, authJwkConfig, requiredEnv, requiredSecret } from "../../../../src/utils/security";
 
 dotenv.config();
 
@@ -18,8 +18,9 @@ function oauthConfig() {
 
 export async function initAuth() {
   authInstance= await createAuthenik8({
-    jwtSecret: requiredSecret("JWT_SECRET"),
+    jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
+    agent: agentIdentityConfig(),
     oauth: oauthConfig(),
   });
 

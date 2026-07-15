@@ -15,16 +15,13 @@ export function supportsFullstackPreset(version = process.versions.node): boolea
 }
 
 export function assertPresetRequirements(
-  authMode: string | undefined,
-  usePrisma = false,
+  _authMode: string | undefined,
+  _usePrisma = false,
+  version = process.versions.node,
 ): void {
-  const requiresPrisma = authMode === "fullstack"
-    || authMode === "auth"
-    || authMode === "auth-oauth"
-    || usePrisma;
-  if (!requiresPrisma || supportsFullstackPreset()) return;
+  if (supportsFullstackPreset(version)) return;
 
   throw new Error(
-    `Prisma 7 presets require Node.js 20.19+, 22.12+, or 24+. Current version: ${process.versions.node}.`,
+    `Authenik8 requires Node.js 20.19+, 22.12+, or 24+. Current version: ${version}.`,
   );
 }
