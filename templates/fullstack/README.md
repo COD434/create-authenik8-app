@@ -28,7 +28,7 @@ The API follows a contract, repository, service, controller, policy, and route c
 
 ## Session model
 
-The API returns a short-lived access token to the Auth provider, which holds it only in memory. The browser sends a restricted HttpOnly refresh cookie automatically. The API client performs one refresh after a `401`, shares an in-flight refresh between requests, and retries once. It never reads from or writes tokens to browser storage.
+The API returns a short-lived access token to the Auth provider, which holds it only in memory. The browser sends an encrypted, restricted HttpOnly refresh cookie automatically. The API client obtains a signed CSRF token for browser mutations, performs one refresh after a `401`, shares in-flight token requests, and retries once. It never reads from or writes tokens to browser storage.
 
 Route guards are user experience controls. API middleware and policies remain the authorization boundary.
 
@@ -41,7 +41,7 @@ http://localhost:3000/api/auth/oauth/google/callback
 http://localhost:3000/api/auth/oauth/github/callback
 ```
 
-OAuth callbacks place a single-use exchange code in Redis and redirect to the SPA. Tokens are not placed in a URL.
+OAuth callbacks place a single-use exchange code and an encrypted session payload in Redis, then redirect to the SPA. Tokens are not placed in a URL.
 
 ## Production
 
@@ -57,5 +57,5 @@ Read [docs/PRODUCTION.md](docs/PRODUCTION.md) and [THREAT_MODEL.md](THREAT_MODEL
 - `GET /api/health/live` confirms the process is running.
 - `GET /api/health/ready` checks PostgreSQL and Redis.
 - `GET /api/docs/openapi.json` returns the generated OpenAPI 3.1 contract.
-- `npm test` covers ownership/admin policies, cookie/origin defenses, and the browser storage rule.
+- `npm test` covers ownership/admin policies, encrypted cookies, origin and CSRF defenses, and the browser storage rule.
 - `npm run typecheck` checks each workspace.

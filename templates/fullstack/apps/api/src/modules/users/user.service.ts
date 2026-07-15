@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import type { Request } from "express";
 import { changePasswordSchema, profileSchema } from "@authenik8/contracts";
+import { readRefreshCookie } from "../../auth/cookies.js";
 import { prisma } from "../../config/prisma.js";
 import { redis } from "../../auth/authenik8.js";
 import { hashToken } from "../../utils/crypto.js";
@@ -25,7 +26,8 @@ export async function changePassword(userId: string, body: unknown) {
 }
 
 export async function listSessions(userId: string, req: Request) {
-  const currentHash = req.cookies?.authenik8_refresh ? hashToken(req.cookies.authenik8_refresh) : "";
+  const refreshToken = readRefreshCookie(req);
+  const currentHash = refreshToken ? hashToken(refreshToken) : "";
   const sessions = await prisma.session.findMany({
     where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
     orderBy: { lastUsedAt: "desc" },
@@ -45,7 +47,8 @@ export async function revokeSession(userId: string, sessionId: string, req: Requ
   const session = await prisma.session.findFirst({ where: { id: sessionId, userId, revokedAt: null } });
   if (!session) throw new AppError(404, "SESSION_NOT_FOUND", "Session not found");
   await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-  const current = req.cookies?.authenik8_refresh && session.refreshHash === hashToken(req.cookies.authenik8_refresh);
+  const refreshToken = readRefreshCookie(req);
+  const current = refreshToken && session.refreshHash === hashToken(refreshToken);
   if (current) await redis.del(`refresh:${userId}`, `sessions:${userId}`);
   return Boolean(current);
 }

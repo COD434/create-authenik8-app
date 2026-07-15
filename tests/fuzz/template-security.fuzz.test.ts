@@ -1,4 +1,4 @@
-import fc from "fast-check";
+import fc, { type IProperty } from "fast-check";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -57,6 +57,17 @@ const arbitraryBody = fc.oneof(
   }),
 );
 
+function assertFuzzProperty<T>(property: IProperty<T>): void {
+  const result = fc.check(property, { numRuns: 250 });
+  if (!result.failed) return;
+
+  const path = result.counterexamplePath ?? "unavailable";
+  throw new Error(
+    `Fuzz property failed after ${result.numRuns} runs; reproduce with seed ${result.seed} and path ${path}. ` +
+    "The counterexample is redacted because it may contain credential-shaped data.",
+  );
+}
+
 const assertNoSensitiveKeys = (value: unknown) => {
   if (Array.isArray(value)) {
     value.forEach(assertNoSensitiveKeys);
@@ -82,11 +93,10 @@ describe("template security fuzzing", () => {
     ];
 
     for (const sanitize of sanitizers) {
-      fc.assert(
+      assertFuzzProperty(
         fc.property(jsonValueArbitrary, (payload) => {
           assertNoSensitiveKeys(sanitize(payload));
         }),
-        { numRuns: 250 },
       );
     }
   });
@@ -105,7 +115,7 @@ describe("template security fuzzing", () => {
         }),
       ).toThrow();
 
-      fc.assert(
+      assertFuzzProperty(
         fc.property(arbitraryBody, (body) => {
           const expected = schema.safeParse(body);
 
@@ -115,7 +125,6 @@ describe("template security fuzzing", () => {
             expect(() => parseCredentials(body)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
   });
@@ -127,7 +136,7 @@ describe("template security fuzzing", () => {
     ] as const;
 
     for (const [parseRefreshToken, schema] of parsers) {
-      fc.assert(
+      assertFuzzProperty(
         fc.property(arbitraryBody, (body) => {
           const expected = schema.safeParse(body);
 
@@ -137,7 +146,6 @@ describe("template security fuzzing", () => {
             expect(() => parseRefreshToken(body)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
   });
@@ -152,7 +160,7 @@ describe("template security fuzzing", () => {
     for (const [readerIndex, requiredSecret] of secretReaders.entries()) {
       const envName = `FUZZ_SECRET_${readerIndex}`;
 
-      fc.assert(
+      assertFuzzProperty(
         fc.property(secretArbitrary, (secret) => {
           vi.stubEnv(envName, secret);
 
@@ -162,7 +170,6 @@ describe("template security fuzzing", () => {
             expect(() => requiredSecret(envName)).toThrow();
           }
         }),
-        { numRuns: 250 },
       );
     }
 

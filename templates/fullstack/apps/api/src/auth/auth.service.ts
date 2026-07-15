@@ -7,6 +7,7 @@ import { env } from "../config/env.js";
 import { prisma } from "../config/prisma.js";
 import { AppError } from "../utils/http.js";
 import { hashToken, randomToken } from "../utils/crypto.js";
+import { openSealedValue, sealValue } from "../utils/sealed-value.js";
 import { getAuthenik8, redis } from "./authenik8.js";
 import { presentUser } from "../modules/users/user.presenter.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../config/mailer.js";
@@ -15,6 +16,19 @@ const genericCredentials = new AppError(401, "INVALID_CREDENTIALS", "Email or pa
 const requestMetadataSchema = z.object({
   userAgent: z.string().trim().min(1).max(300),
   ipAddress: z.string().trim().min(1).max(64),
+});
+const oauthExchangeSessionSchema = z.strictObject({
+  accessToken: z.string().min(1).max(8192),
+  refreshToken: z.string().min(1).max(4096),
+  user: z.strictObject({
+    id: z.string().uuid(),
+    email: z.string().email().max(254),
+    name: z.string().min(1).max(80),
+    role: z.enum(["USER", "ADMIN"]),
+    status: z.enum(["ACTIVE", "SUSPENDED"]),
+    verified: z.boolean(),
+    createdAt: z.string().datetime(),
+  }),
 });
 
 function sessionMetadata(req: Request) {
@@ -222,7 +236,11 @@ export async function completeOAuthCallback(provider: OAuthProvider, result: Awa
 
   const session = await issueSession(user, req);
   const code = randomToken();
-  await redis.setex(`oauth:exchange:${code}`, 60, JSON.stringify(session));
+  await redis.setex(
+    `oauth:exchange:${code}`,
+    60,
+    sealValue(JSON.stringify(session), env.REFRESH_SECRET),
+  );
   return { linked: false as const, code };
 }
 
@@ -231,5 +249,7 @@ export async function exchangeOAuthCode(code: string) {
   const value = await redis.get(key);
   if (!value) throw new AppError(400, "OAUTH_CODE_INVALID", "OAuth exchange is invalid or expired");
   await redis.del(key);
-  return JSON.parse(value) as Awaited<ReturnType<typeof issueSession>>;
+  const payload = openSealedValue(value, env.REFRESH_SECRET);
+  if (!payload) throw new AppError(400, "OAUTH_CODE_INVALID", "OAuth exchange is invalid or expired");
+  return oauthExchangeSessionSchema.parse(JSON.parse(payload));
 }

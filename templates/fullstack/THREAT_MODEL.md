@@ -10,15 +10,15 @@ The browser is untrusted. React route guards provide navigation behavior only. E
 
 ## Threats addressed
 
-- Refresh-token theft and replay: restricted HttpOnly cookies, Redis-backed rotation, atomic replacement, and replay rejection.
-- Cross-site cookie abuse: exact-origin checks on refresh, logout, OAuth exchange, and other cookie-driven mutations.
+- Refresh-token theft and replay: AES-256-GCM-sealed HttpOnly cookies, Redis-backed rotation, atomic replacement, and replay rejection.
+- Cross-site cookie abuse: exact-origin checks and signed double-submit CSRF tokens on browser mutations.
 - Token exfiltration through browser storage: access tokens remain in module memory; refresh tokens are never exposed to JavaScript.
 - Broken object authorization: every Project lookup or mutation is scoped by owner unless an explicit administrator policy allows it.
 - Privilege escalation: admin APIs require authenticated server-side role checks and record audit events.
 - Account enumeration: login and recovery responses are generic.
 - OAuth login CSRF: provider state is handled by Authenik8; the SPA receives only a single-use, short-lived exchange code.
 - Password database compromise: passwords and recovery/verification tokens are stored as one-way hashes.
-- Basic abuse and injection: Authenik8 rate limiting, request size limits, Zod validation, Prisma parameterization, security headers, and structured logging.
+- Basic abuse and injection: Redis-backed Authenik8 rate limiting, request size limits, Zod validation, Prisma parameterization, security headers, and structured logging.
 
 ## Residual risks
 

@@ -34,20 +34,11 @@ export function requiredSecret(name: string): string {
   return result.data;
 }
 
-
 export function requiredEnv(name: string): string {
   const result = environmentValueSchema.safeParse(process.env[name]);
   if (!result.success) throw new InputValidationError(`${name} must be set`);
   return result.data;
 }
-  const normalizedEmail = email.trim().toLowerCase();
-  const atIndex = normalizedEmail.indexOf("@");
-  const dotIndex = normalizedEmail.lastIndexOf(".");
-
-  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 || dotIndex === normalizedEmail.length - 1) {
-	  throw new Error("A valid email is required");
-  }
-
 
 export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
   const result = credentialsSchema.safeParse(body);

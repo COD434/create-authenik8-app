@@ -59,6 +59,8 @@ export function renderConfiguration(state: CliState): void {
   console.log(`${chalk.cyan("◆")} ${chalk.bold("Project configuration")}`);
   console.log(chalk.dim("│"));
   for (const [label, value] of rows) {
+    // Provider names are public CLI choices; OAuth credentials never enter this state.
+    // codeql[js/clear-text-logging]
     console.log(`${chalk.cyan("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
   }
   console.log(chalk.dim("│"));

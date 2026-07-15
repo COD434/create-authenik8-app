@@ -16,6 +16,8 @@ export const projectStatusSchema = z.enum(["DRAFT", "ACTIVE", "ARCHIVED"]);
 export const oauthProviderSchema = z.enum(["google", "github"]);
 export const identifierSchema = z.string().trim().uuid("A valid identifier is required");
 export const pageSchema = z.coerce.number().int().min(1).max(10_000).default(1);
+export const csrfTokenSchema = z.string()
+  .regex(/^[A-Za-z0-9_-]{43}\.[A-Za-z0-9_-]{43}$/, "A valid CSRF token is required");
 
 const emailSchema = z.string()
   .trim()
@@ -82,6 +84,7 @@ export type Role = z.infer<typeof roleSchema>;
 export type UserStatus = z.infer<typeof userStatusSchema>;
 export type ProjectStatus = z.infer<typeof projectStatusSchema>;
 export type OAuthProvider = z.infer<typeof oauthProviderSchema>;
+export type CsrfToken = z.infer<typeof csrfTokenSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type ProfileInput = z.infer<typeof profileSchema>;

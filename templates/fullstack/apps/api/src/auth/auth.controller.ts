@@ -11,7 +11,8 @@ import {
 import { env } from "../config/env.js";
 import { asyncHandler } from "../utils/http.js";
 import { presentUser } from "../modules/users/user.presenter.js";
-import { clearRefreshCookie, refreshCookieName, setRefreshCookie } from "./cookies.js";
+import { clearRefreshCookie, readRefreshCookie, setRefreshCookie } from "./cookies.js";
+import { issueCsrfToken } from "../middleware/csrf.js";
 import {
   completeOAuthCallback,
   consumeLinkIntent,
@@ -29,6 +30,11 @@ import {
 } from "./auth.service.js";
 import { prisma } from "../config/prisma.js";
 
+export const csrfTokenController = asyncHandler(async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.json({ csrfToken: issueCsrfToken(req, res) });
+});
+
 export const registerController = asyncHandler(async (req, res) => {
   res.status(201).json(await register(registerSchema.parse(req.body)));
 });
@@ -40,13 +46,13 @@ export const loginController = asyncHandler(async (req, res) => {
 });
 
 export const refreshController = asyncHandler(async (req, res) => {
-  const session = await rotateSession(req.cookies?.[refreshCookieName]);
+  const session = await rotateSession(readRefreshCookie(req));
   setRefreshCookie(res, session.refreshToken);
   res.json({ accessToken: session.accessToken, user: session.user });
 });
 
 export const logoutController = asyncHandler(async (req, res) => {
-  await revokeRefreshToken(req.cookies?.[refreshCookieName]);
+  await revokeRefreshToken(readRefreshCookie(req));
   clearRefreshCookie(res);
   res.json({ message: "Signed out" });
 });

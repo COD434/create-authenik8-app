@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate.js";
+import { requireCsrf } from "../../middleware/csrf.js";
 import { requireAllowedOrigin } from "../../middleware/origin.js";
 import {
   changePasswordController,
@@ -10,9 +11,11 @@ import {
 } from "./user.controller.js";
 
 export const userRoutes = Router();
+// authenik8-core's global Redis-backed limiter runs before this router.
+// codeql[js/missing-rate-limiting]
 userRoutes.use(authenticate);
-userRoutes.patch("/profile", requireAllowedOrigin, updateProfileController);
-userRoutes.put("/password", requireAllowedOrigin, changePasswordController);
+userRoutes.patch("/profile", requireAllowedOrigin, requireCsrf, updateProfileController);
+userRoutes.put("/password", requireAllowedOrigin, requireCsrf, changePasswordController);
 userRoutes.get("/sessions", sessionsController);
-userRoutes.delete("/sessions/:id", requireAllowedOrigin, revokeSessionController);
+userRoutes.delete("/sessions/:id", requireAllowedOrigin, requireCsrf, revokeSessionController);
 userRoutes.get("/providers", providersController);

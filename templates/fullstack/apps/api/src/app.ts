@@ -31,6 +31,7 @@ export function createApp() {
     },
   }));
   app.use(getAuthenik8().helmet);
+  // authenik8-core provides the Redis-backed limiter for every route below.
   app.use(getAuthenik8().rateLimit);
   app.use(express.json({ limit: "32kb", strict: true }));
   app.use(cookieParser());
@@ -52,6 +53,8 @@ export function createApp() {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
     const webDist = path.resolve(currentDir, "../../web/dist");
     app.use(express.static(webDist, { index: false, maxAge: "1h" }));
+
+    // codeql[js/missing-rate-limiting] authenik8-core rate-limits this handler globally.
     app.use((req, res, next) => {
       if (req.method === "GET" && req.accepts("html")) return res.sendFile(path.join(webDist, "index.html"));
       next();

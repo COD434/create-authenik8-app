@@ -38,9 +38,9 @@ OAuth variables are required only for an enabled provider. `RESEND_API_KEY` and 
 ## Security guarantees
 
 - Access tokens exist only in module memory and are sent as Bearer tokens.
-- Refresh tokens use an HttpOnly cookie scoped to `/api/auth`, with `SameSite=Lax` and `Secure` in production.
+- Refresh tokens are AES-256-GCM sealed in an HttpOnly cookie scoped to `/api`, with `SameSite=Strict` and `Secure` in production.
 - Refresh rotation, replay rejection, and server-side refresh revocation use Authenik8 and Redis.
-- Cookie-authenticated mutations enforce an exact allowed `Origin`.
+- Browser mutations enforce an exact allowed `Origin` and a signed double-submit CSRF token.
 - Admin and Project APIs enforce roles or ownership on the server.
 - Credential and recovery failures do not disclose whether an email address exists.
-- Request IDs, security headers, redacted structured logs, rate limiting, readiness, and liveness endpoints are enabled.
+- Request IDs, security headers, redacted structured logs, Redis-backed Authenik8 rate limiting, readiness, and liveness endpoints are enabled.

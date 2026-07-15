@@ -1,4 +1,4 @@
-import { registerSchema } from "@authenik8/contracts";
+import { csrfTokenSchema, registerSchema } from "@authenik8/contracts";
 import type {
   AdminUserUpdateInput,
   AuditEvent,
@@ -30,6 +30,8 @@ export class ApiError extends Error {
 
 let accessToken: string | null = null;
 let refreshRequest: Promise<boolean> | null = null;
+let csrfToken: string | null = null;
+let csrfRequest: Promise<string> | null = null;
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
@@ -53,13 +55,56 @@ async function parseResponse<T>(response: Response): Promise<T> {
   return body as T;
 }
 
-async function refreshAccessToken(): Promise<boolean> {
-  if (!refreshRequest) {
-    refreshRequest = fetch("/api/auth/refresh", {
-      method: "POST",
+async function getCsrfToken(force = false): Promise<string> {
+  if (force) {
+    csrfToken = null;
+    csrfRequest = null;
+  }
+  if (csrfToken) return csrfToken;
+
+  if (!csrfRequest) {
+    csrfRequest = fetch("/api/auth/csrf", {
       credentials: "include",
       headers: { Accept: "application/json" },
     })
+      .then((response) => parseResponse<{ csrfToken: unknown }>(response))
+      .then((body) => {
+        const token = csrfTokenSchema.parse(body.csrfToken);
+        csrfToken = token;
+        return token;
+      })
+      .finally(() => {
+        csrfRequest = null;
+      });
+  }
+
+  return await csrfRequest;
+}
+
+function isUnsafeMethod(method: string): boolean {
+  return !["GET", "HEAD", "OPTIONS"].includes(method);
+}
+
+async function isCsrfRejection(response: Response): Promise<boolean> {
+  if (response.status !== 403) return false;
+  const body = await response.clone().json().catch(() => null);
+  return body?.error?.code === "CSRF_REJECTED";
+}
+
+async function requestTokenRefresh(forceCsrf = false): Promise<Response> {
+  const token = await getCsrfToken(forceCsrf);
+  const response = await fetch("/api/auth/refresh", {
+    method: "POST",
+    credentials: "include",
+    headers: { Accept: "application/json", "X-CSRF-Token": token },
+  });
+  if (!forceCsrf && await isCsrfRejection(response)) return requestTokenRefresh(true);
+  return response;
+}
+
+async function refreshAccessToken(): Promise<boolean> {
+  if (!refreshRequest) {
+    refreshRequest = requestTokenRefresh()
       .then(async (response) => {
         if (!response.ok) return false;
         const result = await response.json() as AuthResponse;
@@ -76,11 +121,17 @@ async function refreshAccessToken(): Promise<boolean> {
 
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers);
+  const method = (init.method ?? "GET").toUpperCase();
   headers.set("Accept", "application/json");
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
   if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  if (isUnsafeMethod(method)) headers.set("X-CSRF-Token", await getCsrfToken());
 
   const response = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
+  if (retry && isUnsafeMethod(method) && await isCsrfRejection(response)) {
+    await getCsrfToken(true);
+    return apiFetch<T>(path, init, false);
+  }
   if (response.status === 401 && retry && path !== "/auth/refresh") {
     if (await refreshAccessToken()) return apiFetch<T>(path, init, false);
     accessToken = null;

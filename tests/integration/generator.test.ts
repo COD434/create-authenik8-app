@@ -285,8 +285,11 @@ describe("generator happy paths", () => {
         "apps/api/package.json",
         "apps/api/prisma.config.ts",
         "apps/api/prisma/schema.prisma",
+        "apps/api/src/app.ts",
+        "apps/api/src/auth/auth.routes.ts",
         "apps/api/src/config/prisma.ts",
         "apps/api/src/auth/cookies.ts",
+        "apps/api/src/middleware/csrf.ts",
         "apps/api/src/modules/projects/project.policy.ts",
         "apps/web/src/auth/AuthProvider.tsx",
         "apps/web/src/auth/providers.ts",
@@ -304,6 +307,7 @@ describe("generator happy paths", () => {
       const apiPkg = JSON.parse(files["apps/api/package.json"]);
       expect(apiPkg.dependencies["@prisma/client"]).toBe("7.8.0");
       expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.8.0");
+      expect(apiPkg.dependencies["express-rate-limit"]).toBeUndefined();
       expect(apiPkg.dependencies.zod).toBe("^4.4.3");
       expect(apiPkg.devDependencies.prisma).toBe("7.8.0");
       expect(pkg.overrides["@hono/node-server"]).toBe("1.19.13");
@@ -311,7 +315,12 @@ describe("generator happy paths", () => {
       expect(files["apps/api/prisma.config.ts"]).toContain('url: env("DATABASE_URL")');
       expect(files["apps/api/prisma/schema.prisma"]).toContain("model Project");
       expect(files["apps/api/src/config/prisma.ts"]).toContain("new PrismaPg");
+      expect(files["apps/api/src/app.ts"]).toContain("app.use(getAuthenik8().rateLimit)");
       expect(files["apps/api/src/auth/cookies.ts"]).toContain('httpOnly: true');
+      expect(files["apps/api/src/auth/cookies.ts"]).toContain("sealValue(");
+      expect(files["apps/api/src/auth/auth.routes.ts"]).toContain('authRoutes.get("/csrf"');
+      expect(files["apps/api/src/auth/auth.routes.ts"]).toContain("requireCsrf");
+      expect(files["apps/api/src/middleware/csrf.ts"]).toContain("timingSafeEqual");
       expect(files["apps/api/src/modules/projects/project.policy.ts"]).toContain("project.ownerId === actor.userId");
       expect(files["apps/web/src/auth/AuthProvider.tsx"]).toContain("authApi.restore()");
       expect(files["apps/web/src/auth/providers.ts"]).toContain("readonly OAuthProvider[]");

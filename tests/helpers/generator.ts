@@ -343,14 +343,35 @@ export async function runGeneratedServerSmoke(targetDir: string, entryPath: stri
   await installGeneratedAppStubs(targetDir);
 
   const smokeScriptPath = path.join(targetDir, "smoke-runner.mjs");
+  const smokeResultPath = path.join(targetDir, "smoke-result.json");
   const entryImportPath = `./${toPosixPath(entryPath)}`;
 
   await fs.writeFile(
     smokeScriptPath,
-    `globalThis.setInterval = () => ({ unref() {} });
+    `import { writeFile } from "node:fs/promises";
+
+const stdout = [];
+const stderr = [];
+const format = (values) => values.map((value) => String(value)).join(" ");
+console.log = (...values) => stdout.push(format(values));
+console.error = (...values) => stderr.push(format(values));
+globalThis.setInterval = () => ({ unref() {} });
 process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
-await import(${JSON.stringify(entryImportPath)});
-await new Promise((resolve) => setTimeout(resolve, 25));
+
+let failed = false;
+try {
+  await import(${JSON.stringify(entryImportPath)});
+  await new Promise((resolve) => setTimeout(resolve, 100));
+} catch (error) {
+  failed = true;
+  stderr.push(error instanceof Error ? (error.stack ?? error.message) : String(error));
+}
+
+await writeFile(${JSON.stringify(smokeResultPath)}, JSON.stringify({
+  stdout: stdout.join("\\n"),
+  stderr: stderr.join("\\n"),
+}));
+if (failed) process.exitCode = 1;
 `,
   );
 
@@ -369,37 +390,35 @@ await new Promise((resolve) => setTimeout(resolve, 25));
         GITHUB_CLIENT_SECRET: "github-client-secret",
         GITHUB_REDIRECT_URI: "https://example.com/auth/github/callback",
       },
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: "ignore",
     });
-
-    let stdout = "";
-    let stderr = "";
 
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error(`Generated server smoke test timed out for ${entryPath}`));
     }, 10_000);
 
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-
     child.on("error", (error) => {
       clearTimeout(timeout);
       reject(error);
     });
 
-    child.on("close", (code) => {
+    child.on("close", async (code) => {
       clearTimeout(timeout);
-      resolve({
-        code,
-        stdout: normalizeText(stdout),
-        stderr: normalizeText(stderr),
-      });
+      try {
+        const report = await fs.readJson(smokeResultPath) as { stdout?: string; stderr?: string };
+        resolve({
+          code,
+          stdout: normalizeText(report.stdout ?? ""),
+          stderr: normalizeText(report.stderr ?? ""),
+        });
+      } catch {
+        resolve({
+          code,
+          stdout: "",
+          stderr: code === 0 ? "Smoke result was not written" : `Generated server exited with code ${code}`,
+        });
+      }
     });
   });
 }
