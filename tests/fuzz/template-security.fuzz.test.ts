@@ -124,10 +124,14 @@ describe("template security fuzzing", () => {
       ).toThrow();
 
 <<<<<<< HEAD
+<<<<<<< HEAD
       assertFuzzProperty(
 =======
       fc.assert(
 >>>>>>> 4011375 (fix(deps):fixed window install)
+=======
+      assertFuzzProperty(
+>>>>>>> 77891ef ( chore: ci mess)
         fc.property(arbitraryBody, (body) => {
           const expected = schema.safeParse(body);
 
@@ -170,10 +174,14 @@ describe("template security fuzzing", () => {
 
     for (const [parseRefreshToken, schema] of parsers) {
 <<<<<<< HEAD
+<<<<<<< HEAD
       assertFuzzProperty(
 =======
       fc.assert(
 >>>>>>> befe6e3 (feat:new presets)
+=======
+      assertFuzzProperty(
+>>>>>>> 77891ef ( chore: ci mess)
         fc.property(arbitraryBody, (body) => {
           const expected = schema.safeParse(body);
 

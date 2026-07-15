@@ -68,6 +68,7 @@ export function requiredEnv(name: string): string {
   if (!result.success) throw new InputValidationError(`${name} must be set`);
   return result.data;
 }
+<<<<<<< HEAD
 
 <<<<<<< HEAD
 export function requiredPort(): number {
@@ -129,6 +130,8 @@ export function agentIdentityConfig(): AgentIdentityConfig | undefined {
     },
   };
 }
+=======
+>>>>>>> 77891ef ( chore: ci mess)
 
 export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
   const result = credentialsSchema.safeParse(body);
