@@ -405,7 +405,7 @@ describe("generator happy paths", () => {
         }],
       ]);
 
-      const authUrl = pathToFileURL(path.join(project.targetDir, "src/auth/auth.ts")).href;
+      const authUrl = pathToFileURL(path.join(project.targetDir, "src/auth/auth.js")).href;
       const controllerUrl = pathToFileURL(
         path.join(project.targetDir, "src/auth/controllers/oauth.controller.ts"),
       ).href;
