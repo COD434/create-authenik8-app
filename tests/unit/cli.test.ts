@@ -38,6 +38,9 @@ const mockModules = vi.hoisted(() => {
     initGit: vi.fn(async () => true),
     appendProductionReadme: vi.fn(),
     resolveRuntime: vi.fn((runtime: "node" | "bun" | undefined) => runtime ?? "node"),
+    dockerComposeAvailable: vi.fn(() => false),
+    dockerDaemonAvailable: vi.fn(() => false),
+    killAllProcesses: vi.fn(),
     printSummary: vi.fn(),
     spinner: {
       start: vi.fn(),
@@ -96,6 +99,12 @@ vi.mock("../../src/steps/finalSetup.js", () => ({
 
 vi.mock("../../src/utils/output.js", () => ({
   printSummary: mockModules.printSummary,
+}));
+
+vi.mock("../../src/lib/process.js", () => ({
+  dockerComposeAvailable: mockModules.dockerComposeAvailable,
+  dockerDaemonAvailable: mockModules.dockerDaemonAvailable,
+  killAllProcesses: mockModules.killAllProcesses,
 }));
 
 type CliRunResult = {
