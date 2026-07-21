@@ -58,7 +58,7 @@
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.9.3",
-    "@types/supertest": "^7.2.0",
+    "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "^4.1.8",
     "authenik8-core": "2.0.3",
     "fast-check": "^4.8.0",
