@@ -13,6 +13,10 @@ export const credentialsSchema = z.strictObject({
   password: passwordSchema,
 });
 
+export const refreshTokenBodySchema = z.strictObject({
+  refreshToken: z.string().trim().min(16, "Refresh token is required").max(4096),
+});
+
 const secretSchema = z.string().trim().min(32);
 const environmentValueSchema = z.string().trim().min(1);
 const portSchema = z.coerce.number().int().min(1).max(65535);
@@ -119,6 +123,14 @@ export function parseCredentials(body: unknown): z.infer<typeof credentialsSchem
     throw new InputValidationError(validationMessage(result.error, "Email and password are required"));
   }
   return result.data;
+}
+
+export function parseRefreshToken(body: unknown): string {
+  const result = refreshTokenBodySchema.safeParse(body);
+  if (!result.success) {
+    throw new InputValidationError(validationMessage(result.error, "Refresh token is required"));
+  }
+  return result.data.refreshToken;
 }
 
 export function parseIdentifier(value: unknown, label: string): string {

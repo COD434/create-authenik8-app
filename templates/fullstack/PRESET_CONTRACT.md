@@ -15,7 +15,8 @@ This document is the testable contract for the `fullstack` preset.
 
 | Command | Guarantee |
 | --- | --- |
-| `npm run dev` | Builds shared packages and starts API and web together. |
+| `npm run dev` | Starts project-local PostgreSQL, prepares data, then starts API and web together. |
+| `npm run setup` | Starts project-local PostgreSQL for the command, applies migrations, and creates idempotent seed data. |
 | `npm run build` | Produces the API and frontend production bundles. |
 | `npm start` | Starts Express, which serves `/api` and the built SPA. |
 | `npm run db:migrate` | Applies the Prisma PostgreSQL development migration. |
@@ -26,8 +27,11 @@ This document is the testable contract for the `fullstack` preset.
 
 - Vite: `http://localhost:5173`, proxying `/api` to Express.
 - Express: `http://localhost:3000`.
-- PostgreSQL: `localhost:5432` in local Docker Compose.
-- Redis: `localhost:6379` in local Docker Compose.
+- PostgreSQL: project-local PGlite, bound to loopback only while local commands run.
+- Redis: an in-process Redis-compatible store for local development.
+- Docker Compose is optional and explicit through `npm run docker:up`.
+- Set `AUTHENIK8_LOCAL_DATABASE=external` to use `DATABASE_URL` directly.
+- Production requires external PostgreSQL and Redis services.
 - Production uses one origin. Express serves `apps/web/dist` after `npm run build`.
 
 ## Environment contract

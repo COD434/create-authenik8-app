@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { getAuth } from "../auth";
 import { prisma } from "../../prisma/client";
 import { hashPassword, comparePassword } from "../../utils/hash";
-import { parseCredentials } from "../../utils/security";
+import { parseCredentials, parseRefreshToken } from "../../utils/security";
 
 export const passwordController = {
   async register(req: Request, res: Response) {
@@ -46,6 +46,17 @@ export const passwordController = {
       res.json({ accessToken, refreshToken });
     } catch {
       res.status(401).json({ error: "Invalid credentials" });
+    }
+  },
+
+  async refresh(req: Request, res: Response) {
+    try {
+      const refreshToken = parseRefreshToken(req.body);
+      const tokens = await getAuth().refreshToken(refreshToken);
+
+      res.json(tokens);
+    } catch {
+      res.status(401).json({ error: "Invalid refresh token" });
     }
   },
 };

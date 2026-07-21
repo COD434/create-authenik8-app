@@ -3,7 +3,7 @@
   "version": "2.4.4",
   "description": " Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
   "bin": {
-    "create-authenik8-app": "dist/src/bin/index.js"
+    "create-authenik8-app": "dist/src/bin/cli.js"
   },
   "keywords": [
     "cli",

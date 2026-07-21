@@ -29,6 +29,7 @@ export const stepNameSchema = z.enum([
   "production-configured",
   "deps-installed",
   "git-initialized",
+  "project-validated",
   "done",
 ]);
 
@@ -37,6 +38,12 @@ export const databaseSchema = z.enum(["sqlite", "postgresql"]);
 export const runtimeSchema = z.enum(["node", "bun"]);
 export const oauthProviderSchema = z.enum(["google", "github"]);
 export const authMethodSchema = z.enum(["password", "google", "github"]);
+
+export const oauthProvidersSchema = z.array(oauthProviderSchema)
+  .max(2)
+  .refine((providers) => new Set(providers).size === providers.length, {
+    error: "OAuth providers must be unique",
+  });
 
 function normalizeCheckboxChoices(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
@@ -139,8 +146,9 @@ export const cliStateSchema = z.strictObject({
   authMode: authModeSchema.optional(),
   hashLib: z.literal("bcryptjs").optional(),
   installDeps: z.boolean().optional(),
+  productionReady: z.boolean().optional(),
   packageManager: packageManagerSchema.optional(),
-  oauthProviders: z.array(oauthProviderSchema).max(2).optional(),
+  oauthProviders: oauthProvidersSchema.optional(),
   authMethods: z.array(authMethodSchema).max(3).optional(),
 });
 

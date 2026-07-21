@@ -3,6 +3,12 @@ import path from "path";
 import type { CliState } from "../lib/types.js";
 import { PRISMA_VERSION } from "../lib/constants.js";
 import { exitForInterrupt } from "../lib/process.js";
+import {
+  configureOAuthEnvironmentFiles,
+  oauthProviders,
+  supportedOAuthProviders,
+  type OAuthProvider,
+} from "../lib/oauth.js";
 import { configureSigningKeys } from "../utils/jwk.js";
 
 const oauthIdentityModel = `
@@ -44,6 +50,13 @@ async function removeUnusedPostgresService(targetDir: string): Promise<void> {
   await fs.writeFile(composePath, redisOnly);
 }
 
+function selectedOAuthProviders(state: CliState): OAuthProvider[] {
+  if (state.authMode !== "auth-oauth") return [];
+
+  const selected = supportedOAuthProviders(state.oauthProviders);
+  return selected.length ? selected : [...oauthProviders];
+}
+
 export async function configurePrisma(
   state: CliState,
   targetDir: string,
@@ -64,6 +77,10 @@ export async function configurePrisma(
   pkg.dependencies = {
     ...pkg.dependencies,
     ioredis: "^5.8.1",
+  };
+  pkg.devDependencies = {
+    ...pkg.devDependencies,
+    "ioredis-mock": "8.13.1",
   };
 
   if (state.usePrisma) {
@@ -101,43 +118,21 @@ export async function configurePrisma(
         path.join(targetDir, ".env.example")
       );
 
-      const providers = state.authMode === "auth-oauth"
-        ? (state.oauthProviders?.length ? state.oauthProviders : ["google", "github"])
-        : [];
-      const envPath = path.join(targetDir, ".env");
-      if (providers.length > 0) {
-        const env = await fs.readFile(envPath, "utf-8");
-        const providerPrefixes = new Set(providers.map((provider) => provider.toUpperCase()));
-        const filteredEnv = env
-          .split("\n")
-          .filter((line) => {
-            if (line.startsWith("GOOGLE_") || line.startsWith("GITHUB_")) {
-              const prefix = line.split("_")[0] ?? "";
-              return providerPrefixes.has(prefix);
-            }
-            return true;
-          })
-          .join("\n")
-          .replace(/\n*$/, "\n");
-
-        await fs.writeFile(
-          envPath,
-          `${filteredEnv}AUTHENIK8_OAUTH_PROVIDERS="${providers.join(",")}"\n`
-        );
-      }
+      await configureOAuthEnvironmentFiles(targetDir, selectedOAuthProviders(state));
 
       pkg.dependencies = {
         ...pkg.dependencies,
         "@prisma/client": PRISMA_VERSION,
         [dbType === "postgresql"
           ? "@prisma/adapter-pg"
-          : "@prisma/adapter-better-sqlite3"]: PRISMA_VERSION,
+          : "@prisma/adapter-libsql"]: PRISMA_VERSION,
       };
       delete pkg.dependencies[
         dbType === "postgresql"
-          ? "@prisma/adapter-better-sqlite3"
+          ? "@prisma/adapter-libsql"
           : "@prisma/adapter-pg"
       ];
+      delete pkg.dependencies["@prisma/adapter-better-sqlite3"];
 
       pkg.devDependencies = {
         ...pkg.devDependencies,
@@ -148,8 +143,9 @@ export async function configurePrisma(
 
       pkg.scripts = {
         ...pkg.scripts,
+        "db:migrate": "prisma migrate dev --name init && prisma generate",
         "prisma:generate": "prisma generate",
-        "prisma:migrate": "prisma migrate dev && prisma generate",
+        "prisma:migrate": "prisma migrate dev --name init && prisma generate",
       };
     } catch (err) {
       await exitForInterrupt(err);
@@ -167,6 +163,7 @@ export async function configurePrisma(
     if (await fs.pathExists(readmePath)) {
       const readme = (await fs.readFile(readmePath, "utf-8"))
         .replace(/\r\n/g, "\n")
+        .replaceAll("npm run db:migrate\n", "")
         .replaceAll("npm run prisma:migrate\n", "")
         .replace(/^DATABASE_URL=.*\n/gm, "")
         .replace(/^- `DATABASE_URL`:.*\n/gm, "")
