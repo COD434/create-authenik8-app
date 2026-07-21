@@ -204,6 +204,7 @@ export function parseRefreshToken(body: unknown): string {
   return result.data.refreshToken;
 }
 
+<<<<<<< HEAD
 =======
 export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
   const result = credentialsSchema.safeParse(body);
@@ -214,6 +215,8 @@ export function parseCredentials(body: unknown): z.infer<typeof credentialsSchem
 }
 
 >>>>>>> befe6e3 (feat:new presets)
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 export function parseIdentifier(value: unknown, label: string): string {
   const result = identifierSchema.safeParse(value);
   if (!result.success) throw new InputValidationError(`${label} is invalid`);

@@ -5,8 +5,13 @@
     "build": "tsc",
     "start": "node dist/src/server.js",
 <<<<<<< HEAD
+<<<<<<< HEAD
     "db:migrate": "prisma db push && prisma generate",
     "prisma:migrate": "prisma db push && prisma generate",
+=======
+    "db:migrate": "prisma migrate dev --name init && prisma generate",
+    "prisma:migrate": "prisma migrate dev --name init && prisma generate",
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     "docker:up": "docker compose up -d --wait",
 =======
     "prisma:migrate": "prisma migrate",
@@ -27,12 +32,17 @@
     "ioredis": "^5.8.1",
 =======
     "@prisma/client": "7.8.0",
+<<<<<<< HEAD
 >>>>>>> befe6e3 (feat:new presets)
+=======
+    "ioredis": "^5.8.1",
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.2",
+<<<<<<< HEAD
 <<<<<<< HEAD
     "ioredis-mock": "8.13.1",
     "prisma": "7.9.0",
@@ -48,6 +58,12 @@
      "prisma": "7.8.0"
 
 >>>>>>> befe6e3 (feat:new presets)
+=======
+    "ioredis-mock": "8.13.1",
+    "prisma": "7.8.0",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.0.0"
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
   },
   "overrides": {
     "@hono/node-server": "1.19.13"

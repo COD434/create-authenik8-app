@@ -235,6 +235,7 @@ describe("cross-platform process execution", () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
+<<<<<<< HEAD
 =======
   });
 
@@ -256,6 +257,8 @@ describe("cross-platform process execution", () => {
   });
 
 >>>>>>> befe6e3 (feat:new presets)
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
   it("classifies only supported interrupt signals", async () => {
     expect(processLib.isInterruptedError({ signal: "SIGINT" })).toBe(true);
     expect(processLib.isInterruptedError({ signal: "SIGTERM" })).toBe(true);

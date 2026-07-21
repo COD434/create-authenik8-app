@@ -482,7 +482,6 @@ describe("CLI", () => {
       false,
       expect.any(Boolean),
       expect.any(Boolean),
-<<<<<<< HEAD
     );
   });
 
@@ -511,8 +510,34 @@ describe("CLI", () => {
       true,
       expect.any(Boolean),
       expect.any(Boolean),
-=======
->>>>>>> 20fbce9 (fix: aligned wires with latest core)
+    );
+  });
+
+  it("preserves production-ready configuration when resuming", async () => {
+    const result = await runCli(["demo-auth", "--resume"], {
+      savedState: {
+        step: "prisma-configured",
+        framework: "Express",
+        authMode: "auth",
+        usePrisma: true,
+        database: "sqlite",
+        useGit: false,
+        runtime: "node",
+        installDeps: false,
+        packageManager: "npm",
+        productionReady: true,
+      },
+    });
+
+    expect(result.exitCode).toBeUndefined();
+    expect(mockModules.runPrompts).not.toHaveBeenCalled();
+    expect(mockModules.configureProduction).toHaveBeenCalledTimes(1);
+    expect(mockModules.appendProductionReadme).toHaveBeenCalledTimes(1);
+    expect(mockModules.printSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ productionReady: true }),
+      true,
+      expect.any(Boolean),
+      expect.any(Boolean),
     );
   });
 

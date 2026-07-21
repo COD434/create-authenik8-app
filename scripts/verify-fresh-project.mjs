@@ -57,6 +57,7 @@ function run(command, args, cwd) {
   });
 }
 
+<<<<<<< HEAD
 function createFreshProjectEnv(overrides = {}) {
   const environment = { ...process.env };
 
@@ -76,6 +77,8 @@ function createFreshProjectEnv(overrides = {}) {
   };
 }
 
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 function availablePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -96,11 +99,18 @@ function runUntilOutput(command, args, cwd, expectedOutput, environment) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
+<<<<<<< HEAD
       env: createFreshProjectEnv(environment),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
 
+=======
+      env: { ...process.env, ...environment },
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     let output = "";
     let ready = false;
     let settled = false;
@@ -220,7 +230,11 @@ try {
       [path.join(targetDir, "dist/server.js")],
       targetDir,
       `Auth system running on http://localhost:${port}`,
+<<<<<<< HEAD
       { NODE_ENV: "development", PORT: String(port), REDIS_URL: "memory://" },
+=======
+      { NODE_ENV: "development", PORT: String(port) },
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     );
   }
   console.log(`Fresh ${preset} project installed and built successfully.`);

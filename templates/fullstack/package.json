@@ -28,6 +28,9 @@
     "export:lovable-client": "npm run build:packages && node scripts/export-lovable-client.mjs",
     "db:generate": "npm run prisma:generate -w @authenik8/api",
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     "setup": "node scripts/run-local.mjs setup",
     "db:migrate": "node scripts/run-local.mjs migrate",
     "db:migrate:apply": "npm run prisma:migrate -w @authenik8/api",
@@ -35,11 +38,14 @@
     "db:seed:apply": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "node scripts/run-local.mjs studio",
     "db:studio:apply": "npm run prisma:studio -w @authenik8/api",
+<<<<<<< HEAD
 =======
     "db:migrate": "npm run prisma:migrate -w @authenik8/api",
     "db:seed": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "npm run prisma:studio -w @authenik8/api",
 >>>>>>> 20fbce9 (fix: aligned wires with latest core)
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },

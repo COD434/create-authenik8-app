@@ -49,11 +49,15 @@ AUTHENIK8_AUDIENCE=your-app-api
 AUTHENIK8_AGENTS={}
 REFRESH_SECRET=<generated-random-secret>
 <<<<<<< HEAD
+<<<<<<< HEAD
 REDIS_URL=memory://
 =======
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 >>>>>>> 20fbce9 (fix: aligned wires with latest core)
+=======
+REDIS_URL=memory://
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 ```
 
 ## Routes
@@ -130,6 +134,9 @@ export async function getProtected(accessToken: string) {
 `Prisma Client did not initialize`: run `npm run db:migrate`, then restart `npm run dev`.
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 `REDIS_URL=memory:// is for local development only`: configure a `redis://` or `rediss://` endpoint before running in production.
 
 `AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.

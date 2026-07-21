@@ -119,6 +119,7 @@ describe("completion output", () => {
 
   it("warns instead of printing an unusable Docker command when Compose is unavailable", () => {
 <<<<<<< HEAD
+<<<<<<< HEAD
     printSummary({ ...baseState, database: "postgresql" }, false, false);
 
     expect(printed()).toContain("Docker Compose was not found");
@@ -143,15 +144,35 @@ describe("completion output", () => {
     printSummary({ ...baseState, database: "postgresql" }, false, true, false);
 =======
     printSummary(baseState, false, false);
+=======
+    printSummary({ ...baseState, database: "postgresql" }, false, false);
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 
     expect(printed()).toContain("Docker Compose was not found");
-    expect(printed()).toContain("start Redis manually");
+    expect(printed()).toContain("provide PostgreSQL through DATABASE_URL");
     expect(printed()).not.toContain("npm run docker:up");
   });
 
+  it("keeps fullstack startup available when Docker is unavailable", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+    }, false, false);
+
+    expect(printed()).not.toContain("Docker Compose was not found");
+    expect(printed()).not.toContain("npm run setup");
+    expect(printed()).not.toContain("npm run db:migrate");
+    expect(printed()).toContain("npm run dev");
+  });
+
   it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
+<<<<<<< HEAD
     printSummary(baseState, false, true, false);
 >>>>>>> 20fbce9 (fix: aligned wires with latest core)
+=======
+    printSummary({ ...baseState, database: "postgresql" }, false, true, false);
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 
     expect(printed()).toContain("daemon is not reachable");
     expect(printed()).toContain("Start Docker Desktop or the Docker service");

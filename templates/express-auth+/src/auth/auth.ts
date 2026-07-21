@@ -2,9 +2,13 @@ import { createAuthenik8 } from "authenik8-core";
 import type { Authenik8Instance } from "authenik8-core";
 import dotenv  from "dotenv";
 <<<<<<< HEAD
+<<<<<<< HEAD
 import { createRedisClient } from "../config/redis";
 =======
 >>>>>>> 20fbce9 (fix: aligned wires with latest core)
+=======
+import { createRedisClient } from "../config/redis";
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 import { agentIdentityConfig, authJwkConfig, requiredSecret } from "../utils/security";
 
 dotenv.config();
@@ -21,9 +25,13 @@ export async function initAuth() {
     refreshSecret: requiredSecret("REFRESH_SECRET"),
     agent: agentIdentityConfig(),
 <<<<<<< HEAD
+<<<<<<< HEAD
     redis: await createRedisClient(),
 =======
 >>>>>>> 20fbce9 (fix: aligned wires with latest core)
+=======
+    redis: await createRedisClient(),
+>>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
     oauth: oauthConfig(),
   });
 
