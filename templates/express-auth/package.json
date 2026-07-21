@@ -18,7 +18,7 @@
     "authenik8-core": "2.0.3",
     "dotenv": "^16.0.0",
     "express": "^4.19.2",
-    "@prisma/client": "7.8.0",
+    "@prisma/client": "7.9.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {
