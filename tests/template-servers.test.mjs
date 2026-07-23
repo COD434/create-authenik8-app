@@ -264,7 +264,10 @@ export function requiredPort() {
           },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
           agent: undefined,
+<<<<<<< HEAD
           redis: "redis-client",
+=======
+>>>>>>> main
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);
@@ -343,7 +346,10 @@ export function requiredPort() {
           },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
           agent: undefined,
+<<<<<<< HEAD
           redis: "redis-client",
+=======
+>>>>>>> main
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);

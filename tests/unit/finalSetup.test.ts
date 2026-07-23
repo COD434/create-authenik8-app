@@ -181,7 +181,11 @@ describe('finalSetup.ts', () => {
 
       expect(fs.appendFileSync).toHaveBeenCalledWith(
         expect.stringContaining('README.md'),
+<<<<<<< HEAD
         expect.stringContaining('pnpm run pm2:start')
+=======
+        expect.stringContaining('## Production Mode')
+>>>>>>> main
       );
     });
 

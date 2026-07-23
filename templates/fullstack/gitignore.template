@@ -3,7 +3,10 @@ dist/
 .env
 *.log
 coverage/
+<<<<<<< HEAD
 .authenik8/
+=======
+>>>>>>> main
 .DS_Store
 apps/api/prisma/*.db
 apps/api/prisma/*.db-journal

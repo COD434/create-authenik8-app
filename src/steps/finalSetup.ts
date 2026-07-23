@@ -6,12 +6,15 @@ import {
   getCommand,
   exitForInterrupt,
 } from "../lib/process.js";
+<<<<<<< HEAD
 import {
   binaryCommand,
   productionReadmeCommands,
   runScriptCommand,
 } from "../lib/packageManagerCommands.js";
 import type { PackageManager } from "../lib/types.js";
+=======
+>>>>>>> main
 
 const PM2_VERSION = "^5.4.2";
 
@@ -77,7 +80,10 @@ export async function configureProduction(
   targetDir: string,
   projectName: string,
   runtime: "node" | "bun",
+<<<<<<< HEAD
   packageManager: PackageManager = "npm",
+=======
+>>>>>>> main
 ): Promise<void> {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -88,9 +94,15 @@ export async function configureProduction(
   const productionEntry = String(pkg.scripts.start ?? "node dist/server.js")
     .replace(/^node\s+/, "")
     .trim();
+<<<<<<< HEAD
   pkg.scripts["pm2:start"] = `${runScriptCommand(packageManager, "build")} && ${binaryCommand(packageManager, "pm2", "start ecosystem.config.js")}`;
   pkg.scripts["pm2:stop"] = binaryCommand(packageManager, "pm2", `stop ${projectName}`);
   pkg.scripts["pm2:logs"] = binaryCommand(packageManager, "pm2", "logs");
+=======
+  pkg.scripts["pm2:start"] = "npm run build && npx pm2 start ecosystem.config.js";
+  pkg.scripts["pm2:stop"] = `npx pm2 stop ${projectName}`;
+  pkg.scripts["pm2:logs"] = "npx pm2 logs";
+>>>>>>> main
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 

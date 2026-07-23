@@ -11,10 +11,16 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "test": "vitest run",
+<<<<<<< HEAD
     "pretypecheck": "prisma generate",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy && prisma generate",
+=======
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev && prisma generate",
+>>>>>>> main
     "prisma:seed": "prisma generate && prisma db seed",
     "prisma:studio": "prisma studio"
   },
@@ -29,7 +35,10 @@
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "ioredis": "^5.10.0",
+<<<<<<< HEAD
     "ioredis-mock": "8.13.1",
+=======
+>>>>>>> main
     "pino": "^9.7.0",
     "pino-http": "^10.4.0",
     "zod": "^4.4.3"

@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   auth: {
     issueTokens: vi.fn(),
+<<<<<<< HEAD
     refreshToken: vi.fn(),
+=======
+>>>>>>> main
   },
   passwordHash: {
     comparePassword: vi.fn(),
@@ -48,10 +51,13 @@ beforeEach(() => {
     accessToken: "real-access-token",
     refreshToken: "real-refresh-token",
   });
+<<<<<<< HEAD
   dependencies.auth.refreshToken.mockResolvedValue({
     accessToken: "refreshed-access-token",
     refreshToken: "rotated-refresh-token",
   });
+=======
+>>>>>>> main
   dependencies.passwordHash.comparePassword.mockResolvedValue(true);
   dependencies.passwordHash.hashPassword.mockResolvedValue("hashed-password");
   dependencies.prisma.user.findUnique.mockResolvedValue({
@@ -121,6 +127,7 @@ describe("generated password login flows", () => {
     expect(res.json).toHaveBeenCalledWith({ error: "Invalid credentials" });
     expect(dependencies.auth.issueTokens).not.toHaveBeenCalled();
   });
+<<<<<<< HEAD
 
   it("rotates refresh tokens in the OAuth preset", async () => {
     const { passwordController } = await import(
@@ -137,4 +144,6 @@ describe("generated password login flows", () => {
       refreshToken: "rotated-refresh-token",
     });
   });
+=======
+>>>>>>> main
 });

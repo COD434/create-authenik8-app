@@ -36,7 +36,13 @@ AUTHENIK8_ISSUER=http://localhost:3000
 AUTHENIK8_AUDIENCE=your-app-api
 AUTHENIK8_AGENTS={}
 REFRESH_SECRET=<generated-random-secret>
+<<<<<<< HEAD
 REDIS_URL=memory://
+=======
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+AUTHENIK8_OAUTH_PROVIDERS=google,github
+>>>>>>> main
 ```
 
 OAuth provider config is only required for providers selected during generation.
@@ -232,8 +238,11 @@ The callback URL in `.env` must match the provider dashboard exactly, including 
 
 `Prisma Client did not initialize`: run `npm run db:migrate`, then restart `npm run dev`.
 
+<<<<<<< HEAD
 `REDIS_URL=memory:// is for local development only`: configure a `redis://` or `rediss://` endpoint before running in production.
 
+=======
+>>>>>>> main
 `AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.
 
 `Cannot POST /auth/login`: confirm the server is running and you generated the password or OAuth auth template.

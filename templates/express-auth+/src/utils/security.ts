@@ -13,10 +13,13 @@ export const credentialsSchema = z.strictObject({
   password: passwordSchema,
 });
 
+<<<<<<< HEAD
 export const refreshTokenBodySchema = z.strictObject({
   refreshToken: z.string().trim().min(16, "Refresh token is required").max(4096),
 });
 
+=======
+>>>>>>> main
 const secretSchema = z.string().trim().min(32);
 const environmentValueSchema = z.string().trim().min(1);
 const portSchema = z.coerce.number().int().min(1).max(65535);
@@ -125,6 +128,7 @@ export function parseCredentials(body: unknown): z.infer<typeof credentialsSchem
   return result.data;
 }
 
+<<<<<<< HEAD
 export function parseRefreshToken(body: unknown): string {
   const result = refreshTokenBodySchema.safeParse(body);
   if (!result.success) {
@@ -133,6 +137,8 @@ export function parseRefreshToken(body: unknown): string {
   return result.data.refreshToken;
 }
 
+=======
+>>>>>>> main
 export function parseIdentifier(value: unknown, label: string): string {
   const result = identifierSchema.safeParse(value);
   if (!result.success) throw new InputValidationError(`${label} is invalid`);

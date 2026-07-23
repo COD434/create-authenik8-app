@@ -28,6 +28,7 @@ describe("CLI argument parsing", () => {
       });
   });
 
+<<<<<<< HEAD
   it("parses a complete deterministic generation contract", () => {
     expect(parseCliArguments([
       "demo-app",
@@ -49,17 +50,22 @@ describe("CLI argument parsing", () => {
     });
   });
 
+=======
+>>>>>>> main
   it.each([
     [["demo-app", "--unknown"], "Unknown option"],
     [["demo-app", "--package-manager"], "requires npm, pnpm, or bun"],
     [["demo-app", "--package-manager", "yarn"], "Unsupported package manager"],
     [["demo-app", "second-app"], "Only one project name"],
+<<<<<<< HEAD
     [["demo-app", "--preset", "base"], "require --non-interactive"],
     [["demo-app", "--yes", "--oauth", "google", "--no-oauth"], "cannot be used together"],
     [["demo-app", "--yes", "--prisma", "--no-prisma"], "cannot be used together"],
     [["demo-app", "--yes", "--preset", "unknown"], "--preset must be"],
     [["demo-app", "--yes", "--resume", "--preset", "base"], "cannot be combined"],
     [["demo-app", "--yes", "--preset", "base", "--preset", "auth"], "only be provided once"],
+=======
+>>>>>>> main
   ])("rejects invalid arguments %#", (argv, message) => {
     expect(() => parseCliArguments(argv)).toThrow(message);
   });

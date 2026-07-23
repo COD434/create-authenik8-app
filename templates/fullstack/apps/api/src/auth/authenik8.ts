@@ -1,5 +1,6 @@
 import { createAuthenik8 } from "authenik8-core";
 import { Redis } from "ioredis";
+<<<<<<< HEAD
 import RedisMock from "ioredis-mock";
 import { env } from "../config/env.js";
 
@@ -15,6 +16,14 @@ function createRedisClient(): Redis {
 }
 
 export const redis = createRedisClient();
+=======
+import { env } from "../config/env.js";
+
+export const redis = new Redis(env.REDIS_URL, {
+  maxRetriesPerRequest: 2,
+  enableReadyCheck: true,
+});
+>>>>>>> main
 
 type AuthInstance = Awaited<ReturnType<typeof createAuthenik8>>;
 let instance: AuthInstance | undefined;

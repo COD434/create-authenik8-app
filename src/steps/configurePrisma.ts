@@ -3,12 +3,15 @@ import path from "path";
 import type { CliState } from "../lib/types.js";
 import { PRISMA_VERSION } from "../lib/constants.js";
 import { exitForInterrupt } from "../lib/process.js";
+<<<<<<< HEAD
 import {
   configureOAuthEnvironmentFiles,
   oauthProviders,
   supportedOAuthProviders,
   type OAuthProvider,
 } from "../lib/oauth.js";
+=======
+>>>>>>> main
 import { configureSigningKeys } from "../utils/jwk.js";
 
 const oauthIdentityModel = `
@@ -49,6 +52,7 @@ async function removeUnusedPostgresService(targetDir: string): Promise<void> {
     .replace(/\n  postgres-data:\s*(?=\n|$)/, "");
   await fs.writeFile(composePath, redisOnly);
 }
+<<<<<<< HEAD
 
 function selectedOAuthProviders(state: CliState): OAuthProvider[] {
   if (state.authMode !== "auth-oauth") return [];
@@ -56,6 +60,8 @@ function selectedOAuthProviders(state: CliState): OAuthProvider[] {
   const selected = supportedOAuthProviders(state.oauthProviders);
   return selected.length ? selected : [...oauthProviders];
 }
+=======
+>>>>>>> main
 
 export async function configurePrisma(
   state: CliState,
@@ -77,10 +83,13 @@ export async function configurePrisma(
   pkg.dependencies = {
     ...pkg.dependencies,
     ioredis: "^5.8.1",
+<<<<<<< HEAD
   };
   pkg.devDependencies = {
     ...pkg.devDependencies,
     "ioredis-mock": "8.13.1",
+=======
+>>>>>>> main
   };
 
   if (state.usePrisma) {
@@ -125,6 +134,7 @@ export async function configurePrisma(
         "@prisma/client": PRISMA_VERSION,
         [dbType === "postgresql"
           ? "@prisma/adapter-pg"
+<<<<<<< HEAD
           : "@prisma/adapter-libsql"]: PRISMA_VERSION,
       };
       delete pkg.dependencies[
@@ -133,6 +143,15 @@ export async function configurePrisma(
           : "@prisma/adapter-pg"
       ];
       delete pkg.dependencies["@prisma/adapter-better-sqlite3"];
+=======
+          : "@prisma/adapter-better-sqlite3"]: PRISMA_VERSION,
+      };
+      delete pkg.dependencies[
+        dbType === "postgresql"
+          ? "@prisma/adapter-better-sqlite3"
+          : "@prisma/adapter-pg"
+      ];
+>>>>>>> main
 
       pkg.devDependencies = {
         ...pkg.devDependencies,
@@ -145,7 +164,11 @@ export async function configurePrisma(
         ...pkg.scripts,
         "db:migrate": "prisma db push && prisma generate",
         "prisma:generate": "prisma generate",
+<<<<<<< HEAD
         "prisma:migrate": "prisma db push && prisma generate",
+=======
+        "prisma:migrate": "prisma migrate dev && prisma generate",
+>>>>>>> main
       };
     } catch (err) {
       await exitForInterrupt(err);
@@ -163,7 +186,10 @@ export async function configurePrisma(
     if (await fs.pathExists(readmePath)) {
       const readme = (await fs.readFile(readmePath, "utf-8"))
         .replace(/\r\n/g, "\n")
+<<<<<<< HEAD
         .replaceAll("npm run db:migrate\n", "")
+=======
+>>>>>>> main
         .replaceAll("npm run prisma:migrate\n", "")
         .replace(/^DATABASE_URL=.*\n/gm, "")
         .replace(/^- `DATABASE_URL`:.*\n/gm, "")

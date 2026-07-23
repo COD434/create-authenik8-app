@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
+<<<<<<< HEAD
 import net from "node:net";
+=======
+>>>>>>> main
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -49,6 +52,7 @@ function run(command, args, cwd) {
   });
 }
 
+<<<<<<< HEAD
 function availablePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -111,6 +115,8 @@ function runUntilOutput(command, args, cwd, expectedOutput, environment) {
   });
 }
 
+=======
+>>>>>>> main
 async function useLocalCoreTarball(tarballPath) {
   if (!tarballPath) return;
   const dependency = `file:${path.resolve(tarballPath)}`;
@@ -130,6 +136,7 @@ try {
   await useLocalCoreTarball(process.env.AUTHENIK8_CORE_TARBALL);
 
   await run("npm", ["install", "--no-audit", "--no-fund"], targetDir);
+<<<<<<< HEAD
   if (preset === "auth-oauth") {
     await run("npm", ["run", "db:migrate"], targetDir);
   }
@@ -145,6 +152,10 @@ try {
       { NODE_ENV: "development", PORT: String(port) },
     );
   }
+=======
+  await run("npm", ["audit", "--omit=dev", "--audit-level=high"], targetDir);
+  await run("npm", ["run", "build"], targetDir);
+>>>>>>> main
   console.log(`Fresh ${preset} project installed and built successfully.`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });

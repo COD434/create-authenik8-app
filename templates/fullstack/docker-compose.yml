@@ -6,7 +6,11 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
+<<<<<<< HEAD
       - "127.0.0.1:55432:5432"
+=======
+      - "5432:5432"
+>>>>>>> main
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +24,11 @@ services:
     image: redis:7-alpine
     command: redis-server --appendonly yes
     ports:
+<<<<<<< HEAD
       - "127.0.0.1:56379:6379"
+=======
+      - "6379:6379"
+>>>>>>> main
     volumes:
       - redis-data:/data
     healthcheck:

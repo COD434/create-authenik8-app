@@ -450,14 +450,22 @@ export const createBaseRoutes = (auth: any) => {
   return router;
 };",
     "src/prisma/client.ts": "import "dotenv/config";
+<<<<<<< HEAD
 import { PrismaLibSql } from "@prisma/adapter-libsql";
+=======
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+>>>>>>> main
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
+<<<<<<< HEAD
 const adapter = new PrismaLibSql({
+=======
+const adapter = new PrismaBetterSqlite3({
+>>>>>>> main
   url: process.env.DATABASE_URL ?? "file:./dev.db",
 });
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
@@ -468,7 +476,10 @@ if (process.env.NODE_ENV !== "production") {
     "src/server.ts": "import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
+<<<<<<< HEAD
 import { createRedisClient } from "./config/redis";
+=======
+>>>>>>> main
 import { agentIdentityConfig, authJwkConfig, requiredPort, requiredSecret } from "../utils/security";
 
 dotenv.config();
@@ -478,7 +489,10 @@ async function start() {
     jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
     agent: agentIdentityConfig(),
+<<<<<<< HEAD
     redis: await createRedisClient(),
+=======
+>>>>>>> main
   });
 
   const app = createApp(auth);
@@ -517,8 +531,11 @@ start();",
     "routes/",
     "routes/base.routes.ts",
     "src/",
+<<<<<<< HEAD
     "src/config/",
     "src/config/redis.ts",
+=======
+>>>>>>> main
     "src/prisma/",
     "src/prisma/client.ts",
     "src/server.ts",

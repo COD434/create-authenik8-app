@@ -36,7 +36,12 @@ AUTHENIK8_ISSUER=http://localhost:3000
 AUTHENIK8_AUDIENCE=your-app-api
 AUTHENIK8_AGENTS={}
 REFRESH_SECRET=<generated-random-secret>
+<<<<<<< HEAD
 REDIS_URL=memory://
+=======
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+>>>>>>> main
 ```
 
 ## Routes
@@ -112,10 +117,15 @@ export async function getProtected(accessToken: string) {
 
 `Prisma Client did not initialize`: run `npm run db:migrate`, then restart `npm run dev`.
 
+<<<<<<< HEAD
 `REDIS_URL=memory:// is for local development only`: configure a `redis://` or `rediss://` endpoint before running in production.
 
 `AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.
 
+=======
+`AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.
+
+>>>>>>> main
 `Port 3000 already in use`: stop the other process or set `PORT` in `.env`.
 
 `DATABASE_URL is wrong`: for SQLite use `file:./dev.db`; for local Docker Postgres use `postgresql://postgres:postgres@localhost:5432/authenik8?schema=public`.

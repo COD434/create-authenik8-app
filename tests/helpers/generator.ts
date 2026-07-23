@@ -7,7 +7,10 @@ import fs from "fs-extra";
 import { vi } from "vitest";
 
 import type { CliState } from "../../src/lib/types.js";
+<<<<<<< HEAD
 import { writeProjectManifest } from "../../src/lib/projectManifest.js";
+=======
+>>>>>>> main
 import {
   createProject,
   configurePackageJson,
@@ -44,7 +47,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../");
 const templateRoot = path.join(repoRoot, "templates");
+<<<<<<< HEAD
 const generatorVersion = (fs.readJsonSync(path.join(repoRoot, "package.json")) as { version: string }).version;
+=======
+>>>>>>> main
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
 const tsxLoaderUrl = pathToFileURL(tsxLoaderPath).href;
 
@@ -137,10 +143,14 @@ export async function generateProjectFixture(
   }
 
   await configurePrisma(state, targetDir, fixtureTemplateRoot);
+<<<<<<< HEAD
   const packageManager = state.authMode === "fullstack"
     ? "npm"
     : options.packageManager ?? "npm";
   configurePackageJson(targetDir, state.usePrisma ?? false, packageManager);
+=======
+  configurePackageJson(targetDir, state.usePrisma ?? false, options.packageManager ?? "npm");
+>>>>>>> main
 
   if (options.productionRuntime) {
     await configureProduction(
@@ -252,9 +262,12 @@ export async function installGeneratedAppStubs(
       targetDir,
       "authenik8-core",
       `export async function createAuthenik8(config) {
+<<<<<<< HEAD
   if (!config?.redis) {
     throw new Error("Generated servers must inject a Redis-compatible client");
   }
+=======
+>>>>>>> main
   globalThis.__authenik8MockConfig = config;
   return {
     helmet(req, res, next) {
@@ -387,6 +400,7 @@ export async function installGeneratedAppStubs(
   );
   await fs.writeFile(path.join(dotenvDir, "config.js"), "export {};\n");
 
+<<<<<<< HEAD
   await writePackageStub(
     targetDir,
     "ioredis",
@@ -410,6 +424,8 @@ export default Redis;
 `,
   );
 
+=======
+>>>>>>> main
   if (options.realExpress) {
     await fs.ensureSymlink(
       path.join(repoRoot, "node_modules", "express"),
@@ -503,8 +519,13 @@ export default express;
 
   await writePackageStub(
     targetDir,
+<<<<<<< HEAD
     "@prisma/adapter-libsql",
     `export class PrismaLibSql {}
+=======
+    "@prisma/adapter-better-sqlite3",
+    `export class PrismaBetterSqlite3 {}
+>>>>>>> main
 `,
   );
 
