@@ -143,9 +143,9 @@ export async function configurePrisma(
 
       pkg.scripts = {
         ...pkg.scripts,
-        "db:migrate": "prisma migrate dev --name init && prisma generate",
+        "db:migrate": "prisma db push && prisma generate",
         "prisma:generate": "prisma generate",
-        "prisma:migrate": "prisma migrate dev --name init && prisma generate",
+        "prisma:migrate": "prisma db push && prisma generate",
       };
     } catch (err) {
       await exitForInterrupt(err);

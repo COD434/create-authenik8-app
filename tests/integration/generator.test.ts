@@ -39,7 +39,7 @@ describe("generator happy paths", () => {
       expect(pkg.scripts.postinstall).toBe("prisma generate");
       expect(pkg.scripts.dev).toContain("prisma generate");
       expect(pkg.scripts["db:migrate"]).toBe(
-        "prisma migrate dev --name init && prisma generate",
+        "prisma db push && prisma generate",
       );
       expect(pkg.dependencies["@prisma/client"]).toBe("7.8.0");
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
@@ -239,7 +239,7 @@ describe("generator happy paths", () => {
       expect(pkg.devDependencies["@types/bcryptjs"]).toBe("^2.4.6");
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
       expect(pkg.scripts["db:migrate"]).toBe(
-        "prisma migrate dev --name init && prisma generate",
+        "prisma db push && prisma generate",
       );
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies.ioredis).toBe("^5.8.1");
@@ -294,7 +294,7 @@ describe("generator happy paths", () => {
       expect(pkg.devDependencies["@types/bcryptjs"]).toBe("^2.4.6");
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
       expect(pkg.scripts["db:migrate"]).toBe(
-        "prisma migrate dev --name init && prisma generate",
+        "prisma db push && prisma generate",
       );
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies["ts-node"]).toBeUndefined();

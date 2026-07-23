@@ -87,7 +87,7 @@ describe("Express preset onboarding", () => {
 
       await runNpmScript(project, "db:migrate", callLog);
       expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
-        "prisma migrate dev --name init",
+        "prisma db push",
         "prisma generate",
       ]);
 
