@@ -8,18 +8,56 @@ agent access without exposing an unsafe public token-minting route.
 
 ## Local development
 
-Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.
+Requirements: Node.js 20.19+, 22.12+, or 24+ and npm. Docker is optional.
 
 ```bash
-docker compose up -d
-npm run db:migrate
-npm run db:seed
 npm run dev
 ```
 
-Open `http://localhost:5173`. The API runs on `http://localhost:3000/api`. The generated `.env` contains development values; replace every secret before deploying.
+That one command starts project-local PostgreSQL, applies the shipped migration,
+creates the seed administrator, and starts every development watcher.
+Redis-compatible auth state runs inside the API process during local
+development. Setup is idempotent, so subsequent runs reuse the same database. Open
+`http://localhost:5173`. The API runs on `http://localhost:3000/api`.
 
-The seeded administrator uses `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. Change the default password immediately, including for local environments shared by multiple people.
+Run setup without starting the watchers when needed:
+
+```bash
+npm run setup
+```
+
+The embedded PostgreSQL server listens only on loopback while a local command is
+running and stores data under `.authenik8/`. No global PostgreSQL, Redis, or
+Docker installation is required. If you provide your own PostgreSQL, set
+`AUTHENIK8_LOCAL_DATABASE=external` and update `DATABASE_URL`.
+
+Docker Compose remains available as an explicit option:
+
+```bash
+npm run docker:up
+```
+
+When using the containers, set `AUTHENIK8_LOCAL_DATABASE=external` and
+`REDIS_URL=redis://localhost:56379`. Production must always use external
+PostgreSQL and a real `redis://` or `rediss://` service. The API rejects the
+in-process Redis setting in production.
+
+The generated `.env` contains development values; replace every secret before deploying.
+
+Validate the workspace auth configuration and selected Redis mode at any time:
+
+```bash
+npx create-authenik8-app@latest doctor
+```
+
+`authenik8.json` records the generated architecture and Authenik8 engine version. It contains no secrets and should be committed with the workspace.
+
+After committing `package-lock.json`, run `npx create-authenik8-app@latest add ci-github` to add the pinned Doctor and upgrade-policy workflow. Preview it first with `--dry-run`.
+
+With an unchanged generated `.env`, sign in with `admin@example.com` and
+`ChangeMe123!`. These values come from `SEED_ADMIN_EMAIL` and
+`SEED_ADMIN_PASSWORD`. Change the password immediately, including for local
+environments shared by multiple people.
 
 ## Application map
 
@@ -62,4 +100,4 @@ Read [docs/PRODUCTION.md](docs/PRODUCTION.md) and [THREAT_MODEL.md](THREAT_MODEL
 - `GET /api/health/ready` checks PostgreSQL and Redis.
 - `GET /api/docs/openapi.json` returns the generated OpenAPI 3.1 contract.
 - `npm test` covers ownership/admin policies, encrypted cookies, origin and CSRF defenses, and the browser storage rule.
-- `npm run typecheck` checks each workspace.
+- `npm run typecheck` builds internal packages, generates Prisma Client, and checks each workspace from a clean checkout.

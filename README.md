@@ -1,4 +1,3 @@
-
 <div align="center">
 
 ![create-authenik8-app logo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/logo.svg)
@@ -16,6 +15,10 @@
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
+
+See a real generated project in [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example).
+
+## Quickstart
 **See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
@@ -25,9 +28,11 @@
 
 Create a new project:
 
+
 ```bash
 npx create-authenik8-app my-app
 ```
+
 
 Choose the installer for an Express preset when needed:
 
@@ -174,10 +179,37 @@ The CLI is tested on Linux, Windows, and macOS. Express presets support npm, pnp
 
 Git initialization is skipped with a clear status when Git is unavailable. Installer failures retain the package manager's diagnostic output, while successful interactive runs keep the progress display concise.
 
----
 
-## Environment Variables
+Choose the fullstack application for a connected React and Express project, or select one of the focused Express API presets. Start with the [quickstart guide](docs/quickstart.md) for requirements and generated-project commands.
 
+## Documentation
+
+
+### Create and maintain projects
+
+- [Quickstart](docs/quickstart.md)
+- [Non-interactive generation](docs/non-interactive-generation.md)
+- [Project diagnostics](docs/project-diagnostics.md)
+- [Post-generation recipes](docs/post-generation-recipes.md)
+- [Upgrade planning and CI policy](docs/upgrades-and-ci.md)
+- [CLI reference](docs/cli-reference.md)
+
+### Choose an application shape
+
+- [Presets](docs/presets.md)
+- [Fullstack App Kit](docs/fullstack-app-kit.md)
+- [Core authentication features](docs/authentication-features.md)
+- [Why create-authenik8-app](docs/why-create-authenik8-app.md)
+- [Requirements](docs/requirements.md)
+
+### Configure authentication
+
+- [Environment variables](docs/environment-variables.md)
+- [RBAC example](docs/rbac-example.md)
+- [Identity Engine](docs/identity-engine.md)
+- [Using authenik8-core](docs/authenik8-core.md)
+- [Threat model](docs/threat-model.md)
+=======
 The CLI creates a git-ignored `.env` with a unique ES256 signing key and refresh secret. Move those values into your deployment secret manager; never commit the private JWK.
 
 ### Express API presets
@@ -220,12 +252,25 @@ GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/oauth/github/callback
 ```
 
 OAuth variables are generated only for selected providers. The fullstack `.env.example` also documents cookie, proxy, logging, mail delivery, and seed-admin settings.
+>>>>>>> main
 
----
+### Operate and evaluate
 
+- [Testing](docs/testing.md)
+- [Production enhancements](docs/production-enhancements.md)
+- [Authenik8 compared with Passport.js](docs/authenik8-vs-passport.md)
+- [Project notes](docs/notes.md)
+- [Roadmap](docs/roadmap.md)
 
-## RBAC Example
+## Contributing and support
 
+<<<<<<< HEAD
+- [Contributing](CONTRIBUTING.md)
+- [Testing this repository](TESTING.md)
+- [Security policy](SECURITY.md)
+- [Code of conduct](CODE_OF_CONDUCT.md)
+- [Changelog](CHANGELOG.md)
+=======
 Example of a protected route:
 ```
 app.get("/admin", auth.requireAdmin, (req, res) => {
@@ -551,3 +596,4 @@ The Identity Engine is what makes Authenik8 feel like a coherent **authenticatio
 • MFA
 
 • Production presets
+

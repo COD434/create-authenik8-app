@@ -6,6 +6,12 @@ import {
   getCommand,
   exitForInterrupt,
 } from "../lib/process.js";
+import {
+  binaryCommand,
+  productionReadmeCommands,
+  runScriptCommand,
+} from "../lib/packageManagerCommands.js";
+import type { PackageManager } from "../lib/types.js";
 
 const PM2_VERSION = "^5.4.2";
 
@@ -71,6 +77,7 @@ export async function configureProduction(
   targetDir: string,
   projectName: string,
   runtime: "node" | "bun",
+  packageManager: PackageManager = "npm",
 ): Promise<void> {
   const pkgPath = path.join(targetDir, "package.json");
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
@@ -81,9 +88,9 @@ export async function configureProduction(
   const productionEntry = String(pkg.scripts.start ?? "node dist/server.js")
     .replace(/^node\s+/, "")
     .trim();
-  pkg.scripts["pm2:start"] = "npm run build && npx pm2 start ecosystem.config.js";
-  pkg.scripts["pm2:stop"] = `npx pm2 stop ${projectName}`;
-  pkg.scripts["pm2:logs"] = "npx pm2 logs";
+  pkg.scripts["pm2:start"] = `${runScriptCommand(packageManager, "build")} && ${binaryCommand(packageManager, "pm2", "start ecosystem.config.js")}`;
+  pkg.scripts["pm2:stop"] = binaryCommand(packageManager, "pm2", `stop ${projectName}`);
+  pkg.scripts["pm2:logs"] = binaryCommand(packageManager, "pm2", "logs");
 
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2));
 
@@ -107,9 +114,16 @@ export async function initGit(targetDir: string): Promise<boolean> {
   }
 }
 
-export function appendProductionReadme(targetDir: string, projectName: string): void {
+export function appendProductionReadme(
+  targetDir: string,
+  projectName: string,
+  packageManager: PackageManager = "npm",
+): void {
+  const readmePath = path.join(targetDir, "README.md");
+  if (fs.readFileSync(readmePath, "utf8").includes("## Production Mode")) return;
+  const commands = productionReadmeCommands(packageManager);
   fs.appendFileSync(
-    path.join(targetDir, "README.md"),
+    readmePath,
     `
 
 ## Production Mode
@@ -118,15 +132,15 @@ This project is configured for production using PM2.
 
 Build and start the compiled app in cluster mode:
 
-npm run pm2:start
+${commands.start}
 
 View logs:
 
-npm run pm2:logs
+${commands.logs}
 
 Stop app:
 
-npm run pm2:stop
+${commands.stop}
 
    `,
   );
