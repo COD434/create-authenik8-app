@@ -839,11 +839,16 @@ describe("generator happy paths", () => {
       ]);
 
       expect(pkg.workspaces).toEqual(["apps/*", "packages/*"]);
-      expect(pkg.scripts.dev).toContain("concurrently");
-      expect(pkg.scripts.dev).toContain("@authenik8/contracts");
-      expect(pkg.scripts.dev).toContain("@authenik8/api-client");
-      expect(pkg.scripts.dev).toContain("@authenik8/ui");
-      expect(pkg.scripts.postinstall).toBeUndefined();
+ //     expect(pkg.scripts.dev).toContain("concurrently");
+   //   expect(pkg.scripts.dev).toContain("@authenik8/contracts");
+     // expect(pkg.scripts.dev).toContain("@authenik8/api-client");
+      //expect(pkg.scripts.dev).toContain("@authenik8/ui");
+      	 expect(pkg.scripts.dev).toBe("node scripts/run-local.mjs dev");
+	 expect(pkg.scripts["dev:watch"]).toContain("concurrently");
+	 expect(pkg.scripts["dev:watch"]).toContain("@authenik8/contracts");
+ 	 expect(pkg.scripts["dev:watch"]).toContain("@authenik8/api-client");
+     	 expect(pkg.scripts["dev:watch"]).toContain("@authenik8/ui");
+         expect(pkg.scripts.postinstall).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
         "prisma@7.8.0": true,
         "@prisma/engines@7.8.0": true,

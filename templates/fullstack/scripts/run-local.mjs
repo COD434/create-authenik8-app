@@ -28,11 +28,29 @@ function envValue(name) {
   }
 }
 
+
+function npmInvocation(script) {
+
+  if (process.platform === "win32") {
+    return {
+      executable: process.env.ComSpec ?? "cmd.exe",
+      args: ["/d", "/s", "/c", `npm run ${script}`],
+    };
+  }
+
+  return {
+    executable: "npm",
+    args: ["run", script],
+  };
+}
+
 function runScript(script, environment) {
   return new Promise((resolve, reject) => {
-    const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-    const child = spawn(executable, ["run", script], {
-      cwd: projectRoot,
+    //const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+    //const child = spawn(executable, ["run", script], {
+      const { executable, args } = npmInvocation(script);
+	const child = spawn(executable, args,{
+	  cwd: projectRoot,
       env: environment,
       stdio: "inherit",
     });

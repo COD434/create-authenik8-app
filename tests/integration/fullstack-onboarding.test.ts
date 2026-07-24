@@ -111,6 +111,8 @@ describe("fullstack local onboarding", () => {
     expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
       "run db:migrate:apply",
       "run db:seed:apply",
+	//"run prisma:migrate -w @authenik8/api",
+         //"run prisma:seed -w @authenik8/api"
     ]);
   });
 
@@ -127,6 +129,8 @@ describe("fullstack local onboarding", () => {
     expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
       "run db:migrate:apply",
       "run db:seed:apply",
+//	"run prisma:migrate -w @authenik8/api",
+//	 "run prisma:seed -w @authenik8/api"
     ]);
   });
 
@@ -142,7 +146,9 @@ describe("fullstack local onboarding", () => {
 
     expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
       "run db:migrate:apply",
-      "run db:seed:apply",
+     "run db:seed:apply",
+     //"run prisma:migrate -w @authenik8/api",
+     // "run prisma:seed -w @authenik8/api",
       "run dev:watch",
     ]);
   });

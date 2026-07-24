@@ -41,11 +41,36 @@ async function runNpmScript(
   script: string,
   callLog: string,
 ): Promise<void> {
-  const executable = process.platform === "win32" ? "npm.cmd" : "npm";
-  await execFileAsync(executable, ["run", script], {
+  //const executable = process.platform === "win32" ? "npm.cmd" : "npm";
+//  await execFileAsync(executable, ["run", script],
+const options ={
     cwd: project.targetDir,
     env: { ...process.env, COMMAND_LOG: callLog },
-  });
+  };
+ const npmExecPath = process.env.npm_execpath;
+
+  if (npmExecPath) {
+    await execFileAsync(
+      process.execPath,
+      [npmExecPath, "run", script],
+      options,
+    );
+    return;
+  }
+
+  // Fallback for tests launched directly instead of through npm.
+  if (process.platform === "win32") {
+    await execFileAsync(
+      process.env.ComSpec ?? "cmd.exe",
+      ["/d", "/s", "/c", `npm run ${script}`],
+      options,
+    );
+    return;
+  }
+
+  await execFileAsync("npm", ["run", script], options);
+
+
 }
 
 afterEach(async () => {
