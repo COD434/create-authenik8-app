@@ -99,11 +99,7 @@ describe('prompts.ts', () => {
     (inquirer.prompt as any).mockResolvedValueOnce({
       framework: 'Express',
       authMode: 'fullstack',
-<<<<<<< HEAD
       fullstackOAuthProviders: ['github'],
-=======
-      authMethods: ['password', 'github'],
->>>>>>> main
       database: 'sqlite',
       useGit: true,
     });
@@ -121,11 +117,7 @@ describe('prompts.ts', () => {
     (inquirer.prompt as any).mockResolvedValueOnce({
       framework: 'Express',
       authMode: 'fullstack',
-<<<<<<< HEAD
       fullstackOAuthProviders: [],
-=======
-      authMethods: ['password'],
->>>>>>> main
       useGit: true,
     });
 
@@ -141,23 +133,16 @@ describe('prompts.ts', () => {
     expect(runtime.when({ authMode: 'fullstack' })).toBe(false);
     expect(preset.default).toBe('fullstack');
     expect(preset.choices[0]).toMatchObject({ value: 'fullstack' });
-<<<<<<< HEAD
     expect(preset.choices[0].name).toContain('embedded PostgreSQL, npm');
     expect(preset.choices[0].name).not.toContain('Docker');
     expect(preset.choices[1].name).toContain('bring your own identity source');
   });
 
   it('keeps password auth while making fullstack OAuth opt-in', async () => {
-=======
-  });
-
-  it('keeps password selected and validates normalized checkbox choices', async () => {
->>>>>>> main
     vi.mocked(hasBun).mockReturnValue(false);
     (inquirer.prompt as any).mockResolvedValueOnce({
       framework: 'Express',
       authMode: 'fullstack',
-<<<<<<< HEAD
       fullstackOAuthProviders: [],
       useGit: false,
     });
@@ -177,23 +162,6 @@ describe('prompts.ts', () => {
       'github',
     ]);
     expect(oauthProviders.choices.every((choice: any) => choice.checked !== true)).toBe(true);
-=======
-      authMethods: ['password', 'google', 'github'],
-      useGit: false,
-    });
-
-    await runPrompts({} as any, false);
-
-    const questions = vi.mocked(inquirer.prompt).mock.calls[0]?.[0] as any[];
-    const authMethods = questions.find((question) => question.name === 'authMethods');
-    const password = authMethods.choices.find((choice: any) => choice.value === 'password');
-
-    expect(password).toMatchObject({ name: 'Email and password (required)', checked: true });
-    expect(authMethods.validate([{ value: 'password' }, { value: 'github' }])).toBe(true);
-    expect(authMethods.validate([{ value: 'github' }])).toBe(
-      'Email and password is required by the first full-stack preset',
-    );
->>>>>>> main
   });
 
   it('rejects invalid answers returned by the prompt adapter', async () => {

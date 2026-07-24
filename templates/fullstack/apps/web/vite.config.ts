@@ -7,7 +7,6 @@ const apiProxy = {
 
 export default defineConfig({
   plugins: [react()],
-<<<<<<< HEAD
   build: {
     rollupOptions: {
       output: {
@@ -20,8 +19,6 @@ export default defineConfig({
       },
     },
   },
-=======
->>>>>>> main
   server: {
     port: 5173,
     proxy: apiProxy,

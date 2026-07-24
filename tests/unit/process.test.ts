@@ -52,10 +52,7 @@ describe("cross-platform process execution", () => {
       stdio: "ignore",
       env: undefined,
       shell: process.platform === "win32",
-<<<<<<< HEAD
       detached: process.platform !== "win32",
-=======
->>>>>>> main
       windowsHide: true,
     });
   });
@@ -158,7 +155,6 @@ describe("cross-platform process execution", () => {
     );
   });
 
-<<<<<<< HEAD
   it("terminates the entire child process group on Unix", async () => {
     const child = mockChild(9876);
     const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
@@ -173,8 +169,6 @@ describe("cross-platform process execution", () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
-=======
->>>>>>> main
   it("classifies only supported interrupt signals", async () => {
     expect(processLib.isInterruptedError({ signal: "SIGINT" })).toBe(true);
     expect(processLib.isInterruptedError({ signal: "SIGTERM" })).toBe(true);

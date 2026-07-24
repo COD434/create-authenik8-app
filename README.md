@@ -15,11 +15,10 @@
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
 
-<<<<<<< HEAD
+
 See a real generated project in [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example).
 
 ## Quickstart
-=======
 **See a real generated example → [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example)**
 
 
@@ -28,13 +27,12 @@ See a real generated project in [create-authenik8-app-example](https://github.co
 ## Quickstart
 
 Create a new project:
->>>>>>> main
+
 
 ```bash
 npx create-authenik8-app my-app
 ```
-<<<<<<< HEAD
-=======
+
 
 Choose the installer for an Express preset when needed:
 
@@ -180,13 +178,13 @@ The CLI is tested on Linux, Windows, and macOS. Express presets support npm, pnp
 | `--version` | Print the installed CLI version |
 
 Git initialization is skipped with a clear status when Git is unavailable. Installer failures retain the package manager's diagnostic output, while successful interactive runs keep the progress display concise.
->>>>>>> main
+
 
 Choose the fullstack application for a connected React and Express project, or select one of the focused Express API presets. Start with the [quickstart guide](docs/quickstart.md) for requirements and generated-project commands.
 
 ## Documentation
 
-<<<<<<< HEAD
+
 ### Create and maintain projects
 
 - [Quickstart](docs/quickstart.md)
@@ -598,4 +596,4 @@ The Identity Engine is what makes Authenik8 feel like a coherent **authenticatio
 • MFA
 
 • Production presets
->>>>>>> main
+

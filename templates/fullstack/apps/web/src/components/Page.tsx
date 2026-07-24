@@ -11,7 +11,6 @@ export function PageHeader({ title, description, action }: { title: string; desc
   );
 }
 
-<<<<<<< HEAD
 export function getErrorMessage(error: unknown) {
   const fieldMessage = error instanceof ApiError
     ? Object.values(error.fields ?? {}).flat()[0]
@@ -23,16 +22,6 @@ export function getErrorMessage(error: unknown) {
 
 export function ErrorNotice({ error }: { error: unknown }) {
   return <div className="notice notice-error" role="alert"><AlertTriangle size={17} /><span>{getErrorMessage(error)}</span></div>;
-=======
-export function ErrorNotice({ error }: { error: unknown }) {
-  const fieldMessage = error instanceof ApiError
-    ? Object.values(error.fields ?? {}).flat()[0]
-    : undefined;
-  const message = error instanceof ApiError
-    ? fieldMessage ?? error.message
-    : "Something went wrong. Try again.";
-  return <div className="notice notice-error" role="alert"><AlertTriangle size={17} /><span>{message}</span></div>;
->>>>>>> main
 }
 
 export function SuccessNotice({ children }: { children: ReactNode }) {

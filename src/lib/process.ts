@@ -3,16 +3,6 @@ import type { RunOptions } from "./types.js";
 
 const activeProcesses = new Set<ChildProcess>();
 const MAX_CAPTURED_OUTPUT = 16_000;
-<<<<<<< HEAD
-=======
-
-function appendOutput(current: string, chunk: unknown): string {
-  const next = `${current}${String(chunk)}`;
-  return next.length > MAX_CAPTURED_OUTPUT
-    ? next.slice(next.length - MAX_CAPTURED_OUTPUT)
-    : next;
-}
->>>>>>> main
 
 function appendOutput(current: string, chunk: unknown): string {
   const next = `${current}${String(chunk)}`;
@@ -30,7 +20,6 @@ export function run(
     const child = spawn(cmd, args, {
       cwd: options.cwd,
       stdio: options.stdio ?? "ignore",
-<<<<<<< HEAD
       env: options.env,
       shell: process.platform === "win32",
       detached: process.platform !== "win32",
@@ -47,27 +36,6 @@ export function run(
     });
 
     child.on("close", (code, signal) => {
-=======
-
-      env: options.env,
-      shell: process.platform === "win32",
-      windowsHide: true,
-
-    });
-    activeProcesses.add(child);
-    let output = "";
-
-
-    child.stdout?.on("data", (chunk) => {
-      output = appendOutput(output, chunk);
-    });
-    child.stderr?.on("data", (chunk) => {
-      output = appendOutput(output, chunk);
-    });
-
-    child.on("close", (code, signal) => {
-
->>>>>>> main
       activeProcesses.delete(child);
       if (code === 0) {
         resolve();
@@ -99,15 +67,12 @@ export function killAllProcesses(platform = process.platform) {
           stdio: "ignore",
           windowsHide: true,
         });
-<<<<<<< HEAD
       } else if (proc.pid) {
         try {
           process.kill(-proc.pid, "SIGTERM");
         } catch {
           proc.kill("SIGTERM");
         }
-=======
->>>>>>> main
       } else {
         proc.kill("SIGTERM");
       }

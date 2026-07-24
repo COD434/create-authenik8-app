@@ -29,15 +29,12 @@ const mockModules = vi.hoisted(() => {
     writeProjectManifest: vi.fn(async () => ({})),
     installAuth: vi.fn(async () => "bcryptjs"),
     configurePrisma: vi.fn(async () => {}),
-<<<<<<< HEAD
     configureGeneratedReadme: vi.fn(async () => {}),
     runPostGenerationDoctor: vi.fn(async () => ({
       passed: 12,
       warnings: 0,
       warningLabels: [],
     })),
-=======
->>>>>>> main
     installDependencies: vi.fn(async () => ({ packageManager: "npm", durationMs: 1_250 })),
     detectPackageManager: vi.fn(() => "npm"),
     isPackageManagerAvailable: vi.fn(() => true),
@@ -205,18 +202,11 @@ async function runCli(
     ...options.promptAnswers,
   };
 
-<<<<<<< HEAD
   const packageManagerIndex = argv.findIndex((arg) => arg === "--package-manager");
   const packageManagerValueIndex = packageManagerIndex >= 0 ? packageManagerIndex + 1 : -1;
   const projectName = argv.find((arg, index) =>
     !arg.startsWith("--") && index !== packageManagerValueIndex
   );
-=======
-    const packageManagerIndex = argv.findIndex((arg) => arg === "--package-manager");
-    const projectName = argv.find((arg, index) =>
-      !arg.startsWith("--") && index !== packageManagerIndex + 1
-    );
->>>>>>> main
 
   if (options.createExistingTargetDir && projectName) {
     await fs.ensureDir(path.join(cwd, projectName));
@@ -381,13 +371,10 @@ describe("CLI", () => {
     );
     expect(mockModules.installDependencies).toHaveBeenCalledTimes(1);
     expect(mockModules.installDependencies).toHaveBeenCalledWith(expect.any(String), "npm");
-<<<<<<< HEAD
     expect(mockModules.runPostGenerationDoctor).toHaveBeenCalledWith(
       expect.any(String),
       true,
     );
-=======
->>>>>>> main
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({
         projectName: "demo-app",
@@ -407,13 +394,10 @@ describe("CLI", () => {
     expect(result.exitCode).toBeUndefined();
     expect(mockModules.configurePackageJson).toHaveBeenCalledTimes(1);
     expect(mockModules.installDependencies).not.toHaveBeenCalled();
-<<<<<<< HEAD
     expect(mockModules.runPostGenerationDoctor).toHaveBeenCalledWith(
       expect.any(String),
       false,
     );
-=======
->>>>>>> main
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ installDeps: false }),
       false,
@@ -422,7 +406,6 @@ describe("CLI", () => {
     );
   });
 
-<<<<<<< HEAD
   it("runs a complete non-interactive flow and writes its project contract", async () => {
     const result = await runCli([
       "demo-app",
@@ -457,8 +440,6 @@ describe("CLI", () => {
     expect(mockModules.initGit).not.toHaveBeenCalled();
   });
 
-=======
->>>>>>> main
   it("parses flags around the project name and runs the production auth flow", async () => {
     const result = await runCli(["--production-ready", "demo-auth"], {
       promptAnswers: {
@@ -504,7 +485,6 @@ describe("CLI", () => {
     );
   });
 
-<<<<<<< HEAD
   it("preserves production-ready configuration when resuming", async () => {
     const result = await runCli(["demo-auth", "--resume"], {
       savedState: {
@@ -533,8 +513,6 @@ describe("CLI", () => {
     );
   });
 
-=======
->>>>>>> main
   it("rejects unsupported package managers before prompting", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
     const result = await runCliSubprocess(["demo-app", "--package-manager", "yarn"], cwd);

@@ -24,9 +24,6 @@ export const stepLabels: Record<StepName, string> = {
   "deps-installed": "Install dependencies",
   "production-configured": "Configure production runtime",
   "git-initialized": "Initialize Git repository",
-<<<<<<< HEAD
   "project-validated": "Validate generated auth boundary",
-=======
->>>>>>> main
   done: "Project ready",
 };

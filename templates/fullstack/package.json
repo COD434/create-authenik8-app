@@ -12,7 +12,6 @@
   },
   "scripts": {
     "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
-<<<<<<< HEAD
     "dev": "node scripts/run-local.mjs dev",
     "dev:watch": "npm run build:packages && concurrently -n contracts,client,ui,api,web -c blue,green,yellow,cyan,magenta \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\" \"npm run dev -w @authenik8/web\"",
     "build": "npm run build:packages && npm run build -w @authenik8/web && npm run build -w @authenik8/api",
@@ -28,26 +27,12 @@
     "db:seed:apply": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "node scripts/run-local.mjs studio",
     "db:studio:apply": "npm run prisma:studio -w @authenik8/api",
-=======
-    "dev": "npm run build:packages && concurrently -n contracts,client,ui,api,web -c blue,green,yellow,cyan,magenta \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\" \"npm run dev -w @authenik8/web\"",
-    "build": "npm run build:packages && npm run build -w @authenik8/web && npm run build -w @authenik8/api",
-    "start": "npm run start -w @authenik8/api",
-    "test": "npm run build:packages && npm run test -w @authenik8/api && npm run test -w @authenik8/web",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "db:generate": "npm run prisma:generate -w @authenik8/api",
-    "db:migrate": "npm run prisma:migrate -w @authenik8/api",
-    "db:seed": "npm run prisma:seed -w @authenik8/api",
-    "db:studio": "npm run prisma:studio -w @authenik8/api",
->>>>>>> main
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
   "devDependencies": {
-<<<<<<< HEAD
     "@electric-sql/pglite": "0.4.1",
     "@electric-sql/pglite-socket": "0.1.1",
-=======
->>>>>>> main
     "concurrently": "^9.2.1",
     "typescript": "^6.0.3"
   },

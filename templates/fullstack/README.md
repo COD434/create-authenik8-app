@@ -8,7 +8,6 @@ agent access without exposing an unsafe public token-minting route.
 
 ## Local development
 
-<<<<<<< HEAD
 Requirements: Node.js 20.19+, 22.12+, or 24+ and npm. Docker is optional.
 
 ```bash
@@ -59,20 +58,6 @@ With an unchanged generated `.env`, sign in with `admin@example.com` and
 `ChangeMe123!`. These values come from `SEED_ADMIN_EMAIL` and
 `SEED_ADMIN_PASSWORD`. Change the password immediately, including for local
 environments shared by multiple people.
-=======
-Requirements: Node.js 20.19+, 22.12+, or 24+, npm, and Docker with Compose.
-
-```bash
-docker compose up -d
-npm run db:migrate
-npm run db:seed
-npm run dev
-```
-
-Open `http://localhost:5173`. The API runs on `http://localhost:3000/api`. The generated `.env` contains development values; replace every secret before deploying.
-
-The seeded administrator uses `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`. Change the default password immediately, including for local environments shared by multiple people.
->>>>>>> main
 
 ## Application map
 
@@ -115,8 +100,4 @@ Read [docs/PRODUCTION.md](docs/PRODUCTION.md) and [THREAT_MODEL.md](THREAT_MODEL
 - `GET /api/health/ready` checks PostgreSQL and Redis.
 - `GET /api/docs/openapi.json` returns the generated OpenAPI 3.1 contract.
 - `npm test` covers ownership/admin policies, encrypted cookies, origin and CSRF defenses, and the browser storage rule.
-<<<<<<< HEAD
 - `npm run typecheck` builds internal packages, generates Prisma Client, and checks each workspace from a clean checkout.
-=======
-- `npm run typecheck` checks each workspace.
->>>>>>> main

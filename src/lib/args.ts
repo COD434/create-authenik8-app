@@ -1,5 +1,4 @@
 import { z } from "zod";
-<<<<<<< HEAD
 import {
   authModeSchema,
   databaseSchema,
@@ -15,10 +14,6 @@ import type {
   PackageManager,
   Runtime,
 } from "./types.js";
-=======
-import { firstZodIssue, packageManagerSchema } from "./schemas.js";
-import type { PackageManager } from "./types.js";
->>>>>>> main
 
 const cliArgumentsSchema = z.strictObject({
   projectName: z.string().optional(),
@@ -28,7 +23,6 @@ const cliArgumentsSchema = z.strictObject({
   skipInstall: z.boolean(),
   productionReady: z.boolean(),
   packageManager: packageManagerSchema.optional(),
-<<<<<<< HEAD
   nonInteractive: z.boolean(),
   preset: authModeSchema.optional(),
   usePrisma: z.boolean().optional(),
@@ -36,8 +30,6 @@ const cliArgumentsSchema = z.strictObject({
   oauthProviders: oauthProvidersSchema.optional(),
   useGit: z.boolean().optional(),
   runtime: runtimeSchema.optional(),
-=======
->>>>>>> main
 });
 
 export type CliArguments = z.infer<typeof cliArgumentsSchema>;
@@ -55,7 +47,6 @@ function parsePackageManager(value: string | undefined): PackageManager {
   return result.data;
 }
 
-<<<<<<< HEAD
 function parseChoice<T>(
   value: string | undefined,
   schema: { safeParse: (input: unknown) => { success: true; data: T } | { success: false; error: z.ZodError } },
@@ -94,8 +85,6 @@ function setBooleanChoice(
   return value;
 }
 
-=======
->>>>>>> main
 export function parseCliArguments(argv: string[]): CliArguments {
   const parsed: CliArguments = {
     help: false,
@@ -103,10 +92,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
     resume: false,
     skipInstall: false,
     productionReady: false,
-<<<<<<< HEAD
     nonInteractive: false,
-=======
->>>>>>> main
   };
   const positionals: string[] = [];
 
@@ -137,7 +123,6 @@ export function parseCliArguments(argv: string[]): CliArguments {
       parsed.productionReady = true;
       continue;
     }
-<<<<<<< HEAD
     if (argument === "--yes" || argument === "--non-interactive") {
       parsed.nonInteractive = true;
       continue;
@@ -165,8 +150,6 @@ export function parseCliArguments(argv: string[]): CliArguments {
       parsed.oauthProviders = [];
       continue;
     }
-=======
->>>>>>> main
     if (argument === "--package-manager") {
       const value = argv[index + 1];
       parsed.packageManager = parsePackageManager(value?.startsWith("-") ? undefined : value);
@@ -177,7 +160,6 @@ export function parseCliArguments(argv: string[]): CliArguments {
       parsed.packageManager = parsePackageManager(argument.slice("--package-manager=".length));
       continue;
     }
-<<<<<<< HEAD
     if (argument === "--preset" || argument.startsWith("--preset=")) {
       if (parsed.preset !== undefined) throw new Error("--preset may only be provided once.");
       const inline = argument.startsWith("--preset=");
@@ -214,8 +196,6 @@ export function parseCliArguments(argv: string[]): CliArguments {
       if (!inline) index += 1;
       continue;
     }
-=======
->>>>>>> main
     if (argument.startsWith("-")) {
       throw new Error(`Unknown option "${argument}". Run with --help for usage.`);
     }
@@ -229,7 +209,6 @@ export function parseCliArguments(argv: string[]): CliArguments {
   }
 
   if (positionalResult.data[0]) parsed.projectName = positionalResult.data[0];
-<<<<<<< HEAD
   const nonInteractiveOnly = [
     parsed.preset,
     parsed.usePrisma,
@@ -244,7 +223,5 @@ export function parseCliArguments(argv: string[]): CliArguments {
   if (parsed.nonInteractive && parsed.resume) {
     throw new Error("--resume cannot be combined with --non-interactive or --yes.");
   }
-=======
->>>>>>> main
   return cliArgumentsSchema.parse(parsed);
 }

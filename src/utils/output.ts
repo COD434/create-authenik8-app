@@ -37,11 +37,7 @@ function databaseLabel(state: CliState): string {
 }
 
 function runCommand(state: CliState, script: string): string {
-<<<<<<< HEAD
   return runScriptCommand(state.packageManager ?? "npm", script);
-=======
-  return `${state.packageManager ?? "npm"} run ${script}`;
->>>>>>> main
 }
 
 export function printSummary(
@@ -51,7 +47,6 @@ export function printSummary(
   hasDockerDaemon = true,
 ): void {
   const packageManager = state.packageManager ?? "npm";
-<<<<<<< HEAD
   const firstSuccess = firstSuccessGuide(state.authMode ?? "base");
   const isFullstack = state.authMode === "fullstack";
   const needsPostgres = !isFullstack
@@ -65,16 +60,6 @@ export function printSummary(
       : []),
     ...(!isFullstack && state.usePrisma ? [runCommand(state, "db:migrate")] : []),
     doctorCommand(packageManager),
-=======
-  const commands = [
-    `cd ${state.projectName}`,
-    ...(state.installDeps === false ? [`${packageManager} install`] : []),
-    ...(hasDockerCompose && hasDockerDaemon ? [runCommand(state, "docker:up")] : []),
-    ...(state.usePrisma
-      ? [runCommand(state, state.authMode === "fullstack" ? "db:migrate" : "prisma:migrate")]
-      : []),
-    ...(state.authMode === "fullstack" ? [runCommand(state, "db:seed")] : []),
->>>>>>> main
     runCommand(state, "dev"),
   ];
   const details: Array<[string, string]> = [
@@ -93,7 +78,6 @@ export function printSummary(
     console.log(`${chalk.green("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
   }
   console.log(chalk.dim("│"));
-<<<<<<< HEAD
   if (needsPostgres && !hasDockerCompose) {
     console.log(
       `${chalk.yellow("!")}  Docker Compose was not found. Install it or provide PostgreSQL through DATABASE_URL.`,
@@ -103,14 +87,6 @@ export function printSummary(
     console.log(
       `${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`,
     );
-=======
-  if (!hasDockerCompose) {
-    const services = state.database === "postgresql" ? "Redis and PostgreSQL" : "Redis";
-    console.log(`${chalk.yellow("!")}  Docker Compose was not found. Install it or start ${services} manually.`);
-    console.log(chalk.dim("│"));
-  } else if (!hasDockerDaemon) {
-    console.log(`${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`);
->>>>>>> main
     console.log(chalk.dim("│"));
   }
   console.log(`${chalk.cyan("└")} ${chalk.bold("Next steps")}`);
@@ -118,7 +94,6 @@ export function printSummary(
     console.log(`  ${chalk.cyan(command)}`);
   }
 
-<<<<<<< HEAD
   console.log(chalk.dim("│"));
   console.log(`${chalk.cyan("└")} ${chalk.bold("First success")}`);
   console.log(`  ${chalk.bold(firstSuccess.title)}`);
@@ -126,8 +101,6 @@ export function printSummary(
     console.log(`  ${chalk.cyan(`${index + 1}.`)} ${step}`);
   });
 
-=======
->>>>>>> main
   if (state.authMode === "fullstack") {
     console.log(chalk.dim("\n  Web  http://localhost:5173"));
     console.log(chalk.dim("  API  http://localhost:3000/api"));
@@ -139,9 +112,5 @@ export function printSummary(
     console.log(chalk.dim(`\n  Production process  ${runCommand(state, "pm2:start")}`));
   }
 
-<<<<<<< HEAD
   console.log(chalk.dim("\n  Review .env, authenik8.json, README.md, and THREAT_MODEL.md before deployment.\n"));
-=======
-  console.log(chalk.dim("\n  Review .env, README.md, and THREAT_MODEL.md before deployment.\n"));
->>>>>>> main
 }

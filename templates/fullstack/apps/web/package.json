@@ -10,11 +10,8 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@astryxdesign/core": "0.1.7",
     "@astryxdesign/theme-neutral": "0.1.7",
-=======
->>>>>>> main
     "@authenik8/api-client": "0.1.0",
     "@authenik8/contracts": "0.1.0",
     "@authenik8/ui": "0.1.0",

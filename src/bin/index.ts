@@ -7,12 +7,9 @@ import { fileURLToPath } from "url";
 
 import type { StepName } from "../lib/types.js";
 import { parseCliArguments } from "../lib/args.js";
-<<<<<<< HEAD
 import { resolveNonInteractiveAnswers } from "../lib/nonInteractive.js";
 import { writeProjectManifest } from "../lib/projectManifest.js";
 import { runPostGenerationDoctor } from "../commands/doctor/postGeneration.js";
-=======
->>>>>>> main
 import { initState, saveState, loadState, clearState, hasReachedStep, getState } from "../lib/state.js";
 import {
   dockerComposeAvailable,
@@ -23,15 +20,12 @@ import { assertPresetRequirements } from "../lib/preflight.js";
 import { projectNameError } from "../lib/projectName.js";
 import { configuredCliStateSchema, firstZodIssue } from "../lib/schemas.js";
 import {
-<<<<<<< HEAD
   canResumeSetup,
   interruptionExitCode,
   restartCommand,
   type ShutdownSignal,
 } from "../lib/interruption.js";
 import {
-=======
->>>>>>> main
   completeStep,
   finishSteps,
   formatDuration,
@@ -46,10 +40,7 @@ import { runPrompts } from "../steps/prompts.js";
 import { createProject, configurePackageJson } from "../steps/createProject.js";
 import { installAuth } from "../steps/installAuth.js";
 import { configurePrisma } from "../steps/configurePrisma.js";
-<<<<<<< HEAD
 import { configureGeneratedReadme } from "../steps/configureReadme.js";
-=======
->>>>>>> main
 import {
   installDependencies,
   isPackageManagerAvailable,
@@ -96,7 +87,6 @@ Secure application scaffolding
 
 Usage:
   create-authenik8-app <project-name> [options]
-<<<<<<< HEAD
   create-authenik8-app create <project-name> [options]
   create-authenik8-app doctor [directory] [--json] [--skip-services]
   create-authenik8-app add <recipe> [directory] [--dry-run]
@@ -113,11 +103,6 @@ Options:
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)
   --runtime <node|bun>              Runtime for --production-ready Express apps
-=======
-
-Options:
-  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
->>>>>>> main
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets
@@ -125,7 +110,6 @@ Options:
   -h, --help                        Show this help message
 
 Presets:
-<<<<<<< HEAD
   fullstack    Recommended connected React + Express app
                Requires npm; local PostgreSQL and Redis run in process
   base         JWT boundary for applications with their own identity source
@@ -141,15 +125,6 @@ Requirements:
 Example:
   npx create-authenik8-app my-app
   npx create-authenik8-app my-api --yes --preset auth --database postgresql --no-git
-=======
-  Express API (JWT only)
-  Express API + email/password
-  Express API + OAuth
-  Full-stack application (React, Express, Prisma, PostgreSQL, Redis)
-
-Example:
-  npx create-authenik8-app my-app
->>>>>>> main
 
 Full-stack applications use npm workspaces. Set AUTHENIK8_VERBOSE=1 to show installer output.
 `);
@@ -180,11 +155,7 @@ if (invalidProjectName) {
   process.exit(1);
 }
 const skipInstall = cliArguments.skipInstall;
-<<<<<<< HEAD
 let isProduction = cliArguments.productionReady;
-=======
-const isProduction = cliArguments.productionReady;
->>>>>>> main
 const isResume = cliArguments.resume;
 const targetDir = path.resolve(process.cwd(), projectName);
 const templateRoot = [
@@ -204,13 +175,10 @@ const handleShutdown = (signal: ShutdownSignal) => {
   killAllProcesses();
 
   console.log(chalk.yellow("Setup interrupted."));
-<<<<<<< HEAD
   let canResume = false;
   let restartPackageManager = cliArguments.packageManager;
   let restartWithoutInstall = skipInstall;
   let restartProductionReady = isProduction;
-=======
->>>>>>> main
   try {
     const current = getState();
     const saved = current.step === "start" ? loadState(stateFile) : null;
@@ -224,7 +192,6 @@ const handleShutdown = (signal: ShutdownSignal) => {
     }
   } catch (_) {}
 
-<<<<<<< HEAD
   const command = restartCommand({
     projectName,
     productionReady: restartProductionReady,
@@ -234,21 +201,12 @@ const handleShutdown = (signal: ShutdownSignal) => {
   });
   console.log(chalk.gray(canResume ? "Resume with:" : "Start again with:"));
   console.log(chalk.cyan(`   ${command}`));
-=======
-  console.log(chalk.gray("Resume with:"));
-  console.log(chalk.cyan(`   npx create-authenik8-app ${projectName} --resume`));
->>>>>>> main
 
   process.exit(interruptionExitCode(signal));
 };
 
-<<<<<<< HEAD
 process.prependListener("SIGINT", () => handleShutdown("SIGINT"));
 process.prependListener("SIGTERM", () => handleShutdown("SIGTERM"));
-=======
-process.prependListener("SIGINT", handleShutdown);
-process.prependListener("SIGTERM", handleShutdown);
->>>>>>> main
 
 process.on("exit", () => {
   killAllProcesses();
@@ -260,10 +218,7 @@ initState({
   step: "start",
   projectName,
   installDeps: !skipInstall,
-<<<<<<< HEAD
   productionReady: isProduction,
-=======
->>>>>>> main
   ...(cliArguments.packageManager ? { packageManager: cliArguments.packageManager } : {}),
 }, stateFile);
 
@@ -305,12 +260,8 @@ async function main() {
         writeLine(process.stderr, chalk.red(`Error: No saved setup state found for "${projectName}".`));
         process.exit(1);
       }
-<<<<<<< HEAD
       isProduction = isProduction || savedState.productionReady === true;
       initState({ ...savedState, productionReady: isProduction }, stateFile);
-=======
-      initState(savedState, stateFile);
->>>>>>> main
       if (skipInstall) {
         saveState({ installDeps: false });
       } else if (savedState.installDeps === undefined) {
@@ -322,15 +273,11 @@ async function main() {
       currentStep = savedState.step;
       console.log(chalk.yellow(`\nResuming ${projectName} from "${currentStep}".\n`));
     } else {
-<<<<<<< HEAD
       const promptAnswers = cliArguments.nonInteractive
         ? resolveNonInteractiveAnswers(cliArguments, {
           bunAvailable: isPackageManagerAvailable("bun"),
         })
         : await runPrompts(getState(), isProduction);
-=======
-      const promptAnswers = await runPrompts(getState(), isProduction);
->>>>>>> main
       saveState({ ...promptAnswers, step: "prompts" });
       currentStep = "prompts";
     }
@@ -354,11 +301,7 @@ async function main() {
     if (state.installDeps !== false && !isPackageManagerAvailable(packageManager)) {
       throw new Error(`${packageManager} is not available on PATH. Install it or choose another package manager.`);
     }
-<<<<<<< HEAD
     saveState({ packageManager, runtime });
-=======
-    saveState({ packageManager });
->>>>>>> main
 
     if (state.usePrisma) {
       if (!state.database) saveState({ database: "sqlite" });
@@ -421,7 +364,6 @@ async function main() {
       skipStep("prisma-configured", "already completed");
     }
 
-<<<<<<< HEAD
     const manifestState = configuredCliStateSchema.parse(getState());
     await writeProjectManifest(targetDir, {
       projectName,
@@ -435,19 +377,13 @@ async function main() {
       productionReady: isProduction && manifestState.authMode !== "fullstack",
     });
 
-=======
->>>>>>> main
     if (
       isProduction
       && getState().authMode !== "fullstack"
       && !hasReachedStep(currentStep, "production-configured")
     ) {
       startStep("production-configured");
-<<<<<<< HEAD
       await configureProduction(targetDir, projectName, runtime, packageManager);
-=======
-      await configureProduction(targetDir, projectName, runtime);
->>>>>>> main
       saveState({
         step: "production-configured",
         ...(getState().authMode !== "base" && { hashLib: selectedHash }),
@@ -456,14 +392,11 @@ async function main() {
       completeStep(currentStep);
     }
 
-<<<<<<< HEAD
     if (isProduction && getState().authMode !== "fullstack") {
       appendProductionReadme(targetDir, projectName, packageManager);
     }
     await configureGeneratedReadme(targetDir, packageManager);
 
-=======
->>>>>>> main
     // Install dependencies
     if (!hasReachedStep(currentStep, "deps-installed")) {
       configurePackageJson(targetDir, getState().usePrisma ?? false, packageManager);
@@ -509,7 +442,6 @@ async function main() {
       skipStep("git-initialized", "already completed");
     }
 
-<<<<<<< HEAD
     if (!hasReachedStep(currentStep, "project-validated")) {
       startStep("project-validated");
       const validation = await runPostGenerationDoctor(
@@ -534,15 +466,6 @@ async function main() {
     finishSteps();
 
     // Done
-=======
-    finishSteps();
-
-    // Done
-    if (isProduction && getState().authMode !== "fullstack") {
-      appendProductionReadme(targetDir, projectName);
-    }
-
->>>>>>> main
     const hasDockerCompose = dockerComposeAvailable();
     printSummary(
       getState(),

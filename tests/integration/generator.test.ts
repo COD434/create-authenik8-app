@@ -26,25 +26,18 @@ describe("generator happy paths", () => {
         "app.ts",
         "routes/base.routes.ts",
         "src/server.ts",
-<<<<<<< HEAD
         "src/config/redis.ts",
-=======
->>>>>>> main
         "src/prisma/client.ts",
         "prisma/schema.prisma",
         "prisma.config.ts",
         "docker-compose.yml",
-<<<<<<< HEAD
         ".env",
         ".env.example",
         "authenik8.json",
-=======
->>>>>>> main
       ]);
 
       expect(pkg.scripts.postinstall).toBe("prisma generate");
       expect(pkg.scripts.dev).toContain("prisma generate");
-<<<<<<< HEAD
       expect(pkg.scripts["db:migrate"]).toBe(
         "prisma db push && prisma generate",
       );
@@ -53,40 +46,26 @@ describe("generator happy paths", () => {
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies["@prisma/adapter-libsql"]).toBe("7.8.0");
       expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBeUndefined();
-=======
-      expect(pkg.dependencies["@prisma/client"]).toBe("7.8.0");
-      expect(pkg.dependencies.zod).toBe("^4.4.3");
-      expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBe("7.8.0");
->>>>>>> main
       expect(pkg.dependencies["@prisma/adapter-pg"]).toBeUndefined();
       expect(pkg.devDependencies.prisma).toBe("7.8.0");
       expect(pkg.overrides["@hono/node-server"]).toBe("1.19.13");
       expect(pkg.allowScripts).toEqual({
         "prisma@7.8.0": true,
         "@prisma/engines@7.8.0": true,
-<<<<<<< HEAD
-=======
-        "better-sqlite3": true,
->>>>>>> main
       });
       expect(pkg.engines.node).toBe("^20.19 || ^22.12 || >=24");
       expect(files["app.ts"]).toContain("app.use(auth.helmet)");
       expect(files["routes/base.routes.ts"]).toContain('router.get("/protected"');
-<<<<<<< HEAD
       expect(files["src/server.ts"]).toContain("redis: await createRedisClient()");
       expect(files["src/config/redis.ts"]).toContain("redisUrl === localRedisUrl");
       expect(files["src/config/redis.ts"]).toContain(
         'process.env.NODE_ENV?.trim() === "production"',
       );
       expect(files["src/prisma/client.ts"]).toContain("new PrismaLibSql");
-=======
-      expect(files["src/prisma/client.ts"]).toContain("new PrismaBetterSqlite3");
->>>>>>> main
       expect(files["prisma/schema.prisma"]).toContain('provider = "sqlite"');
       expect(files["prisma.config.ts"]).toContain('url: env("DATABASE_URL")');
       expect(files["docker-compose.yml"]).toContain("redis-cli");
       expect(files["docker-compose.yml"]).not.toContain("postgres:16-alpine");
-<<<<<<< HEAD
       expect(files[".env"]).not.toMatch(/^(GOOGLE|GITHUB)_/m);
       expect(files[".env.example"]).not.toMatch(/^(GOOGLE|GITHUB)_/m);
       expect(JSON.parse(files["authenik8.json"])).toMatchObject({
@@ -97,8 +76,6 @@ describe("generator happy paths", () => {
         engine: { package: "authenik8-core", version: "2.0.3" },
         features: { prisma: true, oauthProviders: [], pm2: false },
       });
-=======
->>>>>>> main
     } finally {
       await project.cleanup();
     }
@@ -118,26 +95,17 @@ describe("generator happy paths", () => {
         ".env.example",
         ".gitignore",
         "AGENT_IDENTITY.md",
-<<<<<<< HEAD
         "authenik8.json",
-=======
->>>>>>> main
         "README.md",
       ]);
 
       expect(pkg.name).toBe("generated-app");
       expect(pkg.scripts.postinstall).toBeUndefined();
-<<<<<<< HEAD
       expect(pkg.scripts["db:migrate"]).toBeUndefined();
       expect(pkg.scripts["prisma:migrate"]).toBeUndefined();
       expect(pkg.dependencies["@prisma/client"]).toBeUndefined();
       expect(pkg.dependencies["@prisma/adapter-pg"]).toBeUndefined();
       expect(pkg.dependencies["@prisma/adapter-libsql"]).toBeUndefined();
-=======
-      expect(pkg.scripts["prisma:migrate"]).toBeUndefined();
-      expect(pkg.dependencies["@prisma/client"]).toBeUndefined();
-      expect(pkg.dependencies["@prisma/adapter-pg"]).toBeUndefined();
->>>>>>> main
       expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBeUndefined();
       expect(pkg.devDependencies.prisma).toBeUndefined();
       expect(pkg.allowScripts).toBeUndefined();
@@ -150,31 +118,20 @@ describe("generator happy paths", () => {
       expect(files[".env"]).toContain("AUTHENIK8_ACTIVE_KID=");
       expect(files[".env"]).toContain("AUTHENIK8_ISSUER=http://localhost:3000");
       expect(files[".env"]).toContain("AUTHENIK8_AGENTS={}");
-<<<<<<< HEAD
       expect(files[".env"]).toContain("REDIS_URL=memory://");
-=======
->>>>>>> main
       expect(files[".gitignore"]).toContain(".env");
       expect(files["AGENT_IDENTITY.md"]).toContain("Agent and service identity");
       expect(files["AGENT_IDENTITY.md"]).toContain("Do not expose it as an unauthenticated HTTP route");
       expect(await fs.pathExists(`${project.targetDir}/gitignore.template`)).toBe(false);
       expect(files[".env.example"]).not.toContain("DATABASE_URL");
-<<<<<<< HEAD
       expect(files[".env.example"]).toContain("REDIS_URL=memory://");
       expect(files["README.md"]).not.toContain("db:migrate");
-=======
-      expect(files["README.md"]).not.toContain("prisma:migrate");
->>>>>>> main
     } finally {
       await project.cleanup();
     }
   });
 
-<<<<<<< HEAD
   it("writes only the Prisma build approvals required by pnpm and Bun", async () => {
-=======
-  it("writes pnpm and Bun build approvals for Prisma dependencies", async () => {
->>>>>>> main
     const pnpmProject = await generateProjectFixture({
       template: "base",
       database: "sqlite",
@@ -189,7 +146,6 @@ describe("generator happy paths", () => {
     try {
       const pnpmConfig = await fs.readFile(`${pnpmProject.targetDir}/pnpm-workspace.yaml`, "utf8");
       const bunPkg = await fs.readJson(`${bunProject.targetDir}/package.json`);
-<<<<<<< HEAD
       const pnpmReadme = await fs.readFile(`${pnpmProject.targetDir}/README.md`, "utf8");
       const bunReadme = await fs.readFile(`${bunProject.targetDir}/README.md`, "utf8");
 
@@ -206,17 +162,6 @@ describe("generator happy paths", () => {
       expect(bunReadme).toContain("bun run db:migrate");
       expect(bunReadme).toContain("bunx create-authenik8-app@latest doctor");
       expect(bunReadme).not.toMatch(/\bnpm (?:install|run)\b|\bnpx\b/);
-=======
-
-      expect(pnpmConfig).toContain('"@prisma/engines": true');
-      expect(pnpmConfig).toContain("better-sqlite3: true");
-      expect(pnpmConfig).toContain('"@hono/node-server": "1.19.13"');
-      expect(bunPkg.trustedDependencies).toEqual([
-        "@prisma/engines",
-        "better-sqlite3",
-        "prisma",
-      ]);
->>>>>>> main
     } finally {
       await Promise.all([pnpmProject.cleanup(), bunProject.cleanup()]);
     }
@@ -285,17 +230,13 @@ describe("generator happy paths", () => {
         "prisma/schema.prisma",
         "prisma.config.ts",
         "docker-compose.yml",
-<<<<<<< HEAD
         ".env",
         ".env.example",
-=======
->>>>>>> main
       ]);
 
       expect(project.hashLib).toBe("bcryptjs");
       expect(pkg.dependencies.bcryptjs).toBe("^2.4.3");
       expect(pkg.devDependencies["@types/bcryptjs"]).toBe("^2.4.6");
-<<<<<<< HEAD
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
       expect(pkg.scripts["db:migrate"]).toBe(
         "prisma db push && prisma generate",
@@ -304,11 +245,6 @@ describe("generator happy paths", () => {
       expect(pkg.dependencies.ioredis).toBe("^5.8.1");
       expect(pkg.dependencies["@prisma/adapter-pg"]).toBe("7.8.0");
       expect(pkg.dependencies["@prisma/adapter-libsql"]).toBeUndefined();
-=======
-      expect(pkg.dependencies.zod).toBe("^4.4.3");
-      expect(pkg.dependencies.ioredis).toBe("^5.8.1");
-      expect(pkg.dependencies["@prisma/adapter-pg"]).toBe("7.8.0");
->>>>>>> main
       expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
         "prisma@7.8.0": true,
@@ -324,11 +260,8 @@ describe("generator happy paths", () => {
       expect(files["prisma.config.ts"]).toContain('url: env("DATABASE_URL")');
       expect(files["docker-compose.yml"]).toContain("postgres:16-alpine");
       expect(files["docker-compose.yml"]).toContain("pg_isready");
-<<<<<<< HEAD
       expect(files[".env"]).not.toMatch(/^(GOOGLE|GITHUB)_/m);
       expect(files[".env.example"]).not.toMatch(/^(GOOGLE|GITHUB)_/m);
-=======
->>>>>>> main
     } finally {
       await project.cleanup();
     }
@@ -347,10 +280,7 @@ describe("generator happy paths", () => {
       const files = await readProjectFiles(project.targetDir, [
         "src/server.ts",
         "src/auth/auth.ts",
-<<<<<<< HEAD
         "src/config/redis.ts",
-=======
->>>>>>> main
         "src/auth/identity.adapter.ts",
         "src/auth/controllers/oauth.controller.ts",
         "src/auth/routes/oauth.routes.ts",
@@ -362,13 +292,10 @@ describe("generator happy paths", () => {
 
       expect(pkg.dependencies.pm2).toBe("^5.4.2");
       expect(pkg.devDependencies["@types/bcryptjs"]).toBe("^2.4.6");
-<<<<<<< HEAD
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
       expect(pkg.scripts["db:migrate"]).toBe(
         "prisma db push && prisma generate",
       );
-=======
->>>>>>> main
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies["ts-node"]).toBeUndefined();
 
@@ -380,16 +307,11 @@ describe("generator happy paths", () => {
       expect(files["src/auth/auth.ts"]).toContain('redirectUri: requiredEnv("GITHUB_REDIRECT_URI")');
       expect(files["src/auth/auth.ts"]).toContain("identityAdapter");
       expect(files["src/auth/auth.ts"]).toContain("agentIdentityConfig()");
-<<<<<<< HEAD
       expect(files["src/auth/auth.ts"]).toContain("redis: await createRedisClient()");
       expect(files["src/config/redis.ts"]).toContain('import("ioredis-mock")');
       expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github/callback"');
       expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.login");
       expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.refresh");
-=======
-      expect(files["src/auth/routes/oauth.routes.ts"]).toContain('router.get("/github/callback"');
-      expect(files["src/auth/routes/password.route.ts"]).toContain("passwordController.login");
->>>>>>> main
       expect(files["src/auth/controllers/password.controller.ts"]).toContain("await auth.issueTokens");
       expect(files["src/auth/controllers/oauth.controller.ts"]).toContain(
         'import { getAuth } from "../auth";',
@@ -422,10 +344,7 @@ describe("generator happy paths", () => {
         "THREAT_MODEL.md",
         "docker-compose.yml",
         ".env",
-<<<<<<< HEAD
         ".env.example",
-=======
->>>>>>> main
         ".gitignore",
       ]);
 
@@ -444,7 +363,6 @@ describe("generator happy paths", () => {
       expect(files["docker-compose.yml"]).toContain("redis-cli");
       expect(files["docker-compose.yml"]).not.toContain("postgres:16-alpine");
       expect(files["docker-compose.yml"]).not.toContain("postgres-data");
-<<<<<<< HEAD
       expect(files[".env"]).toContain("GOOGLE_CLIENT_ID");
       expect(files[".env"]).not.toContain("GITHUB_CLIENT_ID");
       expect(files[".env"]).not.toContain("AUTHENIK8_OAUTH_PROVIDERS");
@@ -452,12 +370,6 @@ describe("generator happy paths", () => {
       expect(files[".env.example"]).not.toContain("GITHUB_CLIENT_ID");
       expect(files[".env"]).toContain("AUTHENIK8_SIGNING_JWKS='[");
       expect(files[".env"]).toContain("REDIS_URL=\"memory://\"");
-=======
-      expect(files[".env"]).toContain('AUTHENIK8_OAUTH_PROVIDERS="google"');
-      expect(files[".env"]).toContain("GOOGLE_CLIENT_ID");
-      expect(files[".env"]).not.toContain("GITHUB_CLIENT_ID");
-      expect(files[".env"]).toContain("AUTHENIK8_SIGNING_JWKS='[");
->>>>>>> main
       expect(files[".env"]).not.toContain("JWT_SECRET");
       expect(files[".gitignore"]).toContain(".env");
     } finally {
@@ -927,10 +839,10 @@ describe("generator happy paths", () => {
       ]);
 
       expect(pkg.workspaces).toEqual(["apps/*", "packages/*"]);
-      expect(pkg.scripts.dev).toContain("concurrently");
-      expect(pkg.scripts.dev).toContain("@authenik8/contracts");
-      expect(pkg.scripts.dev).toContain("@authenik8/api-client");
-      expect(pkg.scripts.dev).toContain("@authenik8/ui");
+      expect(pkg.scripts.dev).toContain("run-local.mjs");
+      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/contracts");
+      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/api-client");
+      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/ui");
       expect(pkg.scripts.postinstall).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
         "prisma@7.8.0": true,
