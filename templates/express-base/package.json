@@ -28,5 +28,8 @@
   "overrides": {
     "@hono/node-server": "1.19.13"
   },
+  "overrides": {
+    "@hono/node-server": "1.19.13"
+  },
   "type": "commonjs"
 }

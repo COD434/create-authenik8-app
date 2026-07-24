@@ -27,6 +27,7 @@ Choose the fullstack application for a connected React and Express project, or s
 
 ## Documentation
 
+
 ### Create and maintain projects
 
 - [Quickstart](docs/quickstart.md)
@@ -51,6 +52,7 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Identity Engine](docs/identity-engine.md)
 - [Using authenik8-core](docs/authenik8-core.md)
 - [Threat model](docs/threat-model.md)
+
 
 ### Operate and evaluate
 

@@ -26,6 +26,7 @@ import {
   type ShutdownSignal,
 } from "../lib/interruption.js";
 import {
+
   completeStep,
   finishSteps,
   formatDuration,
@@ -41,6 +42,7 @@ import { createProject, configurePackageJson } from "../steps/createProject.js";
 import { installAuth } from "../steps/installAuth.js";
 import { configurePrisma } from "../steps/configurePrisma.js";
 import { configureGeneratedReadme } from "../steps/configureReadme.js";
+
 import {
   installDependencies,
   isPackageManagerAvailable,
@@ -103,6 +105,9 @@ Options:
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)
   --runtime <node|bun>              Runtime for --production-ready Express apps
+
+  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
+
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets
@@ -110,6 +115,7 @@ Options:
   -h, --help                        Show this help message
 
 Presets:
+
   fullstack    Recommended connected React + Express app
                Requires npm; local PostgreSQL and Redis run in process
   base         JWT boundary for applications with their own identity source

@@ -1,0 +1,23 @@
+{
+  "step": "prisma-configured",
+  "runtime": "node",
+  "projectName": "demo1",
+  "framework": "Express",
+  "usePrisma": true,
+  "database": "postgresql",
+  "useGit": true,
+  "authMode": "fullstack",
+  "hashLib": "bcryptjs",
+  "installDeps": true,
+  "productionReady": false,
+  "packageManager": "npm",
+  "oauthProviders": [
+    "google",
+    "github"
+  ],
+  "authMethods": [
+    "password",
+    "google",
+    "github"
+  ]
+}

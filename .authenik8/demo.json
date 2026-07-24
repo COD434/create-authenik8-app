@@ -1,0 +1,13 @@
+{
+  "step": "prisma-configured",
+  "runtime": "node",
+  "projectName": "demo",
+  "framework": "Express",
+  "usePrisma": true,
+  "database": "postgresql",
+  "useGit": true,
+  "authMode": "base",
+  "installDeps": true,
+  "productionReady": false,
+  "packageManager": "npm"
+}

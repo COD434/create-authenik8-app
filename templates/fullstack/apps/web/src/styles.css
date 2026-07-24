@@ -156,7 +156,6 @@ code { overflow-wrap: anywhere; color: #246a43; font-family: "SFMono-Regular", C
 .sidebar-account strong, .sidebar-account span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sidebar-account strong { color: #f2faf5; font-size: 12px; }
 .sidebar-account span { color: #8fad9a; font-size: 10px; }
-
 .page { width: 100%; max-width: 1480px; margin: 0 auto; padding: 32px; }
 .page-header { min-height: 62px; margin-bottom: 24px; display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
 .page-header p { margin-bottom: 0; font-size: 14px; }
