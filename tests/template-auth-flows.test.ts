@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const dependencies = vi.hoisted(() => ({
   auth: {
     issueTokens: vi.fn(),
+    refreshToken: vi.fn(),
   },
   passwordHash: {
     comparePassword: vi.fn(),
@@ -46,6 +47,10 @@ beforeEach(() => {
   dependencies.auth.issueTokens.mockResolvedValue({
     accessToken: "real-access-token",
     refreshToken: "real-refresh-token",
+  });
+  dependencies.auth.refreshToken.mockResolvedValue({
+    accessToken: "refreshed-access-token",
+    refreshToken: "rotated-refresh-token",
   });
   dependencies.passwordHash.comparePassword.mockResolvedValue(true);
   dependencies.passwordHash.hashPassword.mockResolvedValue("hashed-password");
@@ -115,5 +120,21 @@ describe("generated password login flows", () => {
     expect(res.status).toHaveBeenCalledWith(401);
     expect(res.json).toHaveBeenCalledWith({ error: "Invalid credentials" });
     expect(dependencies.auth.issueTokens).not.toHaveBeenCalled();
+  });
+
+  it("rotates refresh tokens in the OAuth preset", async () => {
+    const { passwordController } = await import(
+      "../templates/express-auth+/src/auth/controllers/password.controller.js"
+    );
+    const res = response();
+    const refreshToken = "valid-refresh-token";
+
+    await passwordController.refresh({ body: { refreshToken } } as any, res as any);
+
+    expect(dependencies.auth.refreshToken).toHaveBeenCalledWith(refreshToken);
+    expect(res.json).toHaveBeenCalledWith({
+      accessToken: "refreshed-access-token",
+      refreshToken: "rotated-refresh-token",
+    });
   });
 });

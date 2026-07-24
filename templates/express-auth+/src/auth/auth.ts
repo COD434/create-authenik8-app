@@ -1,5 +1,6 @@
 import { createAuthenik8 } from "authenik8-core";
 import dotenv  from "dotenv";
+import { createRedisClient } from "../config/redis";
 import { agentIdentityConfig, authJwkConfig, requiredSecret } from "../utils/security";
 
 dotenv.config();
@@ -15,6 +16,7 @@ export async function initAuth() {
     jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
     agent: agentIdentityConfig(),
+    redis: await createRedisClient(),
     oauth: oauthConfig(),
   });
 

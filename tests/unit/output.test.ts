@@ -35,8 +35,13 @@ describe("completion output", () => {
     expect(printed()).toContain("test-app is ready");
     expect(printed()).toContain("Express API (JWT only)");
     expect(printed()).toContain("SQLite with Prisma");
-    expect(printed()).toContain("npm run docker:up");
-    expect(printed()).toContain("npm run prisma:migrate");
+    expect(printed()).not.toContain("npm run docker:up");
+    expect(printed()).toContain("npm run db:migrate");
+    expect(printed()).toContain("npx create-authenik8-app@latest doctor");
+    expect(printed()).toContain("First success");
+    expect(printed()).toContain("Verify the JWT boundary");
+    expect(printed()).toContain("trusted identity source");
+    expect(printed()).toContain("authenik8.json");
     expect(printed()).not.toContain("github.com/COD434");
   });
 
@@ -44,6 +49,7 @@ describe("completion output", () => {
     printSummary({ ...baseState, packageManager: "pnpm", installDeps: false }, false);
 
     expect(printed()).toContain("pnpm install");
+    expect(printed()).toContain("pnpm dlx create-authenik8-app@latest doctor");
     expect(printed()).toContain("pnpm run dev");
   });
 
@@ -55,6 +61,8 @@ describe("completion output", () => {
     }, false);
 
     expect(printed()).toContain("Email, password, and GitHub");
+    expect(printed()).toContain("Complete an authenticated API request");
+    expect(printed()).toContain("GET /protected");
     expect(printed()).toContain("Configure GitHub OAuth credentials");
     expect(printed()).not.toContain("Google OAuth credentials");
   });
@@ -68,9 +76,13 @@ describe("completion output", () => {
     }, false);
 
     expect(printed()).toContain("Email and password");
-    expect(printed()).toContain("npm run db:migrate");
-    expect(printed()).toContain("npm run db:seed");
+    expect(printed()).toContain("npm run dev");
+    expect(printed()).not.toContain("npm run setup");
+    expect(printed()).not.toContain("npm run db:migrate");
+    expect(printed()).not.toContain("npm run db:seed");
     expect(printed()).toContain("http://localhost:5173");
+    expect(printed()).toContain("SEED_ADMIN_EMAIL");
+    expect(printed()).toContain("Change the seeded password");
   });
 
   it("omits Prisma commands for a database-free project", () => {
@@ -88,15 +100,28 @@ describe("completion output", () => {
   });
 
   it("warns instead of printing an unusable Docker command when Compose is unavailable", () => {
-    printSummary(baseState, false, false);
+    printSummary({ ...baseState, database: "postgresql" }, false, false);
 
     expect(printed()).toContain("Docker Compose was not found");
-    expect(printed()).toContain("start Redis manually");
+    expect(printed()).toContain("provide PostgreSQL through DATABASE_URL");
     expect(printed()).not.toContain("npm run docker:up");
   });
 
+  it("keeps fullstack startup available when Docker is unavailable", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+    }, false, false);
+
+    expect(printed()).not.toContain("Docker Compose was not found");
+    expect(printed()).not.toContain("npm run setup");
+    expect(printed()).not.toContain("npm run db:migrate");
+    expect(printed()).toContain("npm run dev");
+  });
+
   it("warns instead of printing an unusable Docker command when the daemon is stopped", () => {
-    printSummary(baseState, false, true, false);
+    printSummary({ ...baseState, database: "postgresql" }, false, true, false);
 
     expect(printed()).toContain("daemon is not reachable");
     expect(printed()).toContain("Start Docker Desktop or the Docker service");

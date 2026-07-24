@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
+import net from "node:net";
 import os from "node:os";
 import path from "node:path";
 import fs from "fs-extra";
@@ -48,6 +49,88 @@ function run(command, args, cwd) {
   });
 }
 
+function createFreshProjectEnv(overrides = {}) {
+  const environment = { ...process.env };
+
+  for (const key of [
+    "REDIS_URL",
+    "REDIS_HOST",
+    "REDIS_PORT",
+    "REDIS_PASSWORD",
+  ]) {
+    delete environment[key];
+  }
+
+  return {
+    ...environment,
+    REDIS_URL: "memory://",
+    ...overrides,
+  };
+}
+
+function availablePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      if (!address || typeof address === "string") {
+        server.close();
+        reject(new Error("Could not reserve a local verification port"));
+        return;
+      }
+      server.close((error) => error ? reject(error) : resolve(address.port));
+    });
+  });
+}
+
+function runUntilOutput(command, args, cwd, expectedOutput, environment) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd,
+      env: createFreshProjectEnv(environment),
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+    });
+
+    let output = "";
+    let ready = false;
+    let settled = false;
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+    }, 15_000);
+
+    const capture = (chunk) => {
+      const text = chunk.toString();
+      output += text;
+      process.stdout.write(text);
+      if (!ready && output.includes(expectedOutput)) {
+        ready = true;
+        child.kill("SIGTERM");
+      }
+    };
+
+    child.stdout.on("data", capture);
+    child.stderr.on("data", capture);
+    child.once("error", (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once("close", (code, signal) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (ready) resolve();
+      else if (timedOut) reject(new Error(`Timed out waiting for ${expectedOutput}\n${output}`));
+      else reject(new Error(`${command} exited with ${signal ?? code}\n${output}`));
+    });
+  });
+}
+
 async function useLocalCoreTarball(tarballPath) {
   if (!tarballPath) return;
   const dependency = `file:${path.resolve(tarballPath)}`;
@@ -67,8 +150,21 @@ try {
   await useLocalCoreTarball(process.env.AUTHENIK8_CORE_TARBALL);
 
   await run("npm", ["install", "--no-audit", "--no-fund"], targetDir);
+  if (preset === "auth-oauth") {
+    await run("npm", ["run", "db:migrate"], targetDir);
+  }
   await run("npm", ["audit", "--omit=dev", "--audit-level=high"], targetDir);
   await run("npm", ["run", "build"], targetDir);
+  if (preset === "auth-oauth") {
+    const port = await availablePort();
+    await runUntilOutput(
+      process.execPath,
+      [path.join(targetDir, "dist/server.js")],
+      targetDir,
+      `Auth system running on http://localhost:${port}`,
+      { NODE_ENV: "development", PORT: String(port), REDIS_URL: "memory://" },
+    );
+  }
   console.log(`Fresh ${preset} project installed and built successfully.`);
 } finally {
   await rm(tempRoot, { recursive: true, force: true });

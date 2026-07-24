@@ -11,6 +11,7 @@ export const stepOrder: StepName[] = [
   "production-configured",
   "deps-installed",
   "git-initialized",
+  "project-validated",
   "done",
 ];
 
@@ -23,5 +24,6 @@ export const stepLabels: Record<StepName, string> = {
   "deps-installed": "Install dependencies",
   "production-configured": "Configure production runtime",
   "git-initialized": "Initialize Git repository",
+  "project-validated": "Validate generated auth boundary",
   done: "Project ready",
 };

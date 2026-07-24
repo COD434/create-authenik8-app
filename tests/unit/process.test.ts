@@ -52,6 +52,7 @@ describe("cross-platform process execution", () => {
       stdio: "ignore",
       env: undefined,
       shell: process.platform === "win32",
+      detached: process.platform !== "win32",
       windowsHide: true,
     });
   });
@@ -152,6 +153,20 @@ describe("cross-platform process execution", () => {
       ["/pid", "9876", "/T", "/F"],
       { stdio: "ignore", windowsHide: true },
     );
+  });
+
+  it("terminates the entire child process group on Unix", async () => {
+    const child = mockChild(9876);
+    const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+    vi.mocked(spawn).mockReturnValue(child as never);
+
+    const promise = processLib.run("npm", ["install"], { cwd: "/tmp/project" });
+    processLib.killAllProcesses("linux");
+    child.emit("close", 0, null);
+    await promise;
+
+    expect(kill).toHaveBeenCalledWith(-9876, "SIGTERM");
+    expect(child.kill).not.toHaveBeenCalled();
   });
 
   it("classifies only supported interrupt signals", async () => {
