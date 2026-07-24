@@ -49,6 +49,25 @@ function run(command, args, cwd) {
   });
 }
 
+function createFreshProjectEnv(overrides = {}) {
+  const environment = { ...process.env };
+
+  for (const key of [
+    "REDIS_URL",
+    "REDIS_HOST",
+    "REDIS_PORT",
+    "REDIS_PASSWORD",
+  ]) {
+    delete environment[key];
+  }
+
+  return {
+    ...environment,
+    REDIS_URL: "memory://",
+    ...overrides,
+  };
+}
+
 function availablePort() {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
@@ -69,10 +88,11 @@ function runUntilOutput(command, args, cwd, expectedOutput, environment) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: { ...process.env, ...environment },
+      env: createFreshProjectEnv(environment),
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
     });
+
     let output = "";
     let ready = false;
     let settled = false;
@@ -142,7 +162,7 @@ try {
       [path.join(targetDir, "dist/server.js")],
       targetDir,
       `Auth system running on http://localhost:${port}`,
-      { NODE_ENV: "development", PORT: String(port) },
+      { NODE_ENV: "development", PORT: String(port), REDIS_URL: "memory://" },
     );
   }
   console.log(`Fresh ${preset} project installed and built successfully.`);
