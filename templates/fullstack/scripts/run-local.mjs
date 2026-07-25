@@ -114,8 +114,14 @@ try {
   if (databaseMode !== "embedded" && databaseMode !== "external") {
     throw new Error("AUTHENIK8_LOCAL_DATABASE must be embedded or external");
   }
+const configuredRedisUrl = envValue("REDIS_URL");
 
-  const environment = { ...process.env };
+  const environment = { ...process.env,
+  REDIS_URL: configuredRedisUrl ||
+  (process.env.NODE_ENV === "production" ? process.env.REDIS_URL : "memory://")
+  };
+
+
   if (databaseMode === "embedded") {
     console.log("Starting the project-local PostgreSQL database...");
     database = await startEmbeddedDatabase();

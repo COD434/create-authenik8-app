@@ -59,7 +59,7 @@ describe("generator happy paths", () => {
       expect(files["src/server.ts"]).toContain("redis: await createRedisClient()");
       expect(files["src/config/redis.ts"]).toContain("redisUrl === localRedisUrl");
       expect(files["src/config/redis.ts"]).toContain(
-        'process.env.NODE_ENV?.trim() === "production"',
+        'nodeEnv === "production"',
       );
       expect(files["src/prisma/client.ts"]).toContain("new PrismaLibSql");
       expect(files["prisma/schema.prisma"]).toContain('provider = "sqlite"');
