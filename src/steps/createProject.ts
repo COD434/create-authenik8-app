@@ -52,7 +52,8 @@ export function configurePackageJson(
           '  "@prisma/engines": true',
           "  prisma: true",
           "overrides:",
-          '  "@hono/node-server": "1.19.13"',
+          '  "find-my-way": "9.7.0"',
+          '  valibot: "1.4.2"',
           "",
         ].join("\n"),
       );

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { UserPlus } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { registerSchema, type RegisterInput } from "@authenik8/contracts";
 import { ApiError, authApi } from "@authenik8/api-client";
 import { Button, Input } from "@authenik8/ui";

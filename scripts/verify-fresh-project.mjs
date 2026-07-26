@@ -153,7 +153,7 @@ try {
   if (preset === "auth-oauth") {
     await run("npm", ["run", "db:migrate"], targetDir);
   }
-  await run("npm", ["audit", "--omit=dev", "--audit-level=high"], targetDir);
+  await run("npm", ["audit", "--audit-level=low"], targetDir);
   await run("npm", ["run", "build"], targetDir);
   if (preset === "auth-oauth") {
     const port = await availablePort();

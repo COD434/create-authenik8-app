@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { Spinner } from "@authenik8/ui";
 import { useAuth } from "../../auth/AuthProvider";
 import { AuthShell } from "../../components/AuthShell";

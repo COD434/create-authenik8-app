@@ -107,11 +107,11 @@ describe("Express preset onboarding", () => {
       const callLog = path.join(project.rootDir, "command-calls.log");
       await Promise.all([
         fakeCommand(project, "prisma", callLog),
-        fakeCommand(project, "ts-node-dev", callLog),
+        fakeCommand(project, "tsx", callLog),
       ]);
 
       await runNpmScript(project, "db:migrate", callLog);
-      expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
+      expect((await fs.readFile(callLog, "utf8")).trim().split(/\r?\n/)).toEqual([
         "prisma db push",
         "prisma generate",
       ]);
@@ -120,10 +120,10 @@ describe("Express preset onboarding", () => {
       await runNpmScript(project, "dev", callLog);
       const developmentCalls = (await fs.readFile(callLog, "utf8"))
         .trim()
-        .split("\n");
+        .split(/\r?\n/);
       expect(developmentCalls[0]).toBe("prisma generate");
       expect(developmentCalls[1]).toContain(
-        "ts-node-dev --respawn --transpile-only",
+        "tsx watch",
       );
 
       const smoke = await runGeneratedServerSmoke(

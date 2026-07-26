@@ -13,7 +13,7 @@ import { Badge } from "@astryxdesign/core/Badge";
 import { Button } from "@astryxdesign/core/Button";
 import { Card } from "@astryxdesign/core/Card";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { EmptyState, Spinner } from "@authenik8/ui";
 import { accountApi, healthApi, projectApi } from "@authenik8/api-client";
 import { ErrorNotice } from "../components/Page";

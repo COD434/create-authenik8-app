@@ -9,7 +9,7 @@ import { Github, KeyRound, LockKeyhole, Mail } from "lucide-react";
 import { Banner } from "@astryxdesign/core/Banner";
 import { Button } from "@astryxdesign/core/Button";
 import { TextInput } from "@astryxdesign/core/TextInput";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
 import { AuthShell } from "../../components/AuthShell";
 import { getErrorMessage } from "../../components/Page";
 import { useAuth } from "../../auth/AuthProvider";

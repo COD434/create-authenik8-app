@@ -1,4 +1,4 @@
-import { Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router";
 import { AdminRoute, ProtectedRoute } from "./auth/RouteGuards";
 import { AppShell } from "./components/AppShell";
 import { LoginPage } from "./pages/auth/LoginPage";

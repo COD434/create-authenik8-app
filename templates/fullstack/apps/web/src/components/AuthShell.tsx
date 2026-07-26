@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { Card } from "@astryxdesign/core/Card";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 export function AuthShell({ title, subtitle, children, footer }: { title: string; subtitle: string; children: ReactNode; footer: ReactNode }) {
   return (

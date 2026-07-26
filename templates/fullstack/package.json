@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "engines": {
-    "node": "^20.19 || ^22.12 || >=24"
+    "node": "^22.22 || >=24"
   },
   "scripts": {
     "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
@@ -37,11 +37,12 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "@hono/node-server": "1.19.13"
+    "find-my-way": "9.7.0",
+    "valibot": "1.4.2"
   },
   "allowScripts": {
-    "prisma@7.8.0": true,
-    "@prisma/engines@7.8.0": true,
+    "prisma@7.9.0": true,
+    "@prisma/engines@7.9.0": true,
     "esbuild": true
   }
 }

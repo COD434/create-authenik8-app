@@ -108,7 +108,7 @@ describe("fullstack local onboarding", () => {
     });
 
     expect(await fs.pathExists(databaseDirectory)).toBe(true);
-    expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
+    expect((await fs.readFile(callLog, "utf8")).trim().split(/\r?\n/)).toEqual([
 	"run db:migrate:apply",
 	"run db:seed:apply",
 	//"run prisma:migrate -w @authenik8/api",
@@ -126,7 +126,7 @@ describe("fullstack local onboarding", () => {
       AUTHENIK8_LOCAL_DATABASE: "external",
     });
 
-    expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
+    expect((await fs.readFile(callLog, "utf8")).trim().split(/\r?\n/)).toEqual([
       "run db:migrate:apply",
       "run db:seed:apply",
 //	"run prisma:migrate -w @authenik8/api",
@@ -144,7 +144,7 @@ describe("fullstack local onboarding", () => {
       AUTHENIK8_LOCAL_DATABASE: "external",
     });
 
-    expect((await fs.readFile(callLog, "utf8")).trim().split("\n")).toEqual([
+    expect((await fs.readFile(callLog, "utf8")).trim().split(/\r?\n/)).toEqual([
 	"run db:migrate:apply",
 	"run db:seed:apply",
      //"run prisma:migrate -w @authenik8/api",
