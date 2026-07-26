@@ -8,13 +8,15 @@
 
 <p>Authenik8 provides production-minded identity flows, stateful JWT rotation, Redis-backed sessions, Prisma, OAuth, and a complete fullstack application preset.</p>
 
-</div>
+
 
 ![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
 ![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
 [![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12678/badge)](https://www.bestpractices.dev/projects/12678)
 
+</div>
 See a real generated project in [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example).
 
 ## Quickstart
