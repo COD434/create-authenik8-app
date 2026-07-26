@@ -8,6 +8,23 @@ export type InstallResult = {
   durationMs: number;
 };
 
+export function getProjectInstallEnv(
+  env: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  const cleanEnv: NodeJS.ProcessEnv = { ...env };
+
+  // npm may export --allow-scripts from an outer npx/npm exec command.
+  for (const key of Object.keys(cleanEnv)) {
+    if (key.toLowerCase() === "npm_config_allow_scripts") {
+      delete cleanEnv[key];
+    }
+  }
+
+  return cleanEnv;
+}
+
+
+
 function packageManagerFrom(value: string | undefined): PackageManager | undefined {
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("pnpm")) return "pnpm";
@@ -77,6 +94,7 @@ export async function installDependencies(
     await run(getCommand(pm), getInstallArgs(pm), {
       cwd: targetDir,
       stdio: hideProgress ? "pipe" : "inherit",
+      env: getProjectInstallEnv(),
     });
 
     return {

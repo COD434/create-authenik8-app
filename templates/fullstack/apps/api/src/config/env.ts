@@ -43,7 +43,7 @@ const schema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.string().min(1).default("redis://localhost:6379"),
+  REDIS_URL: z.string().min(1).default("memory://"),
   AUTHENIK8_SIGNING_JWKS: signingJwks,
   AUTHENIK8_ACTIVE_KID: z.string().min(1),
   AUTHENIK8_ISSUER: z.string().url(),
@@ -61,6 +61,14 @@ const schema = z.object({
   GITHUB_CLIENT_ID: z.string().optional(),
   GITHUB_CLIENT_SECRET: z.string().optional(),
   GITHUB_REDIRECT_URI: z.string().url().optional().or(z.literal("")),
+}).superRefine((environment, context) => {
+  if (environment.NODE_ENV === "production" && environment.REDIS_URL === "memory://") {
+    context.addIssue({
+      code: "custom",
+      path: ["REDIS_URL"],
+      message: "must use redis:// or rediss:// in production",
+    });
+  }
 });
 
 const result = schema.safeParse(process.env);

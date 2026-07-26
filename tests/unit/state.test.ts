@@ -24,13 +24,14 @@ describe("CLI state validation", () => {
   it("round-trips a valid state through Zod", () => {
     const file = temporaryStateFile();
     initState({ step: "start", projectName: "valid-app" }, file);
-    saveState({ packageManager: "pnpm", database: "sqlite" });
+    saveState({ packageManager: "pnpm", database: "sqlite", productionReady: true });
 
     expect(loadState(file)).toMatchObject({
       step: "start",
       projectName: "valid-app",
       packageManager: "pnpm",
       database: "sqlite",
+      productionReady: true,
     });
   });
 

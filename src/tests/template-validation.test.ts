@@ -4,7 +4,10 @@ import {
   parseCredentials as parseAuthCredentials,
   parseRefreshToken,
 } from "../../templates/express-auth/src/utils/security";
-import { parseCredentials as parseOAuthCredentials } from "../../templates/express-auth+/src/utils/security";
+import {
+  parseCredentials as parseOAuthCredentials,
+  parseRefreshToken as parseOAuthRefreshToken,
+} from "../../templates/express-auth+/src/utils/security";
 import {
   agentIdentityConfig,
   authJwkConfig,
@@ -41,6 +44,7 @@ describe("template Zod validation", () => {
   it("validates refresh tokens and route identifiers", () => {
     const body = { refreshToken: "  abcdefghijklmnop  " };
     expect(parseRefreshToken(body)).toBe("abcdefghijklmnop");
+    expect(parseOAuthRefreshToken(body)).toBe("abcdefghijklmnop");
     expect(parseBaseRefreshToken(body)).toBe("abcdefghijklmnop");
     expect(parseIdentifier(" user-1 ", "User ID")).toBe("user-1");
     expect(() => parseIdentifier("../user", "User ID")).toThrow("User ID is invalid");

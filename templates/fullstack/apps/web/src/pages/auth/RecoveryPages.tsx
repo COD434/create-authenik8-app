@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { ArrowLeft, Mail, RotateCcw } from "lucide-react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { Button, Input } from "@authenik8/ui";
 import { authApi } from "@authenik8/api-client";
 import { AuthShell } from "../../components/AuthShell";

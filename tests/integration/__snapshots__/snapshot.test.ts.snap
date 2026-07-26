@@ -242,6 +242,7 @@ return bcrypt.compare(password, hash);
     "AGENT_IDENTITY.md",
     "README.md",
     "THREAT_MODEL.md",
+    "authenik8.json",
     "docker-compose.yml",
     "package.json",
     "prisma.config.ts",
@@ -249,6 +250,8 @@ return bcrypt.compare(password, hash);
     "prisma/schema.prisma",
     "src/",
     "src/app.ts",
+    "src/config/",
+    "src/config/redis.ts",
     "src/controllers/",
     "src/controllers/auth.controller.ts",
     "src/controllers/protected.controller.ts",
@@ -447,14 +450,14 @@ export const createBaseRoutes = (auth: any) => {
   return router;
 };",
     "src/prisma/client.ts": "import "dotenv/config";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { PrismaClient } from "@prisma/client";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const adapter = new PrismaBetterSqlite3({
+const adapter = new PrismaLibSql({
   url: process.env.DATABASE_URL ?? "file:./dev.db",
 });
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({ adapter });
@@ -465,6 +468,7 @@ if (process.env.NODE_ENV !== "production") {
     "src/server.ts": "import  dotenv  from "dotenv";
 import { createAuthenik8 } from "authenik8-core";
 import { createApp } from "../app";
+import { createRedisClient } from "./config/redis";
 import { agentIdentityConfig, authJwkConfig, requiredPort, requiredSecret } from "../utils/security";
 
 dotenv.config();
@@ -474,6 +478,7 @@ async function start() {
     jwt: authJwkConfig(),
     refreshSecret: requiredSecret("REFRESH_SECRET"),
     agent: agentIdentityConfig(),
+    redis: await createRedisClient(),
   });
 
   const app = createApp(auth);
@@ -501,6 +506,7 @@ start();",
     "README.md",
     "THREAT_MODEL.md",
     "app.ts",
+    "authenik8.json",
     "controllers/",
     "controllers/base.controller.ts",
     "docker-compose.yml",
@@ -511,6 +517,8 @@ start();",
     "routes/",
     "routes/base.routes.ts",
     "src/",
+    "src/config/",
+    "src/config/redis.ts",
     "src/prisma/",
     "src/prisma/client.ts",
     "src/server.ts",

@@ -1,7 +1,6 @@
 import inquirer from "inquirer";
 import type { CliState } from "../lib/types.js";
 import {
-  authMethodSelectionSchema,
   firstZodIssue,
   oauthProviderSelectionSchema,
   promptAnswersSchema,
@@ -9,7 +8,7 @@ import {
 import { hasBun } from "./finalSetup.js";
 
 function validateSelection(
-  schema: typeof authMethodSelectionSchema | typeof oauthProviderSelectionSchema,
+  schema: typeof oauthProviderSelectionSchema,
   choices: unknown,
 ): true | string {
   const result = schema.safeParse(choices);
@@ -27,24 +26,34 @@ export async function runPrompts(
       name: "authMode",
       message: "Select a preset:",
       choices: [
-        { name: "Full-stack application (recommended)", value: "fullstack" },
-        { name: "Express API (JWT only)", value: "base" },
-        { name: "Express API + email/password", value: "auth" },
-        { name: "Express API + OAuth", value: "auth-oauth" },
+        {
+          name: "Fullstack app (recommended) · React + Express, embedded PostgreSQL, npm",
+          value: "fullstack",
+        },
+        {
+          name: "JWT-only API · bring your own identity source, optional Prisma, Redis",
+          value: "base",
+        },
+        {
+          name: "Password API · email/password, Prisma, SQLite or PostgreSQL, Redis",
+          value: "auth",
+        },
+        {
+          name: "OAuth API · password + Google/GitHub, Prisma, database, Redis",
+          value: "auth-oauth",
+        },
       ],
       default: "fullstack",
     },
     {
       type: "checkbox",
-      name: "authMethods",
-      message: "Select authentication methods:",
+      name: "fullstackOAuthProviders",
+      message: "Add OAuth providers now? (optional; password auth is included)",
       choices: [
-        { name: "Email and password (required)", value: "password", checked: true },
-        { name: "Google", value: "google", checked: true },
-        { name: "GitHub", value: "github", checked: true },
+        { name: "Google (requires provider credentials)", value: "google" },
+        { name: "GitHub (requires provider credentials)", value: "github" },
       ],
       when: (answers) => answers.authMode === "fullstack",
-      validate: (choices) => validateSelection(authMethodSelectionSchema, choices),
     },
     {
       type: "checkbox",
@@ -104,10 +113,19 @@ export async function runPrompts(
     },
   ])
     .then((result) => {
+      const { fullstackOAuthProviders, ...promptResult } = result;
       const answers = {
-        ...result,
+        ...promptResult,
         framework: "Express" as const,
-        ...(result.runtime === "bun" && !bunAvailable ? { runtime: "node" as const } : {}),
+        ...(promptResult.authMode === "fullstack"
+          ? {
+            authMethods: [
+              "password" as const,
+              ...((fullstackOAuthProviders ?? []) as Array<"google" | "github">),
+            ],
+          }
+          : {}),
+        ...(promptResult.runtime === "bun" && !bunAvailable ? { runtime: "node" as const } : {}),
       };
       const validation = promptAnswersSchema.safeParse(answers);
       if (!validation.success) {

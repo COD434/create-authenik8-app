@@ -1,5 +1,5 @@
 import { ArrowLeft, LockKeyhole, SearchX } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 function StatusPage({ icon, title, message }: { icon: React.ReactNode; title: string; message: string }) {
   return <main className="status-page"><div className="status-icon">{icon}</div><h1>{title}</h1><p>{message}</p><Link className="button button-primary" to="/"><ArrowLeft size={17} /> Return to dashboard</Link></main>;

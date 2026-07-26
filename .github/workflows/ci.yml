@@ -85,7 +85,7 @@ jobs:
         run: npm run test:templates
 
   fresh-project:
-    name: Fresh ${{ matrix.preset }} install / Node 22
+    name: Fresh ${{ matrix.preset }} install / Node ${{ matrix.node }}
     needs: [quality]
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -93,7 +93,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        preset: [auth-oauth, fullstack]
+        include:
+          - preset: auth-oauth
+            node: 22.12.x
+          - preset: fullstack
+            node: 24.x
 
     steps:
       - name: Harden the runner (Audit all outbound calls)
@@ -107,7 +111,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 22.12.x
+          node-version: ${{ matrix.node }}
           cache: npm
 
       - name: Install and build the generator

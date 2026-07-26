@@ -8,8 +8,50 @@ import {
   installDependencies,
   isPackageManagerAvailable,
   resolvePackageManagerForPreset,
+  getProjectInstallEnv,
 } from "../../src/steps/installDeps.js";
 import * as processLib from "../../src/lib/process.js";
+
+
+describe("getProjectInstallEnv", () => {
+  it("removes inherited npm allow-scripts configuration", () => {
+    const result = getProjectInstallEnv({
+      PATH: "/usr/bin",
+      HOME: "/home/test",
+      npm_config_allow_scripts: "create-authenik8-app",
+    });
+
+    expect(result).toEqual({
+      PATH: "/usr/bin",
+      HOME: "/home/test",
+    });
+  });
+
+  it("removes the setting case-insensitively", () => {
+    const result = getProjectInstallEnv({
+      PATH: "/usr/bin",
+      NPM_CONFIG_ALLOW_SCRIPTS: "create-authenik8-app",
+    });
+
+    expect(result).toEqual({
+      PATH: "/usr/bin",
+    });
+  });
+
+  it("does not mutate the original environment", () => {
+    const original = {
+      PATH: "/usr/bin",
+      npm_config_allow_scripts: "create-authenik8-app",
+    };
+
+    getProjectInstallEnv(original);
+
+    expect(original.npm_config_allow_scripts).toBe(
+      "create-authenik8-app",
+    );
+  });
+});
+
 
 describe("dependency installation", () => {
   beforeEach(() => {
@@ -61,7 +103,10 @@ describe("dependency installation", () => {
     expect(processLib.run).toHaveBeenCalledWith(
       manager,
       getInstallArgs(manager),
-      { cwd: "/tmp/test-project", stdio: "inherit" },
+      { cwd: "/tmp/test-project",
+	stdio: "inherit", 
+	env: expect.any(Object) 
+      },
     );
     expect(result).toMatchObject({ packageManager: manager });
     expect(result.durationMs).toBeGreaterThanOrEqual(0);

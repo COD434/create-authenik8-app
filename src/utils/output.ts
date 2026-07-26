@@ -1,4 +1,6 @@
 import chalk from "chalk";
+import { doctorCommand, firstSuccessGuide } from "../lib/onboarding.js";
+import { installCommand, runScriptCommand } from "../lib/packageManagerCommands.js";
 import type { CliState } from "../lib/types.js";
 
 function selectedOAuthProviders(state: CliState): string[] {
@@ -35,7 +37,7 @@ function databaseLabel(state: CliState): string {
 }
 
 function runCommand(state: CliState, script: string): string {
-  return `${state.packageManager ?? "npm"} run ${script}`;
+  return runScriptCommand(state.packageManager ?? "npm", script);
 }
 
 export function printSummary(
@@ -45,14 +47,19 @@ export function printSummary(
   hasDockerDaemon = true,
 ): void {
   const packageManager = state.packageManager ?? "npm";
+  const firstSuccess = firstSuccessGuide(state.authMode ?? "base");
+  const isFullstack = state.authMode === "fullstack";
+  const needsPostgres = !isFullstack
+    && state.usePrisma
+    && state.database === "postgresql";
   const commands = [
     `cd ${state.projectName}`,
-    ...(state.installDeps === false ? [`${packageManager} install`] : []),
-    ...(hasDockerCompose && hasDockerDaemon ? [runCommand(state, "docker:up")] : []),
-    ...(state.usePrisma
-      ? [runCommand(state, state.authMode === "fullstack" ? "db:migrate" : "prisma:migrate")]
+    ...(state.installDeps === false ? [installCommand(packageManager)] : []),
+    ...(needsPostgres && hasDockerCompose && hasDockerDaemon
+      ? [runCommand(state, "docker:up")]
       : []),
-    ...(state.authMode === "fullstack" ? [runCommand(state, "db:seed")] : []),
+    ...(!isFullstack && state.usePrisma ? [runCommand(state, "db:migrate")] : []),
+    doctorCommand(packageManager),
     runCommand(state, "dev"),
   ];
   const details: Array<[string, string]> = [
@@ -71,18 +78,28 @@ export function printSummary(
     console.log(`${chalk.green("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
   }
   console.log(chalk.dim("│"));
-  if (!hasDockerCompose) {
-    const services = state.database === "postgresql" ? "Redis and PostgreSQL" : "Redis";
-    console.log(`${chalk.yellow("!")}  Docker Compose was not found. Install it or start ${services} manually.`);
+  if (needsPostgres && !hasDockerCompose) {
+    console.log(
+      `${chalk.yellow("!")}  Docker Compose was not found. Install it or provide PostgreSQL through DATABASE_URL.`,
+    );
     console.log(chalk.dim("│"));
-  } else if (!hasDockerDaemon) {
-    console.log(`${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`);
+  } else if (needsPostgres && !hasDockerDaemon) {
+    console.log(
+      `${chalk.yellow("!")}  Docker is installed, but its daemon is not reachable. Start Docker Desktop or the Docker service.`,
+    );
     console.log(chalk.dim("│"));
   }
   console.log(`${chalk.cyan("└")} ${chalk.bold("Next steps")}`);
   for (const command of commands) {
     console.log(`  ${chalk.cyan(command)}`);
   }
+
+  console.log(chalk.dim("│"));
+  console.log(`${chalk.cyan("└")} ${chalk.bold("First success")}`);
+  console.log(`  ${chalk.bold(firstSuccess.title)}`);
+  firstSuccess.steps.forEach((step, index) => {
+    console.log(`  ${chalk.cyan(`${index + 1}.`)} ${step}`);
+  });
 
   if (state.authMode === "fullstack") {
     console.log(chalk.dim("\n  Web  http://localhost:5173"));
@@ -95,5 +112,5 @@ export function printSummary(
     console.log(chalk.dim(`\n  Production process  ${runCommand(state, "pm2:start")}`));
   }
 
-  console.log(chalk.dim("\n  Review .env, README.md, and THREAT_MODEL.md before deployment.\n"));
+  console.log(chalk.dim("\n  Review .env, authenik8.json, README.md, and THREAT_MODEL.md before deployment.\n"));
 }

@@ -7,6 +7,9 @@ import { fileURLToPath } from "url";
 
 import type { StepName } from "../lib/types.js";
 import { parseCliArguments } from "../lib/args.js";
+import { resolveNonInteractiveAnswers } from "../lib/nonInteractive.js";
+import { writeProjectManifest } from "../lib/projectManifest.js";
+import { runPostGenerationDoctor } from "../commands/doctor/postGeneration.js";
 import { initState, saveState, loadState, clearState, hasReachedStep, getState } from "../lib/state.js";
 import {
   dockerComposeAvailable,
@@ -17,6 +20,13 @@ import { assertPresetRequirements } from "../lib/preflight.js";
 import { projectNameError } from "../lib/projectName.js";
 import { configuredCliStateSchema, firstZodIssue } from "../lib/schemas.js";
 import {
+  canResumeSetup,
+  interruptionExitCode,
+  restartCommand,
+  type ShutdownSignal,
+} from "../lib/interruption.js";
+import {
+
   completeStep,
   finishSteps,
   formatDuration,
@@ -31,6 +41,8 @@ import { runPrompts } from "../steps/prompts.js";
 import { createProject, configurePackageJson } from "../steps/createProject.js";
 import { installAuth } from "../steps/installAuth.js";
 import { configurePrisma } from "../steps/configurePrisma.js";
+import { configureGeneratedReadme } from "../steps/configureReadme.js";
+
 import {
   installDependencies,
   isPackageManagerAvailable,
@@ -77,9 +89,25 @@ Secure application scaffolding
 
 Usage:
   create-authenik8-app <project-name> [options]
+  create-authenik8-app create <project-name> [options]
+  create-authenik8-app doctor [directory] [--json] [--skip-services]
+  create-authenik8-app add <recipe> [directory] [--dry-run]
+  create-authenik8-app upgrade [directory] [--check] [--json]
 
 Options:
   --package-manager <npm|pnpm|bun>  Select the installer for Express presets
+  --non-interactive, --yes          Generate without prompts (requires --preset)
+  --preset <base|auth|auth-oauth|fullstack>
+                                    Select a preset non-interactively
+  --prisma, --no-prisma             Choose Prisma for the base preset
+  --database <sqlite|postgresql>    Select a database where applicable
+  --oauth <google|github|google,github>
+  --no-oauth                        Explicitly disable OAuth for fullstack
+  --git, --no-git                   Choose Git initialization (defaults off)
+  --runtime <node|bun>              Runtime for --production-ready Express apps
+
+  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
+
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets
@@ -87,13 +115,22 @@ Options:
   -h, --help                        Show this help message
 
 Presets:
-  Express API (JWT only)
-  Express API + email/password
-  Express API + OAuth
-  Full-stack application (React, Express, Prisma, PostgreSQL, Redis)
+
+  fullstack    Recommended connected React + Express app
+               Requires npm; local PostgreSQL and Redis run in process
+  base         JWT boundary for applications with their own identity source
+               Requires Redis; Prisma and a database are optional
+  auth         Email/password Express API
+               Requires Redis, Prisma, and SQLite or PostgreSQL
+  auth-oauth   Password + Google/GitHub Express API
+               Requires provider credentials, Redis, Prisma, and a database
+
+Requirements:
+  Node.js 20.19+, 22.12+, or 24+. Fullstack uses npm workspaces.
 
 Example:
   npx create-authenik8-app my-app
+  npx create-authenik8-app my-api --yes --preset auth --database postgresql --no-git
 
 Full-stack applications use npm workspaces. Set AUTHENIK8_VERBOSE=1 to show installer output.
 `);
@@ -124,7 +161,7 @@ if (invalidProjectName) {
   process.exit(1);
 }
 const skipInstall = cliArguments.skipInstall;
-const isProduction = cliArguments.productionReady;
+let isProduction = cliArguments.productionReady;
 const isResume = cliArguments.resume;
 const targetDir = path.resolve(process.cwd(), projectName);
 const templateRoot = [
@@ -135,7 +172,7 @@ const globalStateDir = path.join(process.cwd(), ".authenik8");
 const stateFile = path.join(globalStateDir, `${projectName}.json`);
 let shuttingDown = false;
 
-const handleShutdown = async () => {
+const handleShutdown = (signal: ShutdownSignal) => {
   if (shuttingDown) return;
   shuttingDown = true;
 
@@ -144,21 +181,38 @@ const handleShutdown = async () => {
   killAllProcesses();
 
   console.log(chalk.yellow("Setup interrupted."));
+  let canResume = false;
+  let restartPackageManager = cliArguments.packageManager;
+  let restartWithoutInstall = skipInstall;
+  let restartProductionReady = isProduction;
   try {
     const current = getState();
-    if (current && current.step && current.step !== "done") {
-      saveState({ ...current });
+    const saved = current.step === "start" ? loadState(stateFile) : null;
+    const restartState = saved ?? current;
+    canResume = canResumeSetup(restartState.step);
+    restartPackageManager ??= restartState.packageManager;
+    restartWithoutInstall ||= restartState.installDeps === false;
+    restartProductionReady ||= restartState.productionReady === true;
+    if (canResume) {
+      saveState({ ...restartState });
     }
   } catch (_) {}
 
-  console.log(chalk.gray("Resume with:"));
-  console.log(chalk.cyan(`   npx create-authenik8-app ${projectName} --resume`));
+  const command = restartCommand({
+    projectName,
+    productionReady: restartProductionReady,
+    resume: canResume,
+    skipInstall: restartWithoutInstall,
+    ...(restartPackageManager ? { packageManager: restartPackageManager } : {}),
+  });
+  console.log(chalk.gray(canResume ? "Resume with:" : "Start again with:"));
+  console.log(chalk.cyan(`   ${command}`));
 
-  process.exit(0);
+  process.exit(interruptionExitCode(signal));
 };
 
-process.prependListener("SIGINT", handleShutdown);
-process.prependListener("SIGTERM", handleShutdown);
+process.prependListener("SIGINT", () => handleShutdown("SIGINT"));
+process.prependListener("SIGTERM", () => handleShutdown("SIGTERM"));
 
 process.on("exit", () => {
   killAllProcesses();
@@ -170,6 +224,7 @@ initState({
   step: "start",
   projectName,
   installDeps: !skipInstall,
+  productionReady: isProduction,
   ...(cliArguments.packageManager ? { packageManager: cliArguments.packageManager } : {}),
 }, stateFile);
 
@@ -211,7 +266,8 @@ async function main() {
         writeLine(process.stderr, chalk.red(`Error: No saved setup state found for "${projectName}".`));
         process.exit(1);
       }
-      initState(savedState, stateFile);
+      isProduction = isProduction || savedState.productionReady === true;
+      initState({ ...savedState, productionReady: isProduction }, stateFile);
       if (skipInstall) {
         saveState({ installDeps: false });
       } else if (savedState.installDeps === undefined) {
@@ -223,7 +279,11 @@ async function main() {
       currentStep = savedState.step;
       console.log(chalk.yellow(`\nResuming ${projectName} from "${currentStep}".\n`));
     } else {
-      const promptAnswers = await runPrompts(getState(), isProduction);
+      const promptAnswers = cliArguments.nonInteractive
+        ? resolveNonInteractiveAnswers(cliArguments, {
+          bunAvailable: isPackageManagerAvailable("bun"),
+        })
+        : await runPrompts(getState(), isProduction);
       saveState({ ...promptAnswers, step: "prompts" });
       currentStep = "prompts";
     }
@@ -247,7 +307,7 @@ async function main() {
     if (state.installDeps !== false && !isPackageManagerAvailable(packageManager)) {
       throw new Error(`${packageManager} is not available on PATH. Install it or choose another package manager.`);
     }
-    saveState({ packageManager });
+    saveState({ packageManager, runtime });
 
     if (state.usePrisma) {
       if (!state.database) saveState({ database: "sqlite" });
@@ -310,13 +370,26 @@ async function main() {
       skipStep("prisma-configured", "already completed");
     }
 
+    const manifestState = configuredCliStateSchema.parse(getState());
+    await writeProjectManifest(targetDir, {
+      projectName,
+      generatorVersion: readCliVersion(),
+      preset: manifestState.authMode,
+      packageManager: manifestState.packageManager,
+      runtime: manifestState.runtime ?? "node",
+      ...(manifestState.database ? { database: manifestState.database } : {}),
+      usePrisma: manifestState.usePrisma,
+      oauthProviders: manifestState.oauthProviders ?? [],
+      productionReady: isProduction && manifestState.authMode !== "fullstack",
+    });
+
     if (
       isProduction
       && getState().authMode !== "fullstack"
       && !hasReachedStep(currentStep, "production-configured")
     ) {
       startStep("production-configured");
-      await configureProduction(targetDir, projectName, runtime);
+      await configureProduction(targetDir, projectName, runtime, packageManager);
       saveState({
         step: "production-configured",
         ...(getState().authMode !== "base" && { hashLib: selectedHash }),
@@ -324,6 +397,11 @@ async function main() {
       currentStep = "production-configured";
       completeStep(currentStep);
     }
+
+    if (isProduction && getState().authMode !== "fullstack") {
+      appendProductionReadme(targetDir, projectName, packageManager);
+    }
+    await configureGeneratedReadme(targetDir, packageManager);
 
     // Install dependencies
     if (!hasReachedStep(currentStep, "deps-installed")) {
@@ -370,13 +448,30 @@ async function main() {
       skipStep("git-initialized", "already completed");
     }
 
+    if (!hasReachedStep(currentStep, "project-validated")) {
+      startStep("project-validated");
+      const validation = await runPostGenerationDoctor(
+        targetDir,
+        getState().installDeps !== false,
+      );
+      completeStep("project-validated", `${validation.passed} checks passed`);
+      if (validation.warnings > 0) {
+        console.log(chalk.yellow(
+          `! Static Doctor warnings: ${validation.warningLabels.join(", ")}`,
+        ));
+      }
+      saveState({
+        step: "project-validated",
+        ...(getState().authMode !== "base" && { hashLib: selectedHash }),
+      });
+      currentStep = "project-validated";
+    } else {
+      skipStep("project-validated", "already completed");
+    }
+
     finishSteps();
 
     // Done
-    if (isProduction && getState().authMode !== "fullstack") {
-      appendProductionReadme(targetDir, projectName);
-    }
-
     const hasDockerCompose = dockerComposeAvailable();
     printSummary(
       getState(),
@@ -397,14 +492,16 @@ async function main() {
   }
 }
 
-main().catch(async (err) => {
+try {
+  await main();
+} catch (err) {
   if (err instanceof ExitPromptError) {
     console.log(chalk.yellow("\nSetup cancelled. No project files were changed."));
     killAllProcesses();
     await cleanupIncompleteProject();
-    process.exit(0);
+    process.exit(130);
   }
   writeLine(process.stderr, chalk.red(`\nUnexpected error: ${errorMessage(err)}`));
   await cleanupIncompleteProject();
   process.exit(1);
-});
+}

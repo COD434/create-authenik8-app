@@ -7,12 +7,14 @@ import fs from "fs-extra";
 import { vi } from "vitest";
 
 import type { CliState } from "../../src/lib/types.js";
+import { writeProjectManifest } from "../../src/lib/projectManifest.js";
 import {
   createProject,
   configurePackageJson,
   resolveTemplateName,
 } from "../../src/steps/createProject.js";
 import { configurePrisma } from "../../src/steps/configurePrisma.js";
+import { configureGeneratedReadme } from "../../src/steps/configureReadme.js";
 import { installAuth } from "../../src/steps/installAuth.js";
 import { configureProduction } from "../../src/steps/finalSetup.js";
 import * as hashUtils from "../../src/utils/hash.js";
@@ -42,6 +44,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "../../");
 const templateRoot = path.join(repoRoot, "templates");
+const generatorVersion = (fs.readJsonSync(path.join(repoRoot, "package.json")) as { version: string }).version;
 const tsxLoaderPath = path.join(repoRoot, "node_modules", "tsx", "dist", "loader.mjs");
 const tsxLoaderUrl = pathToFileURL(tsxLoaderPath).href;
 
@@ -134,11 +137,39 @@ export async function generateProjectFixture(
   }
 
   await configurePrisma(state, targetDir, fixtureTemplateRoot);
-  configurePackageJson(targetDir, state.usePrisma ?? false, options.packageManager ?? "npm");
+  const packageManager = state.authMode === "fullstack"
+    ? "npm"
+    : options.packageManager ?? "npm";
+  configurePackageJson(targetDir, state.usePrisma ?? false, packageManager);
 
   if (options.productionRuntime) {
-    await configureProduction(targetDir, state.projectName, options.productionRuntime);
+    await configureProduction(
+      targetDir,
+      state.projectName,
+      options.productionRuntime,
+      packageManager,
+    );
   }
+  await configureGeneratedReadme(targetDir, packageManager);
+
+  const manifestProviders = state.authMode === "auth-oauth" || state.authMode === "fullstack"
+    ? options.oauthProviders ?? ["google", "github"]
+    : [];
+  await writeProjectManifest(targetDir, {
+    projectName: state.projectName,
+    generatorVersion,
+    preset: state.authMode ?? "base",
+    packageManager,
+    runtime: state.authMode === "fullstack" ? "node" : options.productionRuntime ?? "node",
+    ...(state.authMode === "fullstack"
+      ? { database: "postgresql" as const }
+      : state.usePrisma && state.database
+        ? { database: state.database }
+        : {}),
+    usePrisma: state.authMode === "fullstack" || Boolean(state.usePrisma),
+    oauthProviders: manifestProviders,
+    productionReady: Boolean(options.productionRuntime) && state.authMode !== "fullstack",
+  });
 
   return {
     rootDir,
@@ -221,6 +252,9 @@ export async function installGeneratedAppStubs(
       targetDir,
       "authenik8-core",
       `export async function createAuthenik8(config) {
+  if (!config?.redis) {
+    throw new Error("Generated servers must inject a Redis-compatible client");
+  }
   globalThis.__authenik8MockConfig = config;
   return {
     helmet(req, res, next) {
@@ -353,6 +387,29 @@ export async function installGeneratedAppStubs(
   );
   await fs.writeFile(path.join(dotenvDir, "config.js"), "export {};\n");
 
+  await writePackageStub(
+    targetDir,
+    "ioredis",
+    `import { EventEmitter } from "node:events";
+
+export class Redis extends EventEmitter {
+  status = "ready";
+  async ping() {
+    return "PONG";
+  }
+  disconnect() {}
+}
+export default Redis;
+`,
+  );
+
+  await writePackageStub(
+    targetDir,
+    "ioredis-mock",
+    `export default class RedisMock {}
+`,
+  );
+
   if (options.realExpress) {
     await fs.ensureSymlink(
       path.join(repoRoot, "node_modules", "express"),
@@ -446,8 +503,8 @@ export default express;
 
   await writePackageStub(
     targetDir,
-    "@prisma/adapter-better-sqlite3",
-    `export class PrismaBetterSqlite3 {}
+    "@prisma/adapter-libsql",
+    `export class PrismaLibSql {}
 `,
   );
 
@@ -467,7 +524,11 @@ export default express;
 
 }
 
-export async function runGeneratedServerSmoke(targetDir: string, entryPath: string) {
+export async function runGeneratedServerSmoke(
+  targetDir: string,
+  entryPath: string,
+  environment: NodeJS.ProcessEnv = {},
+) {
   await installGeneratedAppStubs(targetDir);
 
   const generatedEnv = Object.fromEntries(
@@ -537,6 +598,7 @@ if (failed) process.exitCode = 1;
         GITHUB_CLIENT_ID: "github-client-id",
         GITHUB_CLIENT_SECRET: "github-client-secret",
         GITHUB_REDIRECT_URI: "https://example.com/auth/github/callback",
+        ...environment,
       },
       stdio: "ignore",
     });

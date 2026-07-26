@@ -110,7 +110,7 @@ describe('finalSetup.ts', () => {
     });
 
     it('adds only pm2 for bun runtime', async () => {
-      await finalSetup.configureProduction(targetDir, projectName, 'bun');
+      await finalSetup.configureProduction(targetDir, projectName, 'bun', 'bun');
 
       const writeCalls = vi.mocked(fs.writeFileSync).mock.calls;
 
@@ -119,6 +119,7 @@ describe('finalSetup.ts', () => {
       expect(pkgCall).toBeDefined();
       expect(pkgCall![1]).toContain('"pm2": "^5.4.2"');
       expect(pkgCall![1]).not.toContain('ts-node');
+      expect(pkgCall![1]).toContain('bun run build && bunx pm2 start');
 
       // ecosystem.config.js write
       const configCall = writeCalls.find((call) => call[0].includes('ecosystem.config.js'));
@@ -171,16 +172,25 @@ describe('finalSetup.ts', () => {
 
     beforeEach(() => {
       vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
+      vi.mocked(fs.readFileSync).mockReturnValue('Generated README');
       vi.mocked(fs.appendFileSync).mockImplementation(() => {});
     });
 
     it('appends production instructions to README.md', () => {
-      finalSetup.appendProductionReadme(targetDir, projectName);
+      finalSetup.appendProductionReadme(targetDir, projectName, 'pnpm');
 
       expect(fs.appendFileSync).toHaveBeenCalledWith(
         expect.stringContaining('README.md'),
-        expect.stringContaining('## Production Mode')
+        expect.stringContaining('pnpm run pm2:start')
       );
+    });
+
+    it('does not duplicate an existing production section', () => {
+      vi.mocked(fs.readFileSync).mockReturnValue('# App\n\n## Production Mode\n');
+
+      finalSetup.appendProductionReadme(targetDir, projectName, 'pnpm');
+
+      expect(fs.appendFileSync).not.toHaveBeenCalled();
     });
   });
 });

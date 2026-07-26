@@ -136,6 +136,16 @@ export default express;
   );
 };
 
+const installRedisClientStub = async (tempDir) => {
+  await writeModule(
+    path.join(tempDir, "src/config/redis.ts"),
+    `export async function createRedisClient() {
+  return "redis-client";
+}
+`,
+  );
+};
+
 const withPatchedRuntime = async (fn) => {
   const originalOn = process.on;
   const originalExit = process.exit;
@@ -201,6 +211,7 @@ test("templates/express-base/src/server.ts boots with auth config and safety han
 
     try {
       await installCommonStubs(tempDir);
+      await installRedisClientStub(tempDir);
 
       const serverSource = await readFile(
         path.join(templatesRoot, "express-base/src/server.ts"),
@@ -253,6 +264,7 @@ export function requiredPort() {
           },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
           agent: undefined,
+          redis: "redis-client",
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);
@@ -278,6 +290,7 @@ test("templates/express-auth/src/server.ts boots with auth config and safety han
 
     try {
       await installCommonStubs(tempDir);
+      await installRedisClientStub(tempDir);
 
       const serverSource = await readFile(
         path.join(templatesRoot, "express-auth/src/server.ts"),
@@ -330,6 +343,7 @@ export function requiredPort() {
           },
           refreshSecret: "refresh-secret-must-be-at-least-32-characters",
           agent: undefined,
+          redis: "redis-client",
         },
       ]);
       assert.equal(state.createAppCalls.length, 1);

@@ -10,6 +10,8 @@
     "typecheck": "tsc -b --pretty false"
   },
   "dependencies": {
+    "@astryxdesign/core": "0.1.7",
+    "@astryxdesign/theme-neutral": "0.1.7",
     "@authenik8/api-client": "0.1.0",
     "@authenik8/contracts": "0.1.0",
     "@authenik8/ui": "0.1.0",
@@ -17,7 +19,7 @@
     "lucide-react": "^0.468.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-router-dom": "^7.9.0"
+    "react-router": "8.3.0"
   },
   "devDependencies": {
     "@types/node": "^25.0.0",

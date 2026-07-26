@@ -11,14 +11,17 @@ export function PageHeader({ title, description, action }: { title: string; desc
   );
 }
 
-export function ErrorNotice({ error }: { error: unknown }) {
+export function getErrorMessage(error: unknown) {
   const fieldMessage = error instanceof ApiError
     ? Object.values(error.fields ?? {}).flat()[0]
     : undefined;
-  const message = error instanceof ApiError
+  return error instanceof ApiError
     ? fieldMessage ?? error.message
     : "Something went wrong. Try again.";
-  return <div className="notice notice-error" role="alert"><AlertTriangle size={17} /><span>{message}</span></div>;
+}
+
+export function ErrorNotice({ error }: { error: unknown }) {
+  return <div className="notice notice-error" role="alert"><AlertTriangle size={17} /><span>{getErrorMessage(error)}</span></div>;
 }
 
 export function SuccessNotice({ children }: { children: ReactNode }) {

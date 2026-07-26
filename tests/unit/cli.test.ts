@@ -26,8 +26,15 @@ const mockModules = vi.hoisted(() => {
     runPrompts: vi.fn(async () => state.promptAnswers),
     createProject: vi.fn(async () => {}),
     configurePackageJson: vi.fn(),
+    writeProjectManifest: vi.fn(async () => ({})),
     installAuth: vi.fn(async () => "bcryptjs"),
     configurePrisma: vi.fn(async () => {}),
+    configureGeneratedReadme: vi.fn(async () => {}),
+    runPostGenerationDoctor: vi.fn(async () => ({
+      passed: 12,
+      warnings: 0,
+      warningLabels: [],
+    })),
     installDependencies: vi.fn(async () => ({ packageManager: "npm", durationMs: 1_250 })),
     detectPackageManager: vi.fn(() => "npm"),
     isPackageManagerAvailable: vi.fn(() => true),
@@ -75,12 +82,24 @@ vi.mock("../../src/steps/createProject.js", () => ({
   configurePackageJson: mockModules.configurePackageJson,
 }));
 
+vi.mock("../../src/lib/projectManifest.js", () => ({
+  writeProjectManifest: mockModules.writeProjectManifest,
+}));
+
 vi.mock("../../src/steps/installAuth.js", () => ({
   installAuth: mockModules.installAuth,
 }));
 
 vi.mock("../../src/steps/configurePrisma.js", () => ({
   configurePrisma: mockModules.configurePrisma,
+}));
+
+vi.mock("../../src/steps/configureReadme.js", () => ({
+  configureGeneratedReadme: mockModules.configureGeneratedReadme,
+}));
+
+vi.mock("../../src/commands/doctor/postGeneration.js", () => ({
+  runPostGenerationDoctor: mockModules.runPostGenerationDoctor,
 }));
 
 vi.mock("../../src/steps/installDeps.js", () => ({
@@ -162,6 +181,7 @@ async function runCli(
   options: {
     promptAnswers?: Partial<typeof mockModules.promptAnswers>;
     createExistingTargetDir?: boolean;
+    savedState?: Record<string, unknown>;
   } = {},
 ): Promise<CliRunResult> {
   const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
@@ -182,13 +202,21 @@ async function runCli(
     ...options.promptAnswers,
   };
 
-    const packageManagerIndex = argv.findIndex((arg) => arg === "--package-manager");
-    const projectName = argv.find((arg, index) =>
-      !arg.startsWith("--") && index !== packageManagerIndex + 1
-    );
+  const packageManagerIndex = argv.findIndex((arg) => arg === "--package-manager");
+  const packageManagerValueIndex = packageManagerIndex >= 0 ? packageManagerIndex + 1 : -1;
+  const projectName = argv.find((arg, index) =>
+    !arg.startsWith("--") && index !== packageManagerValueIndex
+  );
 
   if (options.createExistingTargetDir && projectName) {
     await fs.ensureDir(path.join(cwd, projectName));
+  }
+  if (options.savedState && projectName) {
+    await fs.ensureDir(path.join(cwd, projectName));
+    await fs.outputJson(
+      path.join(cwd, ".authenik8", `${projectName}.json`),
+      { ...options.savedState, projectName },
+    );
   }
 
   const logSpy = vi.spyOn(console, "log").mockImplementation((...args) => {
@@ -272,6 +300,54 @@ describe("CLI", () => {
     expect(mockModules.createProject).not.toHaveBeenCalled();
   });
 
+  it("generates a real project non-interactively without reading stdin", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
+    const result = await runCliSubprocess([
+      "ci-auth-app",
+      "--yes",
+      "--preset",
+      "auth-oauth",
+      "--database",
+      "sqlite",
+      "--oauth",
+      "github",
+      "--no-git",
+      "--no-install",
+    ], cwd);
+
+    expect(result.code).toBe(0);
+    const targetDir = path.join(cwd, "ci-auth-app");
+    const manifest = await fs.readJson(path.join(targetDir, "authenik8.json"));
+    expect(manifest).toMatchObject({
+      projectName: "ci-auth-app",
+      preset: "auth-oauth",
+      packageManager: "npm",
+      database: "sqlite",
+      features: { prisma: true, oauthProviders: ["github"], pm2: false },
+    });
+    const env = await fs.readFile(path.join(targetDir, ".env"), "utf8");
+    expect(env).toContain("GITHUB_CLIENT_ID");
+    expect(env).not.toContain("GOOGLE_CLIENT_ID");
+  });
+
+  it("rejects an incomplete non-interactive contract before creating a destination", async () => {
+    const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
+    const result = await runCliSubprocess([
+      "invalid-app",
+      "--yes",
+      "--preset",
+      "auth-oauth",
+      "--database",
+      "sqlite",
+      "--no-oauth",
+      "--no-install",
+    ], cwd);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("requires --oauth");
+    expect(await fs.pathExists(path.join(cwd, "invalid-app"))).toBe(false);
+  });
+
   it("reports an existing target directory before running prompts", async () => {
     const cwd = await mkdtemp(path.join(os.tmpdir(), "authenik8-cli-"));
     await fs.ensureDir(path.join(cwd, "demo-app"));
@@ -289,8 +365,16 @@ describe("CLI", () => {
     expect(mockModules.runPrompts).toHaveBeenCalledTimes(1);
     expect(mockModules.createProject).toHaveBeenCalledTimes(1);
     expect(mockModules.configurePrisma).toHaveBeenCalledTimes(1);
+    expect(mockModules.configureGeneratedReadme).toHaveBeenCalledWith(
+      expect.any(String),
+      "npm",
+    );
     expect(mockModules.installDependencies).toHaveBeenCalledTimes(1);
     expect(mockModules.installDependencies).toHaveBeenCalledWith(expect.any(String), "npm");
+    expect(mockModules.runPostGenerationDoctor).toHaveBeenCalledWith(
+      expect.any(String),
+      true,
+    );
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({
         projectName: "demo-app",
@@ -310,12 +394,50 @@ describe("CLI", () => {
     expect(result.exitCode).toBeUndefined();
     expect(mockModules.configurePackageJson).toHaveBeenCalledTimes(1);
     expect(mockModules.installDependencies).not.toHaveBeenCalled();
+    expect(mockModules.runPostGenerationDoctor).toHaveBeenCalledWith(
+      expect.any(String),
+      false,
+    );
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ installDeps: false }),
       false,
       expect.any(Boolean),
       expect.any(Boolean),
     );
+  });
+
+  it("runs a complete non-interactive flow and writes its project contract", async () => {
+    const result = await runCli([
+      "demo-app",
+      "--yes",
+      "--preset",
+      "auth-oauth",
+      "--database",
+      "postgresql",
+      "--oauth",
+      "github",
+      "--no-git",
+      "--no-install",
+    ]);
+
+    expect(result.exitCode).toBeUndefined();
+    expect(mockModules.runPrompts).not.toHaveBeenCalled();
+    expect(mockModules.createProject).toHaveBeenCalledTimes(1);
+    expect(mockModules.writeProjectManifest).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        projectName: "demo-app",
+        preset: "auth-oauth",
+        packageManager: "npm",
+        runtime: "node",
+        database: "postgresql",
+        usePrisma: true,
+        oauthProviders: ["github"],
+        productionReady: false,
+      }),
+    );
+    expect(mockModules.installDependencies).not.toHaveBeenCalled();
+    expect(mockModules.initGit).not.toHaveBeenCalled();
   });
 
   it("parses flags around the project name and runs the production auth flow", async () => {
@@ -358,6 +480,34 @@ describe("CLI", () => {
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ packageManager: "pnpm" }),
       false,
+      expect.any(Boolean),
+      expect.any(Boolean),
+    );
+  });
+
+  it("preserves production-ready configuration when resuming", async () => {
+    const result = await runCli(["demo-auth", "--resume"], {
+      savedState: {
+        step: "prisma-configured",
+        framework: "Express",
+        authMode: "auth",
+        usePrisma: true,
+        database: "sqlite",
+        useGit: false,
+        runtime: "node",
+        installDeps: false,
+        packageManager: "npm",
+        productionReady: true,
+      },
+    });
+
+    expect(result.exitCode).toBeUndefined();
+    expect(mockModules.runPrompts).not.toHaveBeenCalled();
+    expect(mockModules.configureProduction).toHaveBeenCalledTimes(1);
+    expect(mockModules.appendProductionReadme).toHaveBeenCalledTimes(1);
+    expect(mockModules.printSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ productionReady: true }),
+      true,
       expect.any(Boolean),
       expect.any(Boolean),
     );
