@@ -32,7 +32,7 @@
     "node": "^20.19 || ^22.12 || >=24"
   },
   "dependencies": {
-    "@inquirer/core": "^10.3.2",
+    "@inquirer/core": "^11.2.1",
     "chalk": "^5.6.2",
     "fs-extra": "^11.3.4",
     "inquirer": "^12.11.1",
