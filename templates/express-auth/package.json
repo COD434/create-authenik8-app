@@ -16,7 +16,7 @@
     "docker:down": "docker compose down"
   },
   "dependencies": {
-    "authenik8-core": "2.0.3",
+    "authenik8-core": "2.0.5",
     "dotenv": "^16.0.0",
     "express": "^4.19.2",
     "@prisma/client": "7.9.0",
