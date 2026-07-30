@@ -170,6 +170,7 @@ describe("browser session defenses", () => {
     expect(status).not.toHaveBeenCalled();
   });
 
+<<<<<<< HEAD
   it("rejects missing, null, and lookalike origins for cookie-driven mutations", () => {
     for (const origin of [undefined, "null", "http://localhost:5173.attacker.example"]) {
       const status = vi.fn().mockReturnThis();
@@ -192,6 +193,8 @@ describe("browser session defenses", () => {
     expect(exactHttpOriginSchema.safeParse("https://app.example.com/login").success).toBe(false);
   });
 
+=======
+>>>>>>> 69568dd (feat:fixed merge conflict)
   it("rejects an unconfigured loopback port during development", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
