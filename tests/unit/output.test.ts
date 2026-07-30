@@ -93,12 +93,14 @@ describe("completion output", () => {
       frontend: "lovable",
     }, false);
 
-    expect(printed()).toContain("Lovable integration pack are ready");
-    expect(printed()).toContain("integrations/lovable/README.md");
-    expect(printed()).toContain("LOVABLE_PROMPT.md and openapi.json");
-    expect(printed()).toContain("npm run doctor:lovable");
-    expect(printed()).toContain("Web  http://localhost:5173");
+    expect(printed()).toContain("Authenik8 with Lovable is ready.");
+    expect(printed()).toContain("npm run dev:lovable");
+    expect(printed()).toContain("Start the Lovable frontend for this project.");
+    expect(printed()).toContain("integrations/lovable/START_HERE.md");
     expect(printed()).toContain("API  http://localhost:3000/api");
+    expect(printed()).not.toContain("Web  http://localhost:5173");
+    expect(printed()).not.toContain("integrations/lovable/README.md");
+    expect(printed()).not.toContain("npm run doctor:lovable");
   });
 
   it("omits Prisma commands for a database-free project", () => {

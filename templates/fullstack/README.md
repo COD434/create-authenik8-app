@@ -83,23 +83,21 @@ The API follows a contract, repository, service, controller, policy, and route c
 <!-- LOVABLE_START -->
 ## Lovable frontend
 
-When generated with `--frontend lovable`, open
-`integrations/lovable/README.md`. It contains the staged prompt, validated
-OpenAPI contract, frontend/security contracts, public environment example,
-client export workflow, validator, and acceptance checklist. Lovable builds
-the interface; this API remains the identity and authorization authority.
+When generated with `--frontend lovable`, start here:
 
-Export the exact browser client for a separate Lovable/GitHub repository:
+`integrations/lovable/START_HERE.md`
 
-```bash
-npm run export:lovable-client
-```
-
-Validate that repository before deployment:
+That file has the three developer actions. Codex uses
+`.agents/skills/authenik8-lovable/SKILL.md` to create the Lovable project and
+apply the staged prompts. Keep `apps/web` as the tested React reference until
+the Lovable frontend passes the same lifecycle.
 
 ```bash
-npm run doctor:lovable -- /path/to/lovable-frontend
+npm run dev:lovable
 ```
+
+That starts PostgreSQL, migrations, seeding, package watchers, and the API
+without the reference frontend on port 5173.
 <!-- LOVABLE_END -->
 
 ## Session model

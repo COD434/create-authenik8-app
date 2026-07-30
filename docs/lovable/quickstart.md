@@ -3,7 +3,7 @@
 This repeatable path starts with an empty directory and ends with an
 Authenik8-backed Lovable frontend.
 
-## 1. Generate and prove the backend
+## 1. Generate and start the backend
 
 Requirements are Node.js `^20.19 || ^22.12 || >=24`, npm, and Git. Docker is
 optional for local development.
@@ -12,12 +12,12 @@ optional for local development.
 npx create-authenik8-app team-projects --yes --preset fullstack \
   --frontend lovable --oauth google,github --git
 cd team-projects
-npm run dev
+npm run dev:lovable
 ```
 
 The first run starts project-local PostgreSQL, applies the migration, seeds the
-administrator, and starts the API on port 3000 and reference web app on port
-5173. In a second terminal:
+administrator, and starts the API on port 3000 without the reference web app on
+port 5173. In a second terminal:
 
 ```bash
 curl http://localhost:3000/api/health/ready
@@ -30,57 +30,33 @@ npm run openapi:check
 Use the generated development administrator only locally and change its
 password in shared environments.
 
-## 2. Export the official client
+## 2. Connect Lovable to Codex once
 
-```bash
-npm run export:lovable-client
-```
+In Codex, enable the Lovable connector and sign into the Lovable workspace
+where the frontend should be created.
 
-Copy these into a `vendor/` directory in the Lovable-synced frontend:
+## 3. Tell Codex one thing
 
-```text
-integrations/lovable/vendor/authenik8-contracts.tgz
-integrations/lovable/vendor/authenik8-api-client.tgz
-```
+Open the generated project in Codex and say:
 
-Install both archives in that frontend:
+> Start the Lovable frontend for this project.
 
-```bash
-npm install ./vendor/authenik8-contracts.tgz ./vendor/authenik8-api-client.tgz
-```
+The generated skill at `.agents/skills/authenik8-lovable/SKILL.md` exports the
+Authenik8 browser client, uploads the contracts, creates the Lovable project,
+applies `LOVABLE_PROMPT.md` one stage at a time, inspects each stage, and
+returns the editor and preview links.
 
-Commit the archives with the frontend so Lovable and CI resolve the exact
-tested client. Re-export after changing contracts or client code.
+You may still need to:
 
-## 3. Create the Lovable UI
+- Select a Lovable workspace when more than one is available.
+- Connect the resulting Lovable project to GitHub.
 
-Create a Lovable project without enabling Lovable Cloud authentication or
-Supabase authentication. Connect it to a separate GitHub repository. Lovable’s
-GitHub integration is two-way, so commit before each prompt and review every
-generated diff.
-
-Add only public frontend values:
-
-```dotenv
-VITE_AUTHENIK8_API_URL=http://localhost:3000
-VITE_APP_URL=http://localhost:5173
-```
-
-Give Lovable these generated files:
-
-```text
-integrations/lovable/LOVABLE_PROMPT.md
-integrations/lovable/openapi.json
-integrations/lovable/FRONTEND_CONTRACT.md
-integrations/lovable/SECURITY_RULES.md
-```
-
-Run the seven prompt steps separately. Do not send one giant “build
-everything” prompt.
+Follow `integrations/lovable/START_HERE.md` in the generated project.
 
 ## 4. Validate
 
-Point the backend repository’s validator at the frontend checkout:
+After the Lovable project is linked to GitHub, point the backend repository’s
+validator at the frontend checkout:
 
 ```bash
 npm run doctor:lovable -- ../team-projects-frontend

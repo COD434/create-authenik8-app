@@ -13,7 +13,9 @@
   "scripts": {
     "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
     "dev": "node scripts/run-local.mjs dev",
+    "dev:lovable": "node scripts/run-local.mjs lovable",
     "dev:watch": "npm run build:packages && concurrently -n contracts,client,ui,api,web -c blue,green,yellow,cyan,magenta \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\" \"npm run dev -w @authenik8/web\"",
+    "dev:lovable:watch": "npm run build:packages && concurrently -n contracts,client,ui,api -c blue,green,yellow,cyan \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\"",
     "build": "npm run build:packages && npm run build -w @authenik8/web && npm run build -w @authenik8/api",
     "start": "npm run start -w @authenik8/api",
     "test": "npm run openapi:check && npm run build:packages && npm run test -w @authenik8/api && npm run test -w @authenik8/web",

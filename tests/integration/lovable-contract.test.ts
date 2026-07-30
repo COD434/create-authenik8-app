@@ -58,11 +58,28 @@ describe("generated Lovable integration contract", () => {
     expect(checklist).toContain("ordinary user calling an admin API receives `403`");
     expect(pkg.scripts["doctor:lovable"]).toBe("node scripts/doctor-lovable.mjs");
     expect(pkg.scripts["export:lovable-client"]).toContain("export-lovable-client.mjs");
+    expect(pkg.scripts["dev:lovable"]).toBe("node scripts/run-local.mjs lovable");
+    expect(pkg.scripts["dev:lovable:watch"]).toContain("@authenik8/api");
+    expect(pkg.scripts["dev:lovable:watch"]).not.toContain("@authenik8/web");
     expect(await fs.pathExists(path.join(generated.targetDir, "scripts/doctor-lovable.mjs"))).toBe(true);
     expect(await fs.pathExists(path.join(
       generated.targetDir,
       "scripts/export-lovable-client.mjs",
     ))).toBe(true);
+    expect(await fs.pathExists(path.join(
+      generated.targetDir,
+      "integrations/lovable/START_HERE.md",
+    ))).toBe(true);
+    expect(await fs.pathExists(path.join(
+      generated.targetDir,
+      ".agents/skills/authenik8-lovable/SKILL.md",
+    ))).toBe(true);
+    const startHere = await fs.readFile(
+      path.join(generated.targetDir, "integrations/lovable/START_HERE.md"),
+      "utf8",
+    );
+    expect(startHere).toContain("npm run dev:lovable");
+    expect(startHere).toContain("Start the Lovable frontend for this project.");
   });
 
   it("does not expose private JWK members or backend secrets", async () => {
@@ -82,9 +99,19 @@ describe("generated Lovable integration contract", () => {
     const pkg = await fs.readJson(path.join(generated.targetDir, "package.json"));
 
     expect(pkg.scripts["doctor:lovable"]).toBeUndefined();
+    expect(pkg.scripts["dev:lovable"]).toBeUndefined();
+    expect(pkg.scripts["dev:lovable:watch"]).toBeUndefined();
     expect(await fs.pathExists(path.join(
       generated.targetDir,
       "integrations/lovable/LOVABLE_PROMPT.md",
+    ))).toBe(false);
+    expect(await fs.pathExists(path.join(
+      generated.targetDir,
+      "integrations/lovable/START_HERE.md",
+    ))).toBe(false);
+    expect(await fs.pathExists(path.join(
+      generated.targetDir,
+      ".agents/skills/authenik8-lovable/SKILL.md",
     ))).toBe(false);
     expect(await fs.pathExists(path.join(
       generated.targetDir,

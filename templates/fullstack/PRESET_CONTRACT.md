@@ -16,6 +16,7 @@ This document is the testable contract for the `fullstack` preset.
 | Command | Guarantee |
 | --- | --- |
 | `npm run dev` | Starts project-local PostgreSQL, prepares data, then starts API and web together. |
+| `npm run dev:lovable` | Starts project-local PostgreSQL, prepares data, package watchers, and the API only (no reference web on port 5173). Present when generated with `--frontend lovable`. |
 | `npm run setup` | Starts project-local PostgreSQL for the command, applies migrations, and creates idempotent seed data. |
 | `npm run build` | Produces the API and frontend production bundles. |
 | `npm start` | Starts Express, which serves `/api` and the built SPA. |

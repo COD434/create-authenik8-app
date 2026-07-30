@@ -2,6 +2,11 @@
 
 Vibe-code the interface. Keep identity on a backend you own.
 
+**Start here:** [`START_HERE.md`](./START_HERE.md)
+
+That short guide is the developer path. This README is reference material for
+the integration contracts and validator once the Lovable project exists.
+
 Authenik8 owns registration, login, verification, recovery, OAuth, token
 verification, refresh rotation, sessions, revocation, roles, administrator
 operations, audit events, database access, and secrets. Lovable owns public
@@ -13,9 +18,27 @@ The included `apps/web` remains the tested React reference. Keep it until the
 Lovable frontend passes the same lifecycle; replacing the reference app is a
 deliberate later step.
 
-## Exact workflow
+## Automated path
 
-1. From the generated repository, run `npm run dev` and verify
+1. Run `npm run dev:lovable` and verify `http://localhost:3000/api/health/ready`.
+2. Connect the Lovable connector in Codex once.
+3. Open this repository in Codex and say:
+   `Start the Lovable frontend for this project.`
+
+The generated skill at `.agents/skills/authenik8-lovable/SKILL.md` exports the
+client, uploads contracts, creates the Lovable project, applies
+`LOVABLE_PROMPT.md` one stage at a time, and returns editor/preview links.
+
+Manual steps that may remain:
+
+- Selecting a Lovable workspace when more than one is available.
+- Connecting the Lovable project to GitHub.
+
+## Reference workflow
+
+Use this only when you are not using the Codex skill.
+
+1. From the generated repository, run `npm run dev:lovable` and verify
    `http://localhost:3000/api/health/ready`.
 2. Run `npm test`, `npm run typecheck`, and `npm run openapi:check`.
 3. Create a frontend in Lovable without enabling Cloud authentication or

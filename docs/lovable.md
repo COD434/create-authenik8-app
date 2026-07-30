@@ -13,13 +13,17 @@ Generate the complete integration path:
 npx create-authenik8-app my-app --yes --preset fullstack \
   --frontend lovable --oauth google,github --git
 cd my-app
-npm run dev
+npm run dev:lovable
 ```
 
-The generated `integrations/lovable/` directory contains the staged prompt,
-OpenAPI 3.1 contract, frontend contract, security rules, public environment
-example, and acceptance checklist. `apps/web` remains the tested React
-reference.
+Then connect the Lovable connector in Codex once and say:
+
+> Start the Lovable frontend for this project.
+
+The generated `integrations/lovable/START_HERE.md` is the developer handoff.
+`.agents/skills/authenik8-lovable/SKILL.md` orchestrates the Lovable project.
+`apps/web` remains the tested React reference.
+
 
 ## Guides
 
