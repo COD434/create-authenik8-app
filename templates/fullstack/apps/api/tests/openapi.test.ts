@@ -1,15 +1,14 @@
-<<<<<<< HEAD
+
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { validate } from "@readme/openapi-parser";
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
 import { describe, expect, it } from "vitest";
 import { openApiDocument } from "../src/openapi.js";
 
 const documentedPaths = [
-<<<<<<< HEAD
+
   "/.well-known/jwks.json",
   "/api/health/live",
   "/api/health/ready",
@@ -61,40 +60,6 @@ describe("OpenAPI contract", () => {
     }
   });
 
-=======
-  "/health/live",
-  "/health/ready",
-  "/docs/openapi.json",
-  "/auth/csrf",
-  "/auth/register",
-  "/auth/login",
-  "/auth/refresh",
-  "/auth/logout",
-  "/auth/me",
-  "/auth/forgot-password",
-  "/auth/reset-password",
-  "/auth/verify-email",
-  "/auth/resend-verification",
-  "/auth/oauth/{provider}",
-  "/auth/oauth/{provider}/link-intent",
-  "/auth/oauth/{provider}/link",
-  "/auth/oauth/{provider}/callback",
-  "/auth/oauth/exchange",
-  "/account/profile",
-  "/account/password",
-  "/account/sessions",
-  "/account/sessions/{id}",
-  "/account/providers",
-  "/projects",
-  "/projects/{id}",
-  "/admin/users",
-  "/admin/users/{id}",
-  "/admin/users/{id}/sessions",
-  "/admin/audit",
-].sort();
-
-describe("OpenAPI contract", () => {
->>>>>>> 69568dd (feat:fixed merge conflict)
   it("documents every mounted API operation", () => {
     expect(Object.keys(openApiDocument.paths).sort()).toEqual(documentedPaths);
   });
@@ -118,37 +83,27 @@ describe("OpenAPI contract", () => {
       required: ["name"],
       additionalProperties: false,
     });
-<<<<<<< HEAD
+
     expect(openApiDocument.paths["/api/projects/{id}"].patch.requestBody)
       .toMatchObject({ required: true });
     expect(openApiDocument.paths["/api/admin/users/{id}"].patch.requestBody)
-=======
-    expect(openApiDocument.paths["/projects/{id}"].patch.requestBody)
-      .toMatchObject({ required: true });
-    expect(openApiDocument.paths["/admin/users/{id}"].patch.requestBody)
->>>>>>> 69568dd (feat:fixed merge conflict)
+
       .toMatchObject({ required: true });
   });
 
   it("documents pagination for both admin collections", () => {
-<<<<<<< HEAD
+
     expect(openApiDocument.paths["/api/admin/users"].get.parameters).toContainEqual(
       expect.objectContaining({ name: "page", in: "query" }),
     );
     expect(openApiDocument.paths["/api/admin/audit"].get.parameters).toContainEqual(
-=======
-    expect(openApiDocument.paths["/admin/users"].get.parameters).toContainEqual(
-      expect.objectContaining({ name: "page", in: "query" }),
-    );
-    expect(openApiDocument.paths["/admin/audit"].get.parameters).toContainEqual(
->>>>>>> 69568dd (feat:fixed merge conflict)
       expect.objectContaining({ name: "page", in: "query" }),
     );
     expect(openApiDocument.components.schemas.AuditPage).toMatchObject({
       required: ["items", "total", "page", "pageSize"],
     });
   });
-<<<<<<< HEAD
+
 
   it("marks cookie, active-session, and administrator requirements explicitly", () => {
     expect(openApiDocument.paths["/api/auth/refresh"].post).toMatchObject({
@@ -169,6 +124,5 @@ describe("OpenAPI contract", () => {
     expect(serialized).not.toContain("DATABASE_URL");
     expect(serialized).not.toContain("PRIVATE KEY");
   });
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
 });

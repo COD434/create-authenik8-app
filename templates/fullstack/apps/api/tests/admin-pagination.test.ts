@@ -4,10 +4,10 @@ const mocks = vi.hoisted(() => ({
   findAuditEvents: vi.fn(),
   countAuditEvents: vi.fn(),
   transaction: vi.fn(),
-<<<<<<< HEAD
+
   findUser: vi.fn(),
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
+
 }));
 
 vi.mock("../src/config/prisma.js", () => ({
@@ -16,10 +16,9 @@ vi.mock("../src/config/prisma.js", () => ({
       findMany: mocks.findAuditEvents,
       count: mocks.countAuditEvents,
     },
-<<<<<<< HEAD
+
     user: { findUnique: mocks.findUser },
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
     $transaction: mocks.transaction,
   },
 }));
@@ -27,11 +26,9 @@ vi.mock("../src/auth/authenik8.js", () => ({
   getAuthenik8: vi.fn(),
 }));
 
-<<<<<<< HEAD
+
 import { getUser, listAuditEvents } from "../src/modules/admin/admin.service.js";
-=======
-import { listAuditEvents } from "../src/modules/admin/admin.service.js";
->>>>>>> 69568dd (feat:fixed merge conflict)
+
 
 describe("admin pagination", () => {
   beforeEach(() => {
@@ -67,7 +64,7 @@ describe("admin pagination", () => {
       take: 50,
     }));
   });
-<<<<<<< HEAD
+
 
   it("returns one public user projection for administrator detail views", async () => {
     mocks.findUser.mockResolvedValue({
@@ -90,6 +87,5 @@ describe("admin pagination", () => {
       createdAt: "2026-01-01T00:00:00.000Z",
     });
   });
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
 });

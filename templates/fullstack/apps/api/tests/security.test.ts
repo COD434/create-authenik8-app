@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 77891ef ( chore: ci mess)
+
 
 vi.mock("../src/config/env.js", () => ({
   env: {
@@ -15,12 +12,7 @@ vi.mock("../src/config/env.js", () => ({
 
 import { readRefreshCookie, refreshCookieName, refreshCookieOptions, setRefreshCookie } from "../src/auth/cookies.js";
 import { csrfCookieName, issueCsrfToken, requireCsrf } from "../src/middleware/csrf.js";
-<<<<<<< HEAD
-=======
-import { refreshCookieOptions } from "../src/auth/cookies.js";
->>>>>>> befe6e3 (feat:new presets)
-=======
->>>>>>> 77891ef ( chore: ci mess)
+
 import { requireAllowedOrigin } from "../src/middleware/origin.js";
 import { exactHttpOriginSchema } from "../src/config/exact-origin.js";
 
@@ -28,8 +20,7 @@ describe("browser session defenses", () => {
   it("restricts the refresh cookie", () => {
     expect(refreshCookieOptions()).toMatchObject({
       httpOnly: true,
-<<<<<<< HEAD
-<<<<<<< HEAD
+
       sameSite: "strict",
       path: "/api",
     });
@@ -82,18 +73,8 @@ describe("browser session defenses", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-=======
-      sameSite: "lax",
-      path: "/api/auth",
-    });
-  });
 
->>>>>>> befe6e3 (feat:new presets)
-=======
-      sameSite: "strict",
-      path: "/api",
-    });
-  });
+    
 
   it("encrypts refresh tokens before cookie storage", () => {
     const cookie = vi.fn();
@@ -142,7 +123,7 @@ describe("browser session defenses", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
->>>>>>> 77891ef ( chore: ci mess)
+
   it("rejects a mismatched cookie request origin", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
@@ -170,7 +151,7 @@ describe("browser session defenses", () => {
     expect(status).not.toHaveBeenCalled();
   });
 
-<<<<<<< HEAD
+
   it("rejects missing, null, and lookalike origins for cookie-driven mutations", () => {
     for (const origin of [undefined, "null", "http://localhost:5173.attacker.example"]) {
       const status = vi.fn().mockReturnThis();
@@ -193,8 +174,7 @@ describe("browser session defenses", () => {
     expect(exactHttpOriginSchema.safeParse("https://app.example.com/login").success).toBe(false);
   });
 
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
+
   it("rejects an unconfigured loopback port during development", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
