@@ -35,6 +35,7 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Quickstart](docs/quickstart.md)
 - [Non-interactive generation](docs/non-interactive-generation.md)
 - [Project diagnostics](docs/project-diagnostics.md)
+- [Operational auth maintenance](docs/operational-maintenance.md)
 - [Post-generation recipes](docs/post-generation-recipes.md)
 - [Upgrade planning and CI policy](docs/upgrades-and-ci.md)
 - [CLI reference](docs/cli-reference.md)

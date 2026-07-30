@@ -24,6 +24,13 @@ describe("resolveRootCommand", () => {
     });
   });
 
+  it("routes operational maintenance without exposing it to the generator", () => {
+    expect(resolveRootCommand(["ops", "readiness", "./app", "--json"])).toEqual({
+      name: "ops",
+      args: ["readiness", "./app", "--json"],
+    });
+  });
+
   it("routes add recipes without exposing them to the generator", () => {
     expect(resolveRootCommand(["add", "oauth-github", "./app", "--dry-run"])).toEqual({
       name: "add",

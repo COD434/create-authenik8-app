@@ -12,6 +12,6 @@ export const revokeUserSessionsController = asyncHandler(async (req, res) => {
   await revokeAllSessions(req.user!.userId, identifierSchema.parse(req.params.id), req.ip ?? "unknown");
   res.json({ message: "Sessions revoked" });
 });
-export const auditController = asyncHandler(async (_req, res) => {
-  res.json({ events: await listAuditEvents() });
+export const auditController = asyncHandler(async (req, res) => {
+  res.json(await listAuditEvents(pageSchema.parse(req.query.page)));
 });

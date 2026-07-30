@@ -9,6 +9,7 @@ export const updateProfileController = asyncHandler(async (req, res) => {
 
 export const changePasswordController = asyncHandler(async (req, res) => {
   await changePassword(req.user!.userId, req.body);
+  clearRefreshCookie(res);
   res.json({ message: "Password updated" });
 });
 

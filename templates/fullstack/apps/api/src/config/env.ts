@@ -7,6 +7,9 @@ const rootEnv = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../.
 dotenv.config({ path: process.env.AUTHENIK8_ENV_FILE ?? rootEnv });
 
 const booleanString = z.enum(["true", "false"]).transform((value) => value === "true");
+const commaSeparatedStrings = z.string().default("").transform((value) =>
+  value.split(",").map((entry) => entry.trim()).filter(Boolean)
+);
 const signingJwks = z.string().min(1).superRefine((value, context) => {
   try {
     const keys = JSON.parse(value) as Array<Record<string, unknown>>;
@@ -51,7 +54,7 @@ const schema = z.object({
   AUTHENIK8_AGENTS: agentRegistry,
   REFRESH_SECRET: z.string().min(32),
   COOKIE_SECURE: booleanString.default(false),
-  TRUST_PROXY: booleanString.default(false),
+  TRUSTED_PROXY_CIDRS: commaSeparatedStrings,
   LOG_LEVEL: z.string().default("info"),
   EMAIL_FROM: z.string().default("Authenik8 <auth@example.com>"),
   RESEND_API_KEY: z.string().optional(),

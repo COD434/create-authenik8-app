@@ -41,11 +41,14 @@ AUTHENIK8_ISSUER=http://localhost:3000
 AUTHENIK8_AUDIENCE=my-app-api
 REFRESH_SECRET=<generated-random-secret>
 AUTHENIK8_AGENTS={}
+TRUSTED_PROXY_CIDRS=
 GOOGLE_REDIRECT_URI=http://localhost:3000/api/auth/oauth/google/callback
 GITHUB_REDIRECT_URI=http://localhost:3000/api/auth/oauth/github/callback
 ```
 
 `AUTHENIK8_AGENTS={}` keeps agent identity disabled. Enabling it requires a validated agent-to-scope registry and a trusted workload-authentication boundary. OAuth variables are generated only for selected providers. The fullstack `.env.example` also documents cookie, proxy, logging, mail delivery, and seed administrator settings.
+
+Leave `TRUSTED_PROXY_CIDRS` empty when requests reach Express directly. Behind a reverse proxy, set it to the comma-separated CIDR networks allowed to supply forwarding headers.
 
 The fullstack preset starts project-local PostgreSQL automatically and stores
 its data under `.authenik8/`. `memory://` selects an in-process Redis-compatible

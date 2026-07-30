@@ -1,8 +1,9 @@
 import { Request, Response } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { AuthService } from "../services/auth.services";
 import { parseCredentials, parseRefreshToken } from "../utils/security";
 
-export const createAuthController = (auth: any) => ({
+export const createAuthController = (auth: Authenik8Instance) => ({
   async register(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);

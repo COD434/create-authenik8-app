@@ -32,9 +32,37 @@ let accessToken: string | null = null;
 let refreshRequest: Promise<boolean> | null = null;
 let csrfToken: string | null = null;
 let csrfRequest: Promise<string> | null = null;
+const authenticationLostListeners = new Set<() => void>();
+const peerTokenWaiters = new Set<(available: boolean) => void>();
+const sessionChannel = typeof window !== "undefined" && typeof window.BroadcastChannel === "function"
+  ? new BroadcastChannel("authenik8:session")
+  : null;
+
+sessionChannel?.addEventListener("message", (event: MessageEvent<unknown>) => {
+  const message = event.data;
+  if (!message || typeof message !== "object" || !("type" in message)) return;
+  if (message.type === "access-token" && "token" in message && typeof message.token === "string"
+    && message.token.length > 0 && message.token.length <= 8192) {
+    accessToken = message.token;
+    for (const resolve of peerTokenWaiters) resolve(true);
+    peerTokenWaiters.clear();
+  }
+  if (message.type === "signed-out") clearAuthentication(false);
+});
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
+}
+
+export function onAuthenticationLost(listener: () => void): () => void {
+  authenticationLostListeners.add(listener);
+  return () => authenticationLostListeners.delete(listener);
+}
+
+function clearAuthentication(broadcast = true): void {
+  accessToken = null;
+  for (const listener of authenticationLostListeners) listener();
+  if (broadcast) sessionChannel?.postMessage({ type: "signed-out" });
 }
 
 export function hasAccessToken(): boolean {
@@ -91,6 +119,27 @@ async function isCsrfRejection(response: Response): Promise<boolean> {
   return body?.error?.code === "CSRF_REJECTED";
 }
 
+async function isRefreshInProgress(response: Response): Promise<boolean> {
+  if (response.status !== 409) return false;
+  const body = await response.clone().json().catch(() => null);
+  return body?.error?.code === "REFRESH_IN_PROGRESS";
+}
+
+function waitForPeerAccessToken(previousToken: string | null): Promise<boolean> {
+  if (accessToken && accessToken !== previousToken) return Promise.resolve(true);
+  if (!sessionChannel) return Promise.resolve(false);
+
+  return new Promise((resolve) => {
+    const complete = (available: boolean) => {
+      clearTimeout(timeout);
+      peerTokenWaiters.delete(complete);
+      resolve(available);
+    };
+    const timeout = setTimeout(() => complete(false), 2_000);
+    peerTokenWaiters.add(complete);
+  });
+}
+
 async function requestTokenRefresh(forceCsrf = false): Promise<Response> {
   const token = await getCsrfToken(forceCsrf);
   const response = await fetch("/api/auth/refresh", {
@@ -104,11 +153,14 @@ async function requestTokenRefresh(forceCsrf = false): Promise<Response> {
 
 async function refreshAccessToken(): Promise<boolean> {
   if (!refreshRequest) {
+    const previousToken = accessToken;
     refreshRequest = requestTokenRefresh()
       .then(async (response) => {
+        if (await isRefreshInProgress(response)) return waitForPeerAccessToken(previousToken);
         if (!response.ok) return false;
         const result = await response.json() as AuthResponse;
         accessToken = result.accessToken;
+        sessionChannel?.postMessage({ type: "access-token", token: result.accessToken });
         return true;
       })
       .catch(() => false)
@@ -122,9 +174,10 @@ async function refreshAccessToken(): Promise<boolean> {
 export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
   const headers = new Headers(init.headers);
   const method = (init.method ?? "GET").toUpperCase();
+  const sentAccessToken = accessToken;
   headers.set("Accept", "application/json");
   if (init.body && !(init.body instanceof FormData)) headers.set("Content-Type", "application/json");
-  if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
+  if (sentAccessToken) headers.set("Authorization", `Bearer ${sentAccessToken}`);
   if (isUnsafeMethod(method)) headers.set("X-CSRF-Token", await getCsrfToken());
 
   const response = await fetch(`/api${path}`, { ...init, headers, credentials: "include" });
@@ -132,9 +185,9 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, retry = 
     await getCsrfToken(true);
     return apiFetch<T>(path, init, false);
   }
-  if (response.status === 401 && retry && path !== "/auth/refresh") {
-    if (await refreshAccessToken()) return apiFetch<T>(path, init, false);
-    accessToken = null;
+  if (response.status === 401 && sentAccessToken && path !== "/auth/refresh") {
+    if (retry && await refreshAccessToken()) return apiFetch<T>(path, init, false);
+    clearAuthentication();
   }
   return parseResponse<T>(response);
 }
@@ -158,9 +211,9 @@ export const authApi = {
   },
   logout: async () => {
     try {
-      await apiFetch<{ message: string }>("/auth/logout", { method: "POST" }, false);
+      await apiFetch<{ message: string }>("/auth/logout", { method: "POST" });
     } finally {
-      setAccessToken(null);
+      clearAuthentication();
     }
   },
   exchangeOAuth: async (code: string) => {
@@ -176,7 +229,11 @@ export const authApi = {
 
 export const accountApi = {
   updateProfile: (input: ProfileInput) => apiFetch<{ user: User }>("/account/profile", { method: "PATCH", body: json(input) }),
-  changePassword: (input: ChangePasswordInput) => apiFetch<{ message: string }>("/account/password", { method: "PUT", body: json(input) }),
+  changePassword: async (input: ChangePasswordInput) => {
+    const result = await apiFetch<{ message: string }>("/account/password", { method: "PUT", body: json(input) });
+    clearAuthentication();
+    return result;
+  },
   sessions: () => apiFetch<{ sessions: Session[] }>("/account/sessions"),
   revokeSession: (id: string) => apiFetch<{ message: string }>(`/account/sessions/${id}`, { method: "DELETE" }),
   providers: () => apiFetch<{ providers: LinkedProvider[] }>("/account/providers"),
@@ -195,7 +252,7 @@ export const adminApi = {
   users: (page = 1) => apiFetch<Page<User>>(`/admin/users?page=${page}`),
   updateUser: (id: string, input: AdminUserUpdateInput) => apiFetch<{ user: User }>(`/admin/users/${id}`, { method: "PATCH", body: json(input) }),
   revokeSessions: (id: string) => apiFetch<{ message: string }>(`/admin/users/${id}/sessions`, { method: "DELETE" }),
-  audit: () => apiFetch<{ events: AuditEvent[] }>("/admin/audit"),
+  audit: (page = 1) => apiFetch<Page<AuditEvent>>(`/admin/audit?page=${page}`),
 };
 
 export const healthApi = {

@@ -90,9 +90,10 @@ Secure application scaffolding
 Usage:
   create-authenik8-app <project-name> [options]
   create-authenik8-app create <project-name> [options]
-  create-authenik8-app doctor [directory] [--json] [--skip-services]
+  create-authenik8-app doctor [directory] [options]
+  create-authenik8-app ops <operation> [directory] [options]
   create-authenik8-app add <recipe> [directory] [--dry-run]
-  create-authenik8-app upgrade [directory] [--check] [--json]
+  create-authenik8-app upgrade [directory] [--check|--acknowledge] [--json]
 
 Options:
   --package-manager <npm|pnpm|bun>  Select the installer for Express presets
@@ -105,9 +106,6 @@ Options:
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)
   --runtime <node|bun>              Runtime for --production-ready Express apps
-
-  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
-
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets

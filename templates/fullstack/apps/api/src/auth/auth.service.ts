@@ -38,26 +38,51 @@ function sessionMetadata(req: Request) {
   });
 }
 
-export async function issueSession(user: User, req: Request) {
-  const tokens = await getAuthenik8().issueTokens({ userId: user.id, email: user.email, role: user.role });
-  const accessToken = await tokens.accessToken;
+async function registerCoreSession(
+  user: User,
+  tokens: { accessToken: string; refreshToken: string },
+  req: Request,
+) {
+  const metadata = sessionMetadata(req);
+  const accessToken = tokens.accessToken;
   const refreshToken = tokens.refreshToken;
   const accessPayload = await getAuthenik8().verifyToken(accessToken);
-  if (!accessPayload?.sessionId) {
+  if (!accessPayload?.sessionId || accessPayload.userId !== user.id) {
     throw new AppError(500, "SESSION_ISSUE_FAILED", "Unable to create an authenticated session");
   }
 
-  await prisma.session.create({
-    data: {
-      userId: user.id,
-      coreSessionId: accessPayload.sessionId,
-      refreshHash: hashToken(refreshToken),
-      ...sessionMetadata(req),
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-    },
-  });
+  try {
+    await prisma.session.create({
+      data: {
+        userId: user.id,
+        coreSessionId: accessPayload.sessionId,
+        refreshHash: hashToken(refreshToken),
+        ...metadata,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+  } catch (error) {
+    await getAuthenik8().revokeSession(user.id, accessPayload.sessionId).catch(() => undefined);
+    throw error;
+  }
 
   return { accessToken, refreshToken, user: presentUser(user) };
+}
+
+async function revokeIssuedCoreSession(userId: string, accessToken: string) {
+  const payload = await getAuthenik8().verifyToken(accessToken).catch(() => null);
+  if (payload?.userId === userId && payload.sessionId) {
+    await getAuthenik8().revokeSession(userId, payload.sessionId).catch(() => undefined);
+  }
+}
+
+export async function issueSession(user: User, req: Request) {
+  const metadata = sessionMetadata(req);
+  const tokens = await getAuthenik8().issueTokens(
+    { userId: user.id, email: user.email, role: user.role },
+    { device: metadata.userAgent, ip: metadata.ipAddress },
+  );
+  return registerCoreSession(user, tokens, req);
 }
 
 export async function register(input: RegisterInput) {
@@ -92,24 +117,69 @@ export async function login(input: { email: string; password: string }, req: Req
 
 export async function rotateSession(refreshToken: string | undefined) {
   if (!refreshToken) throw new AppError(401, "REFRESH_REQUIRED", "Refresh session is missing");
-  const session = await prisma.session.findUnique({
-    where: { refreshHash: hashToken(refreshToken) },
-    include: { user: true },
-  });
-  if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
-    throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+  const refreshHash = hashToken(refreshToken);
+  const lockKey = `authenik8:refresh-lock:${refreshHash}`;
+  const lockValue = randomToken();
+  const acquired = await redis.set(lockKey, lockValue, "PX", 10_000, "NX");
+  if (acquired !== "OK") {
+    throw new AppError(409, "REFRESH_IN_PROGRESS", "Another session refresh is in progress");
   }
-
+  let completed = false;
   try {
-    const rotated = await getAuthenik8().refreshToken(refreshToken);
-    await prisma.session.update({
-      where: { id: session.id },
-      data: { refreshHash: hashToken(rotated.refreshToken), lastUsedAt: new Date() },
+    const session = await prisma.session.findUnique({
+      where: { refreshHash },
+      include: { user: true },
     });
-    return { accessToken: rotated.accessToken as string, refreshToken: rotated.refreshToken as string, user: presentUser(session.user) };
-  } catch {
-    await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
-    throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+    if (!session || session.revokedAt || session.expiresAt <= new Date() || session.user.status !== "ACTIVE") {
+      throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+    }
+
+    const claimed = await prisma.session.updateMany({
+      where: {
+        id: session.id,
+        refreshHash,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      data: { revokedAt: new Date() },
+    });
+    if (claimed.count !== 1) {
+      throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+    }
+
+    let rotated: Awaited<ReturnType<ReturnType<typeof getAuthenik8>["refreshToken"]>>;
+    try {
+      rotated = await getAuthenik8().refreshToken(refreshToken);
+    } catch {
+      throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+    }
+    if (!rotated.refreshToken) {
+      throw new AppError(401, "REFRESH_REJECTED", "Refresh session is invalid or expired");
+    }
+    try {
+      await prisma.session.update({
+        where: { id: session.id },
+        data: {
+          refreshHash: hashToken(rotated.refreshToken),
+          lastUsedAt: new Date(),
+          revokedAt: null,
+        },
+      });
+    } catch (error) {
+      await getAuthenik8().revokeSession(session.userId, session.coreSessionId).catch(() => undefined);
+      throw error;
+    }
+    completed = true;
+    return { accessToken: rotated.accessToken, refreshToken: rotated.refreshToken, user: presentUser(session.user) };
+  } finally {
+    if (!completed) {
+      await redis.eval(
+        'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+        1,
+        lockKey,
+        lockValue,
+      ).catch(() => undefined);
+    }
   }
 }
 
@@ -137,29 +207,56 @@ export async function requestPasswordReset(email: string) {
 }
 
 export async function resetPassword(token: string, password: string) {
+  const now = new Date();
   const reset = await prisma.passwordResetToken.findUnique({ where: { tokenHash: hashToken(token) } });
-  if (!reset || reset.usedAt || reset.expiresAt <= new Date()) {
+  if (!reset || reset.usedAt || reset.expiresAt <= now) {
     throw new AppError(400, "RESET_TOKEN_INVALID", "This reset link is invalid or expired");
   }
-  const now = new Date();
-  await prisma.$transaction([
-    prisma.passwordResetToken.update({ where: { id: reset.id }, data: { usedAt: now } }),
-    prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await bcrypt.hash(password, 12), passwordUpdatedAt: now } }),
-    prisma.session.updateMany({ where: { userId: reset.userId, revokedAt: null }, data: { revokedAt: now } }),
-  ]);
-  await getAuthenik8().revokeAllSessions(reset.userId);
+  const passwordHash = await bcrypt.hash(password, 12);
+  const userId = await prisma.$transaction(async (transaction) => {
+    const claim = await transaction.passwordResetToken.updateMany({
+      where: { id: reset.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    if (claim.count !== 1) return undefined;
+
+    await transaction.user.update({
+      where: { id: reset.userId },
+      data: { passwordHash, passwordUpdatedAt: now },
+    });
+    await transaction.session.updateMany({
+      where: { userId: reset.userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    return reset.userId;
+  });
+  if (!userId) {
+    throw new AppError(400, "RESET_TOKEN_INVALID", "This reset link is invalid or expired");
+  }
+  await getAuthenik8().revokeAllSessions(userId);
 }
 
 export async function verifyEmail(token: string) {
-  const verification = await prisma.emailVerificationToken.findUnique({ where: { tokenHash: hashToken(token) } });
-  if (!verification || verification.usedAt || verification.expiresAt <= new Date()) {
+  const now = new Date();
+  const verified = await prisma.$transaction(async (transaction) => {
+    const verification = await transaction.emailVerificationToken.findUnique({ where: { tokenHash: hashToken(token) } });
+    if (!verification || verification.usedAt || verification.expiresAt <= now) return false;
+
+    const claim = await transaction.emailVerificationToken.updateMany({
+      where: { id: verification.id, usedAt: null, expiresAt: { gt: now } },
+      data: { usedAt: now },
+    });
+    if (claim.count !== 1) return false;
+
+    await transaction.user.update({
+      where: { id: verification.userId },
+      data: { emailVerifiedAt: now },
+    });
+    return true;
+  });
+  if (!verified) {
     throw new AppError(400, "VERIFICATION_INVALID", "This verification link is invalid or expired");
   }
-  const now = new Date();
-  await prisma.$transaction([
-    prisma.emailVerificationToken.update({ where: { id: verification.id }, data: { usedAt: now } }),
-    prisma.user.update({ where: { id: verification.userId }, data: { emailVerifiedAt: now } }),
-  ]);
 }
 
 export async function resendVerification(userId: string) {
@@ -192,51 +289,55 @@ export async function createLinkIntent(userId: string, provider: OAuthProvider) 
 export async function consumeLinkIntent(ticket: string | undefined) {
   if (!ticket) throw new AppError(400, "LINK_TICKET_INVALID", "Account-link request is missing");
   const key = `oauth:link:${ticket}`;
-  const userId = await redis.get(key);
+  const userId = await redis.getdel(key);
   if (!userId) throw new AppError(400, "LINK_TICKET_INVALID", "Account-link request is invalid or expired");
-  await redis.del(key);
   return userId;
 }
 
 export async function completeOAuthCallback(provider: OAuthProvider, result: Awaited<ReturnType<ReturnType<typeof oauthProvider>["provider"]["handleCallback"]>>, req: Request) {
   const profile = result.profile;
-  if (profile.email_verified !== true && profile.email_verified !== "true") {
+  if (profile.email_verified !== true) {
     throw new AppError(403, "OAUTH_EMAIL_UNVERIFIED", "OAuth provider email must be verified");
   }
 
-  if (result.mode === "link" && result.userId) {
-    const claimed = await prisma.oAuthAccount.findUnique({
-      where: { provider_providerAccountId: { provider, providerAccountId: profile.providerId } },
-    });
-    if (claimed && claimed.userId !== result.userId) throw new AppError(409, "PROVIDER_ALREADY_LINKED", "Provider account is linked to another user");
-    await prisma.oAuthAccount.upsert({
-      where: { userId_provider: { userId: result.userId, provider } },
-      update: { providerAccountId: profile.providerId, providerEmail: profile.email },
-      create: { userId: result.userId, provider, providerAccountId: profile.providerId, providerEmail: profile.email },
-    });
+  const identity = result.identity;
+  if (!identity) {
+    throw new AppError(500, "OAUTH_IDENTITY_MISSING", "OAuth identity resolution did not complete");
+  }
+
+  if (identity.type === "LINK_PROVIDER") {
     return { linked: true as const, provider };
   }
 
-  const account = await prisma.oAuthAccount.findUnique({
-    where: { provider_providerAccountId: { provider, providerAccountId: profile.providerId } },
-    include: { user: true },
-  });
-  let user = account?.user;
-  if (!user) {
-    user = await prisma.user.upsert({
-      where: { email: profile.email.toLowerCase() },
-      update: { emailVerifiedAt: new Date() },
-      create: { email: profile.email.toLowerCase(), name: profile.name ?? "New user", emailVerifiedAt: new Date() },
-    });
-    await prisma.oAuthAccount.upsert({
-      where: { userId_provider: { userId: user.id, provider } },
-      update: { providerAccountId: profile.providerId, providerEmail: profile.email },
-      create: { userId: user.id, provider, providerAccountId: profile.providerId, providerEmail: profile.email },
-    });
+  if (identity.type === "LINK_REQUIRED" || identity.type === "EXISTING_EMAIL_CONFLICT") {
+    throw new AppError(409, "OAUTH_LINK_REQUIRED", "Sign in to the existing account and link this provider from security settings");
   }
-  if (user.status !== "ACTIVE") throw new AppError(403, "ACCOUNT_SUSPENDED", "Account access is unavailable");
+  if (identity.type === "INVALID_LINK_REQUEST") {
+    throw new AppError(400, "OAUTH_LINK_INVALID", "This provider link request is invalid or expired");
+  }
+  if (
+    (identity.type !== "EXISTING_PROVIDER_LOGIN" && identity.type !== "NEW_USER_CREATION")
+    || !result.accessToken
+    || !result.refreshToken
+  ) {
+    throw new AppError(500, "OAUTH_IDENTITY_INVALID", "OAuth identity resolution returned an invalid result");
+  }
 
-  const session = await issueSession(user, req);
+  const user = await prisma.user.findUnique({ where: { id: identity.user.id } });
+  if (!user) {
+    await revokeIssuedCoreSession(identity.user.id, result.accessToken);
+    throw new AppError(500, "OAUTH_IDENTITY_INVALID", "OAuth identity is not available");
+  }
+  if (user.status !== "ACTIVE") {
+    await revokeIssuedCoreSession(user.id, result.accessToken);
+    throw new AppError(403, "ACCOUNT_SUSPENDED", "Account access is unavailable");
+  }
+
+  const session = await registerCoreSession(
+    user,
+    { accessToken: result.accessToken, refreshToken: result.refreshToken },
+    req,
+  );
   const code = randomToken();
   await redis.setex(
     `oauth:exchange:${code}`,
@@ -248,9 +349,8 @@ export async function completeOAuthCallback(provider: OAuthProvider, result: Awa
 
 export async function exchangeOAuthCode(code: string) {
   const key = `oauth:exchange:${code}`;
-  const value = await redis.get(key);
+  const value = await redis.getdel(key);
   if (!value) throw new AppError(400, "OAUTH_CODE_INVALID", "OAuth exchange is invalid or expired");
-  await redis.del(key);
   const payload = openSealedValue(value, env.REFRESH_SECRET);
   if (!payload) throw new AppError(400, "OAUTH_CODE_INVALID", "OAuth exchange is invalid or expired");
   return oauthExchangeSessionSchema.parse(JSON.parse(payload));

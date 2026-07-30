@@ -83,16 +83,29 @@ describe("browser session defenses", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("allows the local preview origin during development", () => {
+  it("allows the configured browser origin", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
     const next = vi.fn();
     requireAllowedOrigin(
-      { get: () => "http://localhost:4173", id: "request-2" } as never,
+      { get: () => "http://localhost:5173", id: "request-2" } as never,
       { status, json } as never,
       next,
     );
     expect(next).toHaveBeenCalledOnce();
     expect(status).not.toHaveBeenCalled();
+  });
+
+  it("rejects an unconfigured loopback port during development", () => {
+    const status = vi.fn().mockReturnThis();
+    const json = vi.fn();
+    const next = vi.fn();
+    requireAllowedOrigin(
+      { get: () => "http://localhost:4173", id: "request-5" } as never,
+      { status, json } as never,
+      next,
+    );
+    expect(status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

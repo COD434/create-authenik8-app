@@ -7,7 +7,7 @@ import { AddRecipeError } from "./plan.js";
 import type { AddContext, PlannedFileChange } from "./types.js";
 
 export const githubCiWorkflowPath = ".github/workflows/authenik8.yml";
-const workflowSchemaVersion = 1;
+const workflowSchemaVersion = 2;
 const pnpmVersion = "10.12.1";
 const bunVersion = "1.3.14";
 
@@ -39,9 +39,21 @@ export function renderGithubCiWorkflow(
   packageManager: PackageManager,
   cliVersion: string,
 ): string {
+  return renderGithubCiWorkflowVersion(
+    packageManager,
+    cliVersion,
+    workflowSchemaVersion,
+  );
+}
+
+function renderGithubCiWorkflowVersion(
+  packageManager: PackageManager,
+  cliVersion: string,
+  schemaVersion: 1 | 2,
+): string {
   return [
     "# Managed by create-authenik8-app. Re-run `create-authenik8-app add ci-github` to update safely.",
-    `# authenik8-ci-schema: ${workflowSchemaVersion}`,
+    `# authenik8-ci-schema: ${schemaVersion}`,
     `# authenik8-cli: ${cliVersion}`,
     "name: Authenik8 security boundary",
     "",
@@ -74,7 +86,9 @@ export function renderGithubCiWorkflow(
     `        run: ${installCommand(packageManager)}`,
     "",
     "      - name: Validate the Authenik8 boundary",
-    `        run: npx --yes create-authenik8-app@${cliVersion} doctor --json --skip-services`,
+    schemaVersion === 1
+      ? `        run: npx --yes create-authenik8-app@${cliVersion} doctor --json --skip-services`
+      : `        run: npx --yes create-authenik8-app@${cliVersion} doctor --ci --offline --strict`,
     "",
     "      - name: Enforce the Authenik8 upgrade policy",
     `        run: npx --yes create-authenik8-app@${cliVersion} upgrade --check --json`,
@@ -109,12 +123,16 @@ export async function planGithubCi(context: AddContext): Promise<PlannedFileChan
   if (before !== null) {
     const schema = before.match(/^# authenik8-ci-schema: (\d+)$/m)?.[1];
     const previousVersion = before.match(/^# authenik8-cli: (\S+)$/m)?.[1];
-    if (schema !== String(workflowSchemaVersion) || !previousVersion) {
+    if ((schema !== "1" && schema !== "2") || !previousVersion) {
       throw new AddRecipeError(
         `${githubCiWorkflowPath} already exists and is not a recognized managed workflow; refusing to overwrite it.`,
       );
     }
-    const expected = renderGithubCiWorkflow(context.manifest.packageManager, previousVersion);
+    const expected = renderGithubCiWorkflowVersion(
+      context.manifest.packageManager,
+      previousVersion,
+      Number(schema) as 1 | 2,
+    );
     if (before !== expected) {
       throw new AddRecipeError(
         `${githubCiWorkflowPath} has local changes; refusing to overwrite the customized security workflow.`,

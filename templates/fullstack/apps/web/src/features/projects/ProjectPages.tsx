@@ -30,7 +30,11 @@ export function ProjectFormPage() {
   const client = useQueryClient();
   const project = useQuery({ queryKey: ["project", id], queryFn: () => projectApi.get(id!), enabled: edit });
   const [form, setForm] = useState<{ name: string; description: string; status: ProjectStatus }>({ name: "", description: "", status: "DRAFT" });
-  useEffect(() => { if (project.data) setForm(project.data.project); }, [project.data]);
+  useEffect(() => {
+    if (!project.data) return;
+    const { name, description, status } = project.data.project;
+    setForm({ name, description, status });
+  }, [project.data]);
   const mutation = useMutation({
     mutationFn: () => edit ? projectApi.update(id!, form) : projectApi.create(form),
     onSuccess: async ({ project: saved }) => {

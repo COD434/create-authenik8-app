@@ -50,14 +50,26 @@ Validate the workspace auth configuration and selected Redis mode at any time:
 npx create-authenik8-app@latest doctor
 ```
 
+Preview production readiness and plan operational auth maintenance with:
+
+```bash
+npx create-authenik8-app@latest ops readiness
+npx create-authenik8-app@latest ops verify oauth
+npx create-authenik8-app@latest ops --help
+```
+
+Signing-key rotation is a two-phase stage/deploy/activate workflow. The
+fullstack revocation operation coordinates PostgreSQL session rows, an audit
+event, and Redis. A separate CLI process intentionally refuses to operate on
+`memory://`.
+
 `authenik8.json` records the generated architecture and Authenik8 engine version. It contains no secrets and should be committed with the workspace.
 
 After committing `package-lock.json`, run `npx create-authenik8-app@latest add ci-github` to add the pinned Doctor and upgrade-policy workflow. Preview it first with `--dry-run`.
 
-With an unchanged generated `.env`, sign in with `admin@example.com` and
-`ChangeMe123!`. These values come from `SEED_ADMIN_EMAIL` and
-`SEED_ADMIN_PASSWORD`. Change the password immediately, including for local
-environments shared by multiple people.
+With an unchanged generated `.env`, sign in with `SEED_ADMIN_EMAIL` and the
+unique `SEED_ADMIN_PASSWORD` generated for this project. Change the password
+immediately in environments shared by multiple people.
 
 ## Application map
 

@@ -17,7 +17,7 @@ async function projectDirectory(): Promise<string> {
   temporaryDirectories.push(directory);
   await fs.writeJson(path.join(directory, "package.json"), {
     name: "demo-app",
-    dependencies: { "authenik8-core": "2.0.3" },
+    dependencies: { "authenik8-core": "2.0.6" },
   });
   return directory;
 }
@@ -43,7 +43,7 @@ describe("project manifest", () => {
 
     expect(manifest).toMatchObject({
       schemaVersion: 1,
-      engine: { package: "authenik8-core", version: "2.0.3" },
+      engine: { package: "authenik8-core", version: "2.0.6" },
       features: { prisma: true, oauthProviders: ["github"], pm2: false },
     });
     const source = await fs.readFile(path.join(directory, PROJECT_MANIFEST_FILENAME), "utf8");
@@ -57,7 +57,7 @@ describe("project manifest", () => {
       schemaVersion: 1,
       projectName: "demo-app",
       generatedBy: { package: "create-authenik8-app", version: "2.4.4" },
-      engine: { package: "authenik8-core", version: "2.0.3" },
+      engine: { package: "authenik8-core", version: "2.0.6" },
       preset: "fullstack",
       packageManager: "npm",
       runtime: "node",

@@ -1,0 +1,94 @@
+ Right now I’d rate it:
+
+  - Initial value: 8/10
+  - Ongoing stickiness: 6/10
+  - Potential to become indispensable: 9/10
+
+  The generator is strong, but generation is naturally a one-time event. The new doctor, upgrade, manifest, CI integration, and guarded add recipes are what can
+  turn it into a recurring development tool.
+
+  ### The sticky loop
+
+  create → diagnose → enforce in CI → safely extend → safely upgrade → repeat
+
+   Developer moment        Current value                         What makes it indispensable
+  ━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   Start a project         Strong presets and secure defaults    Fastest credible path from zero to production auth
+  ──────────────────────  ────────────────────────────────────  ─────────────────────────────────────────────────────────────
+   Daily development       doctor catches configuration drift    Precise explanations, safe autofixes, IDE integration
+  ──────────────────────  ────────────────────────────────────  ─────────────────────────────────────────────────────────────
+   Pull requests           Generated CI policy                   Security regression reports and actionable annotations
+  ──────────────────────  ────────────────────────────────────  ─────────────────────────────────────────────────────────────
+   New requirements        Guarded provider recipes              More transactional recipes without overwriting local policy
+  ──────────────────────  ────────────────────────────────────  ─────────────────────────────────────────────────────────────
+   Dependency upgrades     Upgrade plans and acknowledgement     Reliable codemods, compatibility checks and rollback
+  ──────────────────────  ────────────────────────────────────  ─────────────────────────────────────────────────────────────
+   Production incidents    Limited today                         Key rotation, session revocation and incident runbooks
+
+  ### The biggest retention risk
+
+  Developers can generate a project and never invoke the CLI again. They still benefit from the generated code, but the tool itself becomes invisible.
+
+  The answer should not be artificial lock-in. Make returning to Authenik8 consistently safer and faster than handling auth maintenance manually.
+
+  ### Highest-impact roadmap
+
+  1. Make Doctor the project guardian
+
+     Add GitHub annotations/SARIF, configuration diffs, expiring-secret checks, migration detection, and more safe --fix operations. Every failed check should
+     include impact, remediation and verification—which the current diagnostic architecture already supports.
+
+  2. Expand guarded recipes
+
+     High-value candidates:
+      - Passkeys/WebAuthn
+      - MFA and recovery codes
+      - Additional OAuth/OIDC providers
+      - Organizations and tenancy
+      - API keys/service accounts
+      - Audit logging and webhooks
+      - Account deletion/export
+      - Rate-limit policies
+
+     Preserve the current property that application-owned policy is never silently overwritten.
+
+  3. Turn upgrades into a trusted migration engine
+
+     Developers should be able to run one command and receive:
+      - Exact code/config changes
+      - Security implications
+      - Automated reversible codemods
+      - Database migration guidance
+      - Behavioral verification
+      - A machine-readable CI decision
+
+  4. Own operational auth maintenance
+
+     Commands such as:
+
+     authenik8 rotate signing-key
+     authenik8 audit production
+     authenik8 revoke user --all-sessions
+     authenik8 verify oauth
+     authenik8 readiness
+
+     These are recurring, high-stakes jobs developers do not want to design themselves.
+
+  5. Create a local security dashboard
+
+     Use authenik8.json and Doctor reports to show posture, enabled capabilities, drift, outstanding upgrades and production-readiness. Keep it local-first; a
+     hosted team dashboard can remain optional.
+
+  ### North-star metric
+
+  Track the percentage of generated projects that run a meaningful Authenik8 command after 30 days—not merely installations.
+
+  Supporting metrics:
+
+  - Projects with Authenik8 CI enabled
+  - Weekly Doctor runs
+  - Upgrade completion rate
+  - Recipes applied per project
+  - Time from failed diagnosis to verified fix
+  - Projects still current after 90 days
+

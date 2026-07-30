@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "engines": {
-    "node": "^22.22 || >=24"
+    "node": "^20.19 || ^22.12 || >=24"
   },
   "scripts": {
     "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",

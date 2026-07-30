@@ -18,6 +18,20 @@ Validate the generated auth configuration and Redis connection at any time:
 npx create-authenik8-app@latest doctor
 ```
 
+Preview production readiness, verify local OAuth initialization, and plan
+operational auth maintenance with:
+
+```bash
+npx create-authenik8-app@latest ops readiness
+npx create-authenik8-app@latest ops verify oauth
+npx create-authenik8-app@latest ops --help
+```
+
+Signing-key rotation is a two-phase stage/deploy/activate workflow. Session
+revocation requires shared Redis; a separate CLI process intentionally refuses
+to operate on `memory://`. Applied revocations write private, git-ignored
+receipts under `.authenik8/operations`.
+
 `authenik8.json` records the generated architecture and Authenik8 engine version. It contains no secrets and should be committed with the project.
 
 After committing the package-manager lockfile, run `npx create-authenik8-app@latest add ci-github` to add the pinned Doctor and upgrade-policy workflow. Preview it first with `--dry-run`.
@@ -92,11 +106,17 @@ OAuth:
 ```http
 GET /auth/google
 GET /auth/google/callback
+POST /auth/google/link-intent
+GET /auth/google/link
 GET /auth/github
 GET /auth/github/callback
-GET /auth/google/link
+POST /auth/github/link-intent
 GET /auth/github/link
 ```
+
+Start account linking with the authenticated `POST .../link-intent` endpoint. It returns a
+relative `url` containing a one-use ticket that expires after two minutes. Navigate the browser to
+that URL; the public `GET .../link` endpoint consumes the ticket before redirecting to the provider.
 
 Protected:
 
@@ -173,6 +193,8 @@ Only provider routes selected during generation are included in the project.
 Store the access token in memory and use the refresh token only through your chosen secure storage strategy. Add the access token to API requests with the `Authorization` header. For OAuth, redirect the browser to `/auth/google` or `/auth/github`.
 
 ```ts
+type OAuthProvider = "google" | "github";
+
 let accessToken = "";
 let refreshToken = "";
 
@@ -207,6 +229,20 @@ export async function getProtected() {
 
 export function loginWithGoogle() {
   window.location.href = "http://localhost:3000/auth/google";
+}
+
+export async function linkOAuthProvider(provider: OAuthProvider) {
+  const response = await fetch(`http://localhost:3000/auth/${provider}/link-intent`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`OAuth link request failed: ${response.status}`);
+  }
+
+  const { url } = await response.json();
+  window.location.href = new URL(url, "http://localhost:3000").href;
 }
 ```
 

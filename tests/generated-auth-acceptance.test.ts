@@ -42,6 +42,12 @@ class MemoryRedis {
     return 1;
   }
 
+  async incr(key: string) {
+    const value = Number(this.strings.get(key) ?? "0") + 1;
+    this.strings.set(key, String(value));
+    return value;
+  }
+
   async exists(key: string) {
     return this.strings.has(key) || this.hashes.has(key) ? 1 : 0;
   }

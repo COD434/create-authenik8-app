@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import {
   InputValidationError,
   parseIdentifier,
@@ -6,13 +7,13 @@ import {
   sanitizeSessionResponse,
 } from "../utils/security";
 
-export const createBaseController = (auth: any) => ({
+export const createBaseController = (auth: Authenik8Instance) => ({
   publicRoute(req: Request, res: Response) {
     res.json({ message: "Public route" });
   },
 
   async guest(req: Request, res: Response) {
-    const token = await auth.guestToken({ role: "guest" });
+    const token = await auth.guestToken();
     res.json({ token });
   },
 

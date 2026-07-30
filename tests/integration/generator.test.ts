@@ -74,7 +74,7 @@ describe("generator happy paths", () => {
         preset: "base",
         packageManager: "npm",
         database: "sqlite",
-        engine: { package: "authenik8-core", version: "2.0.3" },
+        engine: { package: "authenik8-core", version: "2.0.6" },
         features: { prisma: true, oauthProviders: [], pm2: false },
       });
     } finally {
@@ -301,7 +301,7 @@ describe("generator happy paths", () => {
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies["ts-node"]).toBeUndefined();
 
-      expect(pkg.dependencies["authenik8-core"]).toBe("2.0.3");
+      expect(pkg.dependencies["authenik8-core"]).toBe("2.0.6");
 
       expect(pkg.scripts["docker:up"]).toBe("docker compose up -d --wait");
       expect(pkg.scripts["pm2:start"]).toBe("npm run build && npx pm2 start ecosystem.config.js");
@@ -323,6 +323,8 @@ describe("generator happy paths", () => {
       );
       expect(files["src/auth/controllers/oauth.controller.ts"]).not.toContain("issueTokensFromProfile");
       expect(files["src/auth/identity.adapter.ts"]).toContain("identityProvider.upsert");
+      expect(files["src/auth/identity.adapter.ts"]).toContain("findUserById");
+      expect(files["src/auth/identity.adapter.ts"]).toContain('"existing-provider"');
       expect(files["prisma/schema.prisma"]).toContain("model IdentityProvider");
       expect(files["prisma/schema.prisma"]).toContain("password  String?");
       expect(files["ecosystem.config.js"]).toContain('script: "dist/server.js"');
@@ -534,12 +536,14 @@ describe("generator happy paths", () => {
         "apps/api/src/app.ts",
         "apps/api/src/auth/auth.routes.ts",
         "apps/api/src/auth/authenik8.ts",
+        "apps/api/src/auth/identity.adapter.ts",
         "apps/api/src/config/env.ts",
         "apps/api/src/config/logger.ts",
         "apps/api/src/config/prisma.ts",
         "apps/api/src/auth/cookies.ts",
         "apps/api/src/auth/auth.service.ts",
         "apps/api/src/middleware/csrf.ts",
+        "apps/api/src/middleware/authenticate.ts",
         "apps/api/src/modules/admin/admin.service.ts",
         "apps/api/src/modules/users/user.service.ts",
         "apps/api/src/modules/projects/project.policy.ts",
@@ -575,7 +579,7 @@ describe("generator happy paths", () => {
       expect(pkg.scripts.pretypecheck).toBe("npm run build:packages");
       expect(pkg.devDependencies["@electric-sql/pglite"]).toBe("0.4.1");
       expect(pkg.devDependencies["@electric-sql/pglite-socket"]).toBe("0.1.1");
-      expect(pkg.engines.node).toBe("^22.22 || >=24");
+      expect(pkg.engines.node).toBe("^20.19 || ^22.12 || >=24");
       expect(pkg.scripts.postinstall).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
         "prisma@7.9.0": true,
@@ -585,6 +589,7 @@ describe("generator happy paths", () => {
       const apiPkg = JSON.parse(files["apps/api/package.json"]);
       expect(apiPkg.dependencies["@prisma/client"]).toBe("7.9.0");
       expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.9.0");
+      expect(apiPkg.dependencies["authenik8-core"]).toBe("2.0.6");
       expect(apiPkg.dependencies["express-rate-limit"]).toBeUndefined();
       expect(apiPkg.dependencies.zod).toBe("^4.4.3");
       expect(apiPkg.dependencies["ioredis-mock"]).toBe("8.13.1");
@@ -610,9 +615,25 @@ describe("generator happy paths", () => {
       expect(files["apps/api/src/auth/auth.service.ts"]).toContain("getAuthenik8().revokeSession");
       expect(files["apps/api/src/auth/authenik8.ts"]).toContain("agentRegistry");
       expect(files["apps/api/src/auth/authenik8.ts"]).toContain("resolveAgent");
+      expect(files["apps/api/src/auth/authenik8.ts"]).toContain("identityAdapter");
+      expect(files["apps/api/src/auth/identity.adapter.ts"]).toContain(
+        "} satisfies OAuthIdentityAdapter",
+      );
+      expect(files["apps/api/src/auth/auth.service.ts"]).toContain("result.identity");
+      expect(files["apps/api/src/auth/auth.service.ts"]).not.toContain("prisma.user.upsert");
+      expect(files["apps/api/src/middleware/authenticate.ts"]).toContain(
+        "coreSessionId: payload.sessionId",
+      );
       expect(files["apps/api/src/auth/authenik8.ts"]).toContain("new RedisMock()");
+      expect(files["apps/api/src/auth/authenik8.ts"]).toContain(
+        "trustedProxyCidrs: env.TRUSTED_PROXY_CIDRS",
+      );
       expect(files["apps/api/src/config/env.ts"]).toContain('environment.NODE_ENV === "production"');
       expect(files["apps/api/src/config/env.ts"]).toContain('environment.REDIS_URL === "memory://"');
+      expect(files["apps/api/src/config/env.ts"]).toContain("TRUSTED_PROXY_CIDRS");
+      expect(files["apps/api/src/auth/auth.service.ts"]).toContain(
+        "{ device: metadata.userAgent, ip: metadata.ipAddress }",
+      );
       expect(files["apps/api/src/auth/auth.service.ts"]).not.toContain("redis.del(`refresh:");
       expect(files["apps/api/src/auth/auth.routes.ts"]).toContain('authRoutes.get("/csrf"');
       expect(files["apps/api/src/auth/auth.routes.ts"]).toContain("requireCsrf");
@@ -663,6 +684,7 @@ describe("generator happy paths", () => {
       expect(files[".env"]).toContain("REDIS_URL=memory://");
       expect(files[".env"]).toContain("AUTHENIK8_LOCAL_DATABASE=embedded");
       expect(files[".env"]).toContain("AUTHENIK8_AGENTS={}");
+      expect(files[".env"]).toContain("TRUSTED_PROXY_CIDRS=");
       expect(files["docker-compose.yml"]).toContain('"127.0.0.1:55432:5432"');
       expect(files["docker-compose.yml"]).toContain('"127.0.0.1:56379:6379"');
       expect(files["scripts/run-local.mjs"]).toContain('import("@electric-sql/pglite")');
@@ -670,8 +692,15 @@ describe("generator happy paths", () => {
       expect(files["scripts/run-local.mjs"]).not.toMatch(/docker/i);
       expect(files["README.md"]).toContain("npm run dev");
       expect(files["README.md"]).toContain("applies the shipped migration");
-      expect(files["README.md"]).toContain("admin@example.com");
-      expect(files["README.md"]).toContain("ChangeMe123!");
+      expect(files["README.md"]).toContain("SEED_ADMIN_EMAIL");
+      expect(files["README.md"]).toContain("unique `SEED_ADMIN_PASSWORD`");
+      expect(files[".env"]).not.toContain("ChangeMe123!");
+      expect(files[".env"]).not.toContain("replace-with-a-unique-development-password");
+      expect(files[".env"]).toMatch(/^SEED_ADMIN_PASSWORD=[A-Za-z0-9_-]{32}$/m);
+      if (process.platform !== "win32") {
+        const envMode = (await fs.stat(path.join(project.targetDir, ".env"))).mode & 0o777;
+        expect(envMode).toBe(0o600);
+      }
       expect(files[".gitignore"]).toContain(".env");
       expect(files[".gitignore"]).toContain(".authenik8/");
       expect(files["AGENT_IDENTITY.md"]).toContain("issueDelegatedToken");
@@ -681,7 +710,7 @@ describe("generator happy paths", () => {
         packageManager: "npm",
         runtime: "node",
         database: "postgresql",
-        engine: { package: "authenik8-core", version: "2.0.3" },
+        engine: { package: "authenik8-core", version: "2.0.6" },
         features: {
           prisma: true,
           oauthProviders: ["google", "github"],
@@ -829,10 +858,12 @@ describe("generator happy paths", () => {
         "apps/api/src/app.ts",
         "apps/api/src/auth/auth.routes.ts",
         "apps/api/src/auth/authenik8.ts",
+        "apps/api/src/auth/identity.adapter.ts",
         "apps/api/src/config/prisma.ts",
         "apps/api/src/auth/cookies.ts",
         "apps/api/src/auth/auth.service.ts",
         "apps/api/src/middleware/csrf.ts",
+        "apps/api/src/middleware/authenticate.ts",
         "apps/api/src/modules/admin/admin.service.ts",
         "apps/api/src/modules/users/user.service.ts",
         "apps/api/src/modules/projects/project.policy.ts",
@@ -880,6 +911,14 @@ describe("generator happy paths", () => {
       expect(files["apps/api/src/auth/auth.service.ts"]).toContain("getAuthenik8().revokeSession");
       expect(files["apps/api/src/auth/authenik8.ts"]).toContain("agentRegistry");
       expect(files["apps/api/src/auth/authenik8.ts"]).toContain("resolveAgent");
+      expect(files["apps/api/src/auth/authenik8.ts"]).toContain("identityAdapter");
+      expect(files["apps/api/src/auth/identity.adapter.ts"]).toContain(
+        "} satisfies OAuthIdentityAdapter",
+      );
+      expect(files["apps/api/src/auth/auth.service.ts"]).not.toContain("prisma.user.upsert");
+      expect(files["apps/api/src/middleware/authenticate.ts"]).toContain(
+        "coreSessionId: payload.sessionId",
+      );
       expect(files["apps/api/src/auth/auth.service.ts"]).not.toContain("redis.del(`refresh:");
       expect(files["apps/api/src/auth/auth.routes.ts"]).toContain('authRoutes.get("/csrf"');
       expect(files["apps/api/src/auth/auth.routes.ts"]).toContain("requireCsrf");

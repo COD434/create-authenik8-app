@@ -8,6 +8,7 @@ import fs from "fs-extra";
 import { createProject, configurePackageJson } from "../dist/src/steps/createProject.js";
 import { configurePrisma } from "../dist/src/steps/configurePrisma.js";
 import { installAuth } from "../dist/src/steps/installAuth.js";
+import { writeProjectManifest } from "../dist/src/lib/projectManifest.js";
 
 const preset = process.argv[2];
 if (preset !== "auth-oauth" && preset !== "fullstack") {
@@ -15,6 +16,8 @@ if (preset !== "auth-oauth" && preset !== "fullstack") {
 }
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
+const cliPath = path.join(repoRoot, "dist/src/bin/cli.js");
+const generatorVersion = (await fs.readJson(path.join(repoRoot, "package.json"))).version;
 const tempBase = process.env.AUTHENIK8_FRESH_ROOT ?? os.tmpdir();
 await fs.ensureDir(tempBase);
 const tempRoot = await mkdtemp(path.join(tempBase, `authenik8-fresh-${preset}-`));
@@ -36,7 +39,7 @@ function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd,
-      env: process.env,
+      env: createFreshProjectEnv(),
       stdio: "inherit",
       shell: process.platform === "win32",
       windowsHide: true,
@@ -52,13 +55,13 @@ function run(command, args, cwd) {
 function createFreshProjectEnv(overrides = {}) {
   const environment = { ...process.env };
 
-  for (const key of [
-    "REDIS_URL",
-    "REDIS_HOST",
-    "REDIS_PORT",
-    "REDIS_PASSWORD",
-  ]) {
-    delete environment[key];
+  for (const key of Object.keys(environment)) {
+    if (
+      ["redis_url", "redis_host", "redis_port", "redis_password"].includes(key.toLowerCase())
+      || key.toLowerCase() === "npm_config_allow_scripts"
+    ) {
+      delete environment[key];
+    }
   }
 
   return {
@@ -148,11 +151,47 @@ try {
   await configurePrisma(state, targetDir, path.join(repoRoot, "templates"));
   configurePackageJson(targetDir, true, "npm");
   await useLocalCoreTarball(process.env.AUTHENIK8_CORE_TARBALL);
+  await writeProjectManifest(targetDir, {
+    projectName: state.projectName,
+    generatorVersion,
+    preset: state.authMode,
+    packageManager: state.packageManager,
+    runtime: state.runtime,
+    database: state.database,
+    usePrisma: state.usePrisma,
+    oauthProviders: state.oauthProviders,
+    productionReady: false,
+  });
 
   await run("npm", ["install", "--no-audit", "--no-fund"], targetDir);
+  const envPath = path.join(targetDir, ".env");
+  const envBackupPath = path.join(targetDir, ".env.fresh-verification");
+  await fs.move(envPath, envBackupPath);
+  try {
+    await run(
+      process.execPath,
+      [cliPath, "doctor", targetDir, "--ci", "--offline", "--strict"],
+      repoRoot,
+    );
+  } finally {
+    await fs.move(envBackupPath, envPath);
+  }
+  await run(
+    process.execPath,
+    [cliPath, "doctor", targetDir, "--deep", "--ci"],
+    repoRoot,
+  );
+  if (!process.env.AUTHENIK8_CORE_TARBALL) {
+    await run(
+      process.execPath,
+      [cliPath, "upgrade", targetDir, "--check", "--json"],
+      repoRoot,
+    );
+  }
   if (preset === "auth-oauth") {
     await run("npm", ["run", "db:migrate"], targetDir);
   }
+  await run("npm", ["run", "test", "--if-present"], targetDir);
   await run("npm", ["audit", "--audit-level=low"], targetDir);
   await run("npm", ["run", "build"], targetDir);
   if (preset === "auth-oauth") {

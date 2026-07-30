@@ -223,6 +223,7 @@ code { overflow-wrap: anywhere; color: #246a43; font-family: "SFMono-Regular", C
 .security-action { padding: 0 20px 20px; }
 
 .table-wrap { max-width: 100%; overflow-x: auto; }
+.pagination { min-height: 64px; padding: 12px 20px; border-top: 1px solid #e8eaf0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 13px 18px; border-bottom: 1px solid #eceef3; text-align: left; vertical-align: middle; }
 th { color: #737b8d; background: #fafbfc; font-size: 10px; font-weight: 850; text-transform: uppercase; white-space: nowrap; }
