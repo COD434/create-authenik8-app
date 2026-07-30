@@ -14,6 +14,12 @@ export async function listUsers(page: number) {
   return { items: items.map(presentUser), total, page: safePage, pageSize };
 }
 
+export async function getUser(targetId: string) {
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!user) throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  return presentUser(user);
+}
+
 export async function updateUser(actorId: string, targetId: string, body: unknown, ipAddress: string) {
   const input = adminUserUpdateSchema.parse(body);
   if (actorId === targetId && (input.role === "USER" || input.status === "SUSPENDED")) {

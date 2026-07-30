@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Activity, RefreshCw } from "lucide-react";
 import { Button, EmptyState, Spinner } from "@authenik8/ui";
-import { adminApi } from "@authenik8/api-client";
+import { adminApi } from "../../lib/authenik8";
 import { ErrorNotice, PageHeader } from "../../components/Page";
 
 export function AuditPage() {

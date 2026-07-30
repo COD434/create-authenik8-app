@@ -2,28 +2,43 @@ import { Request, Response } from "express";
 import { getAuth } from "../auth";
 import { prisma } from "../../prisma/client";
 import { hashPassword, comparePassword } from "../../utils/hash";
-import { parseCredentials, parseRefreshToken } from "../../utils/security";
+import {
+  InputValidationError,
+  parseCredentials,
+  parseRefreshToken,
+} from "../../utils/security";
+
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "code" in error
+    && error.code === "P2002",
+  );
+}
 
 export const passwordController = {
   async register(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);
-
-      const existingUser = await prisma.user.findUnique({ where: { email } });
-      if (existingUser) {
-        return res.status(400).json({ error: "Email is already registered" });
+      const passwordHash = await hashPassword(password);
+      try {
+        await prisma.user.create({
+          data: {
+            email,
+            password: passwordHash,
+          },
+        });
+      } catch (error) {
+        if (!isUniqueConstraintError(error)) throw error;
       }
 
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: await hashPassword(password),
-        },
-      });
-
-      res.json({ message: "User created", userId: user.id });
+      res.json({ message: "Registration request accepted" });
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message || "Invalid registration request" });
+      if (err instanceof InputValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      res.status(500).json({ error: "Registration could not be completed" });
     }
   },
 

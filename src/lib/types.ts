@@ -3,6 +3,7 @@ import type { z } from "zod";
 import type {
   authModeSchema,
   databaseSchema,
+  frontendModeSchema,
   cliStateSchema,
   oauthProviderSchema,
   packageManagerSchema,
@@ -13,6 +14,7 @@ import type {
 export type PackageManager = z.infer<typeof packageManagerSchema>;
 export type AuthMode = z.infer<typeof authModeSchema>;
 export type Database = z.infer<typeof databaseSchema>;
+export type FrontendMode = z.infer<typeof frontendModeSchema>;
 export type OAuthProviderName = z.infer<typeof oauthProviderSchema>;
 export type Runtime = z.infer<typeof runtimeSchema>;
 export type StepName = z.infer<typeof stepNameSchema>;

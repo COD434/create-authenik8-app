@@ -44,4 +44,11 @@ describe("resolveRootCommand", () => {
       args: ["./app", "--check", "--json"],
     });
   });
+
+  it("routes Studio without exposing it to the generator", () => {
+    expect(resolveRootCommand(["studio", "./app", "--no-open"])).toEqual({
+      name: "studio",
+      args: ["./app", "--no-open"],
+    });
+  });
 });

@@ -8,6 +8,10 @@ async function main() {
   if (!password) {
     throw new Error("SEED_ADMIN_PASSWORD is required");
   }
+  const passwordBytes = Buffer.byteLength(password, "utf8");
+  if (passwordBytes < 10 || passwordBytes > 72) {
+    throw new Error("SEED_ADMIN_PASSWORD must be between 10 and 72 UTF-8 bytes");
+  }
   const admin = await prisma.user.upsert({
     where: { email },
     update: { role: Role.ADMIN, status: "ACTIVE" },

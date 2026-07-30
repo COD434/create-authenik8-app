@@ -378,6 +378,48 @@ describe("generated project doctor", () => {
     }
   });
 
+  it("does not execute project dependency code in offline mode", async () => {
+    const project = await generateProjectFixture({
+      template: "base",
+      usePrisma: true,
+    });
+    try {
+      const coreDirectory = path.join(
+        project.targetDir,
+        "node_modules/authenik8-core",
+      );
+      await fs.ensureDir(coreDirectory);
+      await fs.writeJson(path.join(coreDirectory, "package.json"), {
+        name: "authenik8-core",
+        version: "2.0.6",
+        main: "index.js",
+      });
+      await fs.writeFile(
+        path.join(coreDirectory, "index.js"),
+        'throw new Error("project dependency code executed");\n',
+      );
+      await fs.remove(path.join(project.targetDir, ".env"));
+
+      const report = await runDoctor({
+        directory: project.targetDir,
+        json: false,
+        skipServices: false,
+        offline: true,
+      });
+
+      expect(report.summary.failed).toBe(0);
+      expect(report.checks.find((check) => check.id === "A8-JWK-006"))
+        .toMatchObject({
+          status: "pass",
+          message: expect.stringContaining(
+            "did not load project dependency code",
+          ),
+        });
+    } finally {
+      await project.cleanup();
+    }
+  });
+
   it("runs the installed core through isolated deep lifecycle checks", async () => {
     const project = await generateProjectFixture({
       template: "base",

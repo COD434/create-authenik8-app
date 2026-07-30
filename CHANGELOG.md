@@ -1,5 +1,18 @@
 🚀 Authenik8 CLI — Changelog
 
+[Unreleased] — Lovable frontend integration
+
+- Added `--frontend lovable` to the fullstack preset while preserving React as
+  the default and tested reference.
+- Added a deterministic OpenAPI 3.1 contract, portable ESM browser client,
+  staged Lovable prompt pack, safe client export, validator, reference
+  workflow, and Railway/custom-domain deployment documentation.
+- Added profile detail, provider unlink, revoke-other-sessions, and
+  administrator user-detail operations required by the full frontend
+  lifecycle.
+- Documented that cross-site Lovable preview is not supported for the complete
+  strict-cookie lifecycle; production uses same-site custom domains.
+
 [1.0.6] — 2026-04-10
 
 ✨ Added

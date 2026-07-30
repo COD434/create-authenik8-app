@@ -514,6 +514,7 @@ export async function runStaticChecks(
   context: DoctorContext,
   nodeVersion = process.versions.node,
   allowMissingCore = false,
+  verifyInstalledEngine = true,
 ): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
   checks.push(supportsFullstackPreset(nodeVersion)
@@ -565,7 +566,11 @@ export async function runStaticChecks(
   let signingError = signingInspection.valid
     ? undefined
     : signingInspection.error;
-  if (signingInspection.valid && coreDependency.status === "pass") {
+  if (
+    signingInspection.valid
+    && coreDependency.status === "pass"
+    && verifyInstalledEngine
+  ) {
     try {
       await exerciseEngineSigningKeyRing(
         loadProjectEngine(
@@ -583,7 +588,14 @@ export async function runStaticChecks(
   }
   checks.push(signingError
     ? check("auth.signing", "Signing key ring", "fail", signingError, "Restore the generated private ES256 key ring or rotate it deliberately.")
-    : check("auth.signing", "Signing key ring", "pass", "The installed engine can sign and verify with the active ES256 P-256 key"));
+    : check(
+        "auth.signing",
+        "Signing key ring",
+        "pass",
+        verifyInstalledEngine
+          ? "The installed engine can sign and verify with the active ES256 P-256 key"
+          : "The ES256 P-256 key ring is structurally valid; offline mode did not load project dependency code",
+      ));
 
   const issuerValid = validHttpUrl(context.env.AUTHENIK8_ISSUER);
   const audienceValid = Boolean(context.env.AUTHENIK8_AUDIENCE?.trim());

@@ -51,7 +51,23 @@ import {
   formatOpsResult,
   opsHelp,
 } from "../commands/ops/output.js";
+import {
+  parseStudioArguments,
+  runStudio,
+  StudioUsageError,
+} from "../commands/studio/index.js";
+import { StudioProjectError } from "../commands/studio/snapshot.js";
+import {
+  formatStudioStarted,
+  studioHelp,
+} from "../commands/studio/output.js";
 import { resolveRootCommand } from "../lib/rootCommand.js";
+import {
+  LovableDoctorUsageError,
+  lovableDoctorHelp,
+  parseLovableDoctorArguments,
+  runLovableDoctorCommand,
+} from "../commands/lovableDoctor/index.js";
 
 function write(stream: NodeJS.WriteStream, value: string): void {
   stream.write(value.endsWith("\n") ? value : `${value}\n`);
@@ -179,6 +195,69 @@ async function main(): Promise<void> {
             json,
           ),
         );
+        process.exitCode = 3;
+      }
+    }
+    return;
+  }
+
+  if (route.name === "studio") {
+    try {
+      const options = parseStudioArguments(route.args);
+      if (options.help) {
+        write(process.stdout, studioHelp());
+      } else {
+        const studio = await runStudio(options);
+        write(process.stdout, formatStudioStarted(studio.url, options));
+
+        let stopping = false;
+        const stop = async () => {
+          if (stopping) return;
+          stopping = true;
+          try {
+            await studio.close();
+            write(process.stdout, "Authenik8 Studio stopped.");
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            write(process.stderr, `Error: Studio could not stop cleanly: ${detail}`);
+            process.exitCode = 1;
+          }
+        };
+        process.once("SIGINT", () => void stop());
+        process.once("SIGTERM", () => void stop());
+      }
+    } catch (error) {
+      if (error instanceof StudioUsageError) {
+        write(process.stderr, `Error: ${error.message}\n${studioHelp()}`);
+        process.exitCode = 2;
+      } else if (
+        error instanceof StudioProjectError
+        || error instanceof DoctorProjectError
+        || error instanceof UpgradeProjectError
+      ) {
+        write(process.stderr, `Error: ${error.message}`);
+        process.exitCode = 2;
+      } else {
+        const detail = error instanceof Error ? error.message : String(error);
+        write(process.stderr, `Error: Studio could not start: ${detail}`);
+        process.exitCode = 1;
+      }
+    }
+    return;
+  }
+
+  if (route.name === "doctor" && route.args[0] === "frontend") {
+    try {
+      process.exitCode = runLovableDoctorCommand(
+        parseLovableDoctorArguments(route.args),
+      );
+    } catch (error) {
+      if (error instanceof LovableDoctorUsageError) {
+        write(process.stderr, `Error: ${error.message}\n${lovableDoctorHelp()}`);
+        process.exitCode = 2;
+      } else {
+        const detail = error instanceof Error ? error.message : String(error);
+        write(process.stderr, `Error: Lovable Doctor could not complete: ${detail}`);
         process.exitCode = 3;
       }
     }

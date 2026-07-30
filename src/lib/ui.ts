@@ -51,6 +51,9 @@ export function renderConfiguration(state: CliState): void {
     ["Preset", preset],
     ["Authentication", authentication],
     ["Database", database],
+    ...(state.authMode === "fullstack"
+      ? [["Frontend", state.frontend === "lovable" ? "Lovable + included React reference" : "Included React reference"] as [string, string]]
+      : []),
     ["Package manager", state.packageManager ?? "npm"],
     ["Dependencies", state.installDeps === false ? "Skip installation" : "Install now"],
   ];

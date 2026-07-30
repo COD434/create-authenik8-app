@@ -129,6 +129,27 @@ describe("template security fuzzing", () => {
     }
   });
 
+  it("rejects passwords that bcrypt would truncate", () => {
+    const oversizedAscii = `Valid123${"x".repeat(65)}`;
+    const oversizedUtf8 = `Valid123${"é".repeat(33)}`;
+    const parsers = [
+      parseAuthCredentials,
+      parseAuthPlusCredentials,
+    ];
+
+    expect(oversizedUtf8.length).toBeLessThanOrEqual(72);
+    for (const parseCredentials of parsers) {
+      expect(() => parseCredentials({
+        email: "user@example.com",
+        password: oversizedAscii,
+      })).toThrow("72 UTF-8 bytes");
+      expect(() => parseCredentials({
+        email: "user@example.com",
+        password: oversizedUtf8,
+      })).toThrow("72 UTF-8 bytes");
+    }
+  });
+
   it("accepts only valid refresh-token-shaped bodies", () => {
     const parsers = [
       [parseAuthRefreshToken, authRefreshTokenBodySchema],

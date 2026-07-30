@@ -54,6 +54,7 @@ beforeEach(() => {
   });
   dependencies.passwordHash.comparePassword.mockResolvedValue(true);
   dependencies.passwordHash.hashPassword.mockResolvedValue("hashed-password");
+  dependencies.prisma.user.create.mockResolvedValue({ id: "user-1" });
   dependencies.prisma.user.findUnique.mockResolvedValue({
     id: "user-1",
     email: credentials.email,
@@ -63,6 +64,55 @@ beforeEach(() => {
 });
 
 describe("generated password login flows", () => {
+  it.each([
+    {
+      name: "email/password",
+      controller: async () => {
+        const { createAuthController } = await import(
+          "../templates/express-auth/src/controllers/auth.controller.js"
+        );
+        return createAuthController(dependencies.auth);
+      },
+    },
+    {
+      name: "OAuth",
+      controller: async () => {
+        const { passwordController } = await import(
+          "../templates/express-auth+/src/auth/controllers/password.controller.js"
+        );
+        return passwordController;
+      },
+    },
+  ])(
+    "returns the same registration response for new and duplicate addresses in the $name template",
+    async ({ controller }) => {
+      const registration = await controller();
+      const createdResponse = response();
+
+      await registration.register(
+        { body: credentials } as any,
+        createdResponse as any,
+      );
+
+      dependencies.prisma.user.create.mockRejectedValueOnce({ code: "P2002" });
+      const duplicateResponse = response();
+      await registration.register(
+        { body: credentials } as any,
+        duplicateResponse as any,
+      );
+
+      expect(createdResponse.status).not.toHaveBeenCalled();
+      expect(duplicateResponse.status).not.toHaveBeenCalled();
+      expect(createdResponse.json).toHaveBeenCalledWith({
+        message: "Registration request accepted",
+      });
+      expect(duplicateResponse.json).toHaveBeenCalledWith({
+        message: "Registration request accepted",
+      });
+      expect(dependencies.passwordHash.hashPassword).toHaveBeenCalledTimes(2);
+    },
+  );
+
   it("awaits the core token-pair API in the email/password template", async () => {
     const { createAuthController } = await import(
       "../templates/express-auth/src/controllers/auth.controller.js"

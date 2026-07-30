@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Edit3, FolderKanban, Plus, Save, Trash2 } from "lucide-react";
 import { Link, useNavigate, useParams } from "react-router";
 import { Badge, Button, EmptyState, Input, Spinner } from "@authenik8/ui";
-import { projectApi } from "@authenik8/api-client";
+import { projectApi } from "../../lib/authenik8";
 import type { ProjectStatus } from "@authenik8/contracts";
 import { ErrorNotice, Field, PageHeader } from "../../components/Page";
 

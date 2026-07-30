@@ -38,6 +38,7 @@ export type GenerateProjectOptions = {
   oauthProviders?: string[];
   packageManager?: "npm" | "pnpm" | "bun";
   templateLineEndings?: "lf" | "crlf";
+  frontend?: "react" | "lovable";
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -94,6 +95,9 @@ export async function generateProjectFixture(
     useGit: false,
     runtime: options.productionRuntime,
     oauthProviders: options.oauthProviders,
+    ...(options.template === "fullstack"
+      ? { frontend: options.frontend ?? "react" }
+      : {}),
   };
 
   let fixtureTemplateRoot = templateRoot;
@@ -169,6 +173,7 @@ export async function generateProjectFixture(
     usePrisma: state.authMode === "fullstack" || Boolean(state.usePrisma),
     oauthProviders: manifestProviders,
     productionReady: Boolean(options.productionRuntime) && state.authMode !== "fullstack",
+    frontend: state.frontend,
   });
 
   return {

@@ -1,12 +1,16 @@
 import bcrypt from "bcryptjs";
 import type { Request } from "express";
-import { changePasswordSchema, profileSchema } from "@authenik8/contracts";
+import { changePasswordSchema, oauthProviderSchema, profileSchema } from "@authenik8/contracts";
 import { readRefreshCookie } from "../../auth/cookies.js";
 import { prisma } from "../../config/prisma.js";
 import { getAuthenik8 } from "../../auth/authenik8.js";
 import { hashToken } from "../../utils/crypto.js";
 import { AppError } from "../../utils/http.js";
 import { presentUser } from "./user.presenter.js";
+
+export async function getProfile(userId: string) {
+  return presentUser(await prisma.user.findUniqueOrThrow({ where: { id: userId } }));
+}
 
 export async function updateProfile(userId: string, body: unknown) {
   const input = profileSchema.parse(body);
@@ -61,6 +65,39 @@ export async function revokeSession(userId: string, sessionId: string, req: Requ
   return Boolean(current);
 }
 
+export async function revokeOtherSessions(userId: string, req: Request) {
+  const refreshToken = readRefreshCookie(req);
+  if (!refreshToken) {
+    throw new AppError(400, "CURRENT_SESSION_REQUIRED", "The current refresh session is required");
+  }
+  const current = await prisma.session.findFirst({
+    where: {
+      userId,
+      refreshHash: hashToken(refreshToken),
+      revokedAt: null,
+      expiresAt: { gt: new Date() },
+    },
+  });
+  if (!current) {
+    throw new AppError(400, "CURRENT_SESSION_REQUIRED", "The current refresh session is not active");
+  }
+
+  const others = await prisma.session.findMany({
+    where: { userId, id: { not: current.id }, revokedAt: null },
+    select: { id: true, coreSessionId: true },
+  });
+  if (!others.length) return 0;
+
+  await prisma.session.updateMany({
+    where: { id: { in: others.map((session) => session.id) }, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  await Promise.all(
+    others.map((session) => getAuthenik8().revokeSession(userId, session.coreSessionId)),
+  );
+  return others.length;
+}
+
 export async function listProviders(userId: string) {
   const providers = await prisma.oAuthAccount.findMany({ where: { userId }, orderBy: { createdAt: "asc" } });
   return providers.map((account) => ({
@@ -68,4 +105,26 @@ export async function listProviders(userId: string) {
     providerEmail: account.providerEmail,
     linkedAt: account.createdAt.toISOString(),
   }));
+}
+
+export async function unlinkProvider(userId: string, providerInput: unknown) {
+  const provider = oauthProviderSchema.parse(providerInput);
+  await prisma.$transaction(async (transaction) => {
+    // Serialize provider removal for this identity so two concurrent unlinks
+    // cannot both observe another provider and remove the final login method.
+    await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${userId} FOR UPDATE`;
+    const user = await transaction.user.findUnique({
+      where: { id: userId },
+      include: { oauthAccounts: { select: { provider: true } } },
+    });
+    if (!user) throw new AppError(404, "USER_NOT_FOUND", "User not found");
+    if (!user.passwordHash && user.oauthAccounts.length <= 1) {
+      throw new AppError(400, "LAST_AUTH_METHOD", "Add a password or another provider before unlinking this account");
+    }
+
+    const removed = await transaction.oAuthAccount.deleteMany({ where: { userId, provider } });
+    if (removed.count !== 1) {
+      throw new AppError(404, "PROVIDER_NOT_LINKED", "Provider is not linked");
+    }
+  });
 }

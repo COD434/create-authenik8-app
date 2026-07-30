@@ -14,6 +14,7 @@ import { AuthShell } from "../../components/AuthShell";
 import { getErrorMessage } from "../../components/Page";
 import { useAuth } from "../../auth/AuthProvider";
 import { enabledOAuthProviders } from "../../auth/providers";
+import { authApi } from "../../lib/authenik8";
 
 type CredentialInputProps = ComponentProps<typeof TextInput> &
   Pick<InputHTMLAttributes<HTMLInputElement>, "autoComplete">;
@@ -39,7 +40,7 @@ export function LoginPage() {
     try {
       await login({ email, password });
       const from = (location.state as { from?: string } | null)?.from;
-      navigate(from ?? "/", { replace: true });
+      navigate(from ?? "/dashboard", { replace: true });
     } catch (caught) {
       setError(caught);
     } finally {
@@ -116,7 +117,7 @@ export function LoginPage() {
                 variant="secondary"
                 width="100%"
                 icon={provider === "google" ? <span className="provider-g">G</span> : <Github size={18} />}
-                onClick={() => window.location.assign(`/api/auth/oauth/${provider}`)}
+                onClick={() => window.location.assign(authApi.oauthUrl(provider))}
               />
             ))}
           </div>

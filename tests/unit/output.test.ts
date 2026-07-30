@@ -85,6 +85,22 @@ describe("completion output", () => {
     expect(printed()).toContain("Change the seeded password");
   });
 
+  it("prints the concise Lovable handoff only for Lovable mode", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+      frontend: "lovable",
+    }, false);
+
+    expect(printed()).toContain("Lovable integration pack are ready");
+    expect(printed()).toContain("integrations/lovable/README.md");
+    expect(printed()).toContain("LOVABLE_PROMPT.md and openapi.json");
+    expect(printed()).toContain("npm run doctor:lovable");
+    expect(printed()).toContain("Web  http://localhost:5173");
+    expect(printed()).toContain("API  http://localhost:3000/api");
+  });
+
   it("omits Prisma commands for a database-free project", () => {
     printSummary({ ...baseState, usePrisma: false }, false);
 

@@ -667,8 +667,8 @@ describe("generator happy paths", () => {
       expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain('autoComplete="email"');
       expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain('autoComplete="current-password"');
       expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain("await login({ email, password })");
-      expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain('navigate(from ?? "/", { replace: true })');
-      expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain('window.location.assign(`/api/auth/oauth/${provider}`)');
+      expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain('navigate(from ?? "/dashboard", { replace: true })');
+      expect(files["apps/web/src/pages/auth/LoginPage.tsx"]).toContain("window.location.assign(authApi.oauthUrl(provider))");
       expect(files["apps/web/src/pages/DashboardPage.tsx"]).toContain('queryKey: ["projects"]');
       expect(files["apps/web/src/pages/DashboardPage.tsx"]).toContain('queryKey: ["sessions"]');
       expect(files["apps/web/src/pages/DashboardPage.tsx"]).toContain('queryKey: ["health"]');

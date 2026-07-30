@@ -195,6 +195,25 @@ export async function createProject(
     const generatedPkgPath = path.join(stageDir, "package.json");
     const generatedPkg = await fs.readJson(generatedPkgPath);
     generatedPkg.name = state.projectName;
+    if (state.authMode === "fullstack" && state.frontend !== "lovable") {
+      delete generatedPkg.scripts?.["doctor:lovable"];
+      delete generatedPkg.scripts?.["export:lovable-client"];
+      await Promise.all([
+        fs.remove(path.join(stageDir, "scripts/doctor-lovable.mjs")),
+        fs.remove(path.join(stageDir, "scripts/export-lovable-client.mjs")),
+        fs.remove(path.join(stageDir, "integrations/lovable/README.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/LOVABLE_PROMPT.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/env.example")),
+        fs.remove(path.join(stageDir, "integrations/lovable/acceptance-checklist.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/TROUBLESHOOTING.md")),
+      ]);
+      const readmePath = path.join(stageDir, "README.md");
+      const readme = await fs.readFile(readmePath, "utf8");
+      await fs.writeFile(
+        readmePath,
+        readme.replace(/\n?<!-- LOVABLE_START -->[\s\S]*?<!-- LOVABLE_END -->\n?/u, "\n"),
+      );
+    }
     await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
 
     const packagedGitignore = path.join(stageDir, "gitignore.template");

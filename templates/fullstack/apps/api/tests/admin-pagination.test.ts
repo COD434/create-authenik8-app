@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   findAuditEvents: vi.fn(),
   countAuditEvents: vi.fn(),
   transaction: vi.fn(),
+  findUser: vi.fn(),
 }));
 
 vi.mock("../src/config/prisma.js", () => ({
@@ -12,6 +13,7 @@ vi.mock("../src/config/prisma.js", () => ({
       findMany: mocks.findAuditEvents,
       count: mocks.countAuditEvents,
     },
+    user: { findUnique: mocks.findUser },
     $transaction: mocks.transaction,
   },
 }));
@@ -19,7 +21,7 @@ vi.mock("../src/auth/authenik8.js", () => ({
   getAuthenik8: vi.fn(),
 }));
 
-import { listAuditEvents } from "../src/modules/admin/admin.service.js";
+import { getUser, listAuditEvents } from "../src/modules/admin/admin.service.js";
 
 describe("admin pagination", () => {
   beforeEach(() => {
@@ -54,5 +56,27 @@ describe("admin pagination", () => {
       skip: 50,
       take: 50,
     }));
+  });
+
+  it("returns one public user projection for administrator detail views", async () => {
+    mocks.findUser.mockResolvedValue({
+      id: "11111111-1111-4111-8111-111111111111",
+      email: "user@example.com",
+      name: "User",
+      role: "USER",
+      status: "ACTIVE",
+      emailVerifiedAt: new Date("2026-01-01T00:00:00.000Z"),
+      createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+
+    await expect(getUser("11111111-1111-4111-8111-111111111111")).resolves.toEqual({
+      id: "11111111-1111-4111-8111-111111111111",
+      email: "user@example.com",
+      name: "User",
+      role: "USER",
+      status: "ACTIVE",
+      verified: true,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    });
   });
 });

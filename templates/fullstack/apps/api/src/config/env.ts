@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { z } from "zod";
+import { exactHttpOriginSchema } from "./exact-origin.js";
 
 const rootEnv = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../.env");
 dotenv.config({ path: process.env.AUTHENIK8_ENV_FILE ?? rootEnv });
@@ -44,7 +45,7 @@ const agentRegistry = z.string().default("{}").superRefine((value, context) => {
 const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
-  WEB_ORIGIN: z.string().url().default("http://localhost:5173"),
+  WEB_ORIGIN: exactHttpOriginSchema.default("http://localhost:5173"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1).default("memory://"),
   AUTHENIK8_SIGNING_JWKS: signingJwks,
@@ -70,6 +71,26 @@ const schema = z.object({
       code: "custom",
       path: ["REDIS_URL"],
       message: "must use redis:// or rediss:// in production",
+    });
+  }
+  if (
+    environment.NODE_ENV === "production"
+    && !environment.WEB_ORIGIN.startsWith("https://")
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["WEB_ORIGIN"],
+      message: "must use https in production",
+    });
+  }
+  if (
+    environment.NODE_ENV === "production"
+    && !environment.AUTHENIK8_ISSUER.startsWith("https://")
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["AUTHENIK8_ISSUER"],
+      message: "must use https in production",
     });
   }
 });

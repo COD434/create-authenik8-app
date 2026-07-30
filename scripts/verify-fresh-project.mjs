@@ -11,8 +11,12 @@ import { installAuth } from "../dist/src/steps/installAuth.js";
 import { writeProjectManifest } from "../dist/src/lib/projectManifest.js";
 
 const preset = process.argv[2];
+const lovable = process.argv.includes("--lovable");
 if (preset !== "auth-oauth" && preset !== "fullstack") {
-  throw new Error("Usage: node scripts/verify-fresh-project.mjs <auth-oauth|fullstack>");
+  throw new Error("Usage: node scripts/verify-fresh-project.mjs <auth-oauth|fullstack> [--lovable]");
+}
+if (lovable && preset !== "fullstack") {
+  throw new Error("--lovable only applies to the fullstack preset");
 }
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -33,6 +37,7 @@ const state = {
   runtime: "node",
   packageManager: "npm",
   oauthProviders: ["google", "github"],
+  ...(lovable ? { frontend: "lovable" } : {}),
 };
 
 function run(command, args, cwd) {
@@ -161,6 +166,7 @@ try {
     usePrisma: state.usePrisma,
     oauthProviders: state.oauthProviders,
     productionReady: false,
+    ...(state.frontend ? { frontend: state.frontend } : {}),
   });
 
   await run("npm", ["install", "--no-audit", "--no-fund"], targetDir);
@@ -192,6 +198,19 @@ try {
     await run("npm", ["run", "db:migrate"], targetDir);
   }
   await run("npm", ["run", "test", "--if-present"], targetDir);
+  if (lovable) {
+    await run(
+      process.execPath,
+      [cliPath, "doctor", "frontend", "--target", "lovable", targetDir, "--json"],
+      repoRoot,
+    );
+    await run("npm", ["run", "export:lovable-client"], targetDir);
+    for (const archive of ["authenik8-contracts.tgz", "authenik8-api-client.tgz"]) {
+      if (!(await fs.pathExists(path.join(targetDir, "integrations/lovable/vendor", archive)))) {
+        throw new Error(`Lovable client export is missing ${archive}`);
+      }
+    }
+  }
   await run("npm", ["audit", "--audit-level=low"], targetDir);
   await run("npm", ["run", "build"], targetDir);
   if (preset === "auth-oauth") {

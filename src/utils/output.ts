@@ -67,6 +67,9 @@ export function printSummary(
     ["Preset", presetLabel(state)],
     ["Authentication", authLabel(state)],
     ["Database", databaseLabel(state)],
+    ...(state.authMode === "fullstack"
+      ? [["Frontend", state.frontend === "lovable" ? "Lovable + React reference" : "React reference"] as [string, string]]
+      : []),
     ["Package manager", packageManager],
   ];
   const labelWidth = Math.max(...details.map(([label]) => label.length));
@@ -104,6 +107,19 @@ export function printSummary(
   if (state.authMode === "fullstack") {
     console.log(chalk.dim("\n  Web  http://localhost:5173"));
     console.log(chalk.dim("  API  http://localhost:3000/api"));
+  }
+  if (state.authMode === "fullstack" && state.frontend === "lovable") {
+    console.log("");
+    console.log(chalk.bold("  Authenik8 backend and Lovable integration pack are ready."));
+    [
+      "Start and test the generated API.",
+      "Open integrations/lovable/README.md.",
+      "Connect your Lovable project to GitHub.",
+      "Give Lovable LOVABLE_PROMPT.md and openapi.json.",
+      `Run ${runCommand(state, "doctor:lovable")} before deployment.`,
+    ].forEach((step, index) => {
+      console.log(`  ${chalk.cyan(`${index + 1}.`)} ${step}`);
+    });
   }
   if (state.authMode === "auth-oauth") {
     console.log(chalk.dim(`\n  Configure ${oauthProviderLabel(state)} OAuth credentials in .env before testing sign-in.`));

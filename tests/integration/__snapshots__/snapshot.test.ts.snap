@@ -74,18 +74,25 @@ export const createApp = (auth: Authenik8Instance) => {
     "src/controllers/auth.controller.ts": "import { Request, Response } from "express";
 import type { Authenik8Instance } from "authenik8-core";
 import { AuthService } from "../services/auth.services";
-import { parseCredentials, parseRefreshToken } from "../utils/security";
+import {
+  InputValidationError,
+  parseCredentials,
+  parseRefreshToken,
+} from "../utils/security";
 
 export const createAuthController = (auth: Authenik8Instance) => ({
   async register(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);
 
-      const user = await AuthService.register(email, password);
+      await AuthService.register(email, password);
 
-      res.json({ message: "User created", userId: user.id });
+      res.json({ message: "Registration request accepted" });
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message || "Invalid registration request" });
+      if (err instanceof InputValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      res.status(500).json({ error: "Registration could not be completed" });
     }
   },
 

@@ -46,6 +46,7 @@ describe("project manifest", () => {
       engine: { package: "authenik8-core", version: "2.0.6" },
       features: { prisma: true, oauthProviders: ["github"], pm2: false },
     });
+    expect(manifest.features.frontend).toBeUndefined();
     const source = await fs.readFile(path.join(directory, PROJECT_MANIFEST_FILENAME), "utf8");
     expect(source).not.toMatch(/secret|signing|clientId|clientSecret/i);
     expect((await fs.readdir(directory)).filter((name) => name.endsWith(".tmp"))).toEqual([]);

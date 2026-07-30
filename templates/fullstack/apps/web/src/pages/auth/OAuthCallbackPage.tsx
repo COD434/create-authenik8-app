@@ -16,7 +16,7 @@ export function OAuthCallbackPage() {
     started.current = true;
     const code = params.get("code");
     if (!code) { setError(new Error("OAuth exchange code is missing")); return; }
-    completeOAuth(code).then(() => navigate("/", { replace: true })).catch(setError);
+    completeOAuth(code).then(() => navigate("/dashboard", { replace: true })).catch(setError);
   }, [completeOAuth, navigate, params]);
   return (
     <AuthShell title="Completing sign in" subtitle="Securing your new session" footer={<span />}>

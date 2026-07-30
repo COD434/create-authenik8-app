@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MoreHorizontal, RefreshCw, Users } from "lucide-react";
 import { Badge, Button, EmptyState, Spinner } from "@authenik8/ui";
-import { adminApi } from "@authenik8/api-client";
+import { adminApi } from "../../lib/authenik8";
 import type { Role, UserStatus } from "@authenik8/contracts";
 import { ErrorNotice, PageHeader } from "../../components/Page";
 

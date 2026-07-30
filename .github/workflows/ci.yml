@@ -38,6 +38,9 @@ jobs:
       - name: Build CLI
         run: npm run build
 
+      - name: Verify packaged Studio
+        run: npm run test:studio:package
+
       - name: Run tests with coverage
         run: npm run test:coverage
 
@@ -77,6 +80,9 @@ jobs:
 
       - name: Build CLI
         run: npm run build
+
+      - name: Verify packaged Studio
+        run: npm run test:studio:package
 
       - name: Run CLI tests
         run: npm test

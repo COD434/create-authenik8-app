@@ -80,6 +80,28 @@ immediately in environments shared by multiple people.
 
 The API follows a contract, repository, service, controller, policy, and route convention. Copy `apps/api/src/modules/projects` and `apps/web/src/features/projects` when adding a vertical feature.
 
+<!-- LOVABLE_START -->
+## Lovable frontend
+
+When generated with `--frontend lovable`, open
+`integrations/lovable/README.md`. It contains the staged prompt, validated
+OpenAPI contract, frontend/security contracts, public environment example,
+client export workflow, validator, and acceptance checklist. Lovable builds
+the interface; this API remains the identity and authorization authority.
+
+Export the exact browser client for a separate Lovable/GitHub repository:
+
+```bash
+npm run export:lovable-client
+```
+
+Validate that repository before deployment:
+
+```bash
+npm run doctor:lovable -- /path/to/lovable-frontend
+```
+<!-- LOVABLE_END -->
+
 ## Session model
 
 The API returns a short-lived access token to the Auth provider, which holds it only in memory. The browser sends an encrypted, restricted HttpOnly refresh cookie automatically. The API client obtains a signed CSRF token for browser mutations, performs one refresh after a `401`, shares in-flight token requests, and retries once. It never reads from or writes tokens to browser storage.

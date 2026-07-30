@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LoginInput, User } from "@authenik8/contracts";
-import { authApi, onAuthenticationLost } from "@authenik8/api-client";
+import { authApi, onAuthenticationLost } from "../lib/authenik8";
 
 type AuthContextValue = {
   user: User | null;

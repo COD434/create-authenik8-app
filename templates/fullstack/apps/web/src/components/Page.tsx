@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { ApiError } from "@authenik8/api-client";
+import { ApiError } from "../lib/authenik8";
 
 export function PageHeader({ title, description, action }: { title: string; description?: string; action?: ReactNode }) {
   return (

@@ -245,6 +245,7 @@ async function runDoctorBase(
     context,
     runtime.nodeVersion,
     runtime.allowMissingCore,
+    !options.offline,
   );
   if (options.production) checks.push(...runProductionChecks(context));
 
