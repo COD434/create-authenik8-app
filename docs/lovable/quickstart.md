@@ -30,21 +30,29 @@ npm run openapi:check
 Use the generated development administrator only locally and change its
 password in shared environments.
 
-## 2. Connect Lovable to Codex once
+## 2. Use ChatGPT with Authenik8 MCP and Lovable
 
-In Codex, enable the Lovable connector and sign into the Lovable workspace
-where the frontend should be created.
+When the Authenik8 MCP app is available in ChatGPT, make it and Lovable
+available to the chat where you will build the frontend. Sign into the Lovable
+workspace where the frontend should be created.
 
-## 3. Tell Codex one thing
+Authenik8 MCP provides read-only planning, contract, and integration-validation
+guidance. Lovable creates and edits the frontend. Neither tool handles
+Authenik8 runtime authentication, backend secrets, or production operations.
 
-Open the generated project in Codex and say:
+## 3. Build the frontend with the generated contract
 
-> Start the Lovable frontend for this project.
+Give Lovable the generated integration materials from `integrations/lovable/`:
 
-The generated skill at `.agents/skills/authenik8-lovable/SKILL.md` exports the
-Authenik8 browser client, uploads the contracts, creates the Lovable project,
-applies `LOVABLE_PROMPT.md` one stage at a time, inspects each stage, and
-returns the editor and preview links.
+- `openapi.json`
+- `FRONTEND_CONTRACT.md`
+- `SECURITY_RULES.md`
+- `LOVABLE_PROMPT.md`
+- the exported `vendor/` client archives after `npm run export:lovable-client`
+
+Use Authenik8 MCP to check the proposed integration before applying it, then
+use Lovable to create the UI one staged prompt at a time. Do not enable Lovable
+Cloud authentication, Supabase authentication, or another backend.
 
 You may still need to:
 

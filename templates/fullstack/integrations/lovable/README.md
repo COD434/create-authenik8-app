@@ -18,25 +18,24 @@ The included `apps/web` remains the tested React reference. Keep it until the
 Lovable frontend passes the same lifecycle; replacing the reference app is a
 deliberate later step.
 
-## Automated path
+## ChatGPT integration path
 
 1. Run `npm run dev:lovable` and verify `http://localhost:3000/api/health/ready`.
-2. Connect the Lovable connector in Codex once.
-3. Open this repository in Codex and say:
-   `Start the Lovable frontend for this project.`
+2. When the Authenik8 MCP app is available in ChatGPT, make it and Lovable
+   available to the chat.
+3. Use Authenik8 MCP to plan and validate the integration, then use Lovable to
+   create the frontend from the materials in this directory.
 
-The generated skill at `.agents/skills/authenik8-lovable/SKILL.md` exports the
-client, uploads contracts, creates the Lovable project, applies
-`LOVABLE_PROMPT.md` one stage at a time, and returns editor/preview links.
+Authenik8 MCP is read-only: it plans and validates without writing repositories,
+handling secrets, or carrying authentication traffic. Lovable remains the UI
+builder. Authenik8 remains the only identity and backend authority.
 
 Manual steps that may remain:
 
 - Selecting a Lovable workspace when more than one is available.
 - Connecting the Lovable project to GitHub.
 
-## Reference workflow
-
-Use this only when you are not using the Codex skill.
+## Generated-contract workflow
 
 1. From the generated repository, run `npm run dev:lovable` and verify
    `http://localhost:3000/api/health/ready`.

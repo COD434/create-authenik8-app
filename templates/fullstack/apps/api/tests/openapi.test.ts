@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { validate } from "@readme/openapi-parser";
@@ -39,15 +40,21 @@ const documentedPaths = [
 ].sort();
 
 describe("OpenAPI contract", () => {
-  it("is valid OpenAPI 3.1 and matches the committed Lovable artifact", async () => {
-    const artifact = await readFile(
-      path.resolve(import.meta.dirname, "../../../integrations/lovable/openapi.json"),
-      "utf8",
-    );
+  it("is valid OpenAPI 3.1 and matches every committed static artifact", async () => {
+    const artifactPath = path.resolve(import.meta.dirname, "../openapi.json");
+    const artifact = await readFile(artifactPath, "utf8");
     const result = await validate(JSON.parse(artifact));
 
     expect(result.valid).toBe(true);
     expect(JSON.parse(artifact)).toEqual(openApiDocument);
+
+    const lovableArtifactPath = path.resolve(
+      import.meta.dirname,
+      "../../../integrations/lovable/openapi.json",
+    );
+    if (existsSync(lovableArtifactPath)) {
+      expect(await readFile(lovableArtifactPath, "utf8")).toBe(artifact);
+    }
   });
 
   it("documents every mounted API operation", () => {

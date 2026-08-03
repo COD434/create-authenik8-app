@@ -16,12 +16,11 @@ cd my-app
 npm run dev:lovable
 ```
 
-Then connect the Lovable connector in Codex once and say:
-
-> Start the Lovable frontend for this project.
-
-The generated `integrations/lovable/START_HERE.md` is the developer handoff.
-`.agents/skills/authenik8-lovable/SKILL.md` orchestrates the Lovable project.
+When the Authenik8 MCP app is available in ChatGPT, use it alongside Lovable.
+The generated
+`integrations/lovable/START_HERE.md` is the developer handoff. Authenik8 MCP
+plans and validates the integration; Lovable creates and edits the browser UI.
+Neither replaces the Authenik8 backend or browser client.
 `apps/web` remains the tested React reference.
 
 

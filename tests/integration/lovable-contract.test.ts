@@ -1,7 +1,11 @@
 import fs from "fs-extra";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { generateProjectFixture, type GeneratedProject } from "../helpers/generator.js";
+import {
+  collectProjectTree,
+  generateProjectFixture,
+  type GeneratedProject,
+} from "../helpers/generator.js";
 
 const requiredPaths = [
   "/.well-known/jwks.json",
@@ -70,16 +74,12 @@ describe("generated Lovable integration contract", () => {
       generated.targetDir,
       "integrations/lovable/START_HERE.md",
     ))).toBe(true);
-    expect(await fs.pathExists(path.join(
-      generated.targetDir,
-      ".agents/skills/authenik8-lovable/SKILL.md",
-    ))).toBe(true);
     const startHere = await fs.readFile(
       path.join(generated.targetDir, "integrations/lovable/START_HERE.md"),
       "utf8",
     );
     expect(startHere).toContain("npm run dev:lovable");
-    expect(startHere).toContain("Start the Lovable frontend for this project.");
+    expect(startHere).toContain("Use ChatGPT with Authenik8 MCP and Lovable");
   });
 
   it("does not expose private JWK members or backend secrets", async () => {
@@ -94,28 +94,38 @@ describe("generated Lovable integration contract", () => {
     expect(securityRules).not.toMatch(/-----BEGIN (?:EC |RSA )?PRIVATE KEY-----/);
   });
 
-  it("keeps the complete Lovable workflow opt-in while retaining the base contract", async () => {
-    generated = await generateProjectFixture({ template: "fullstack", frontend: "react" });
-    const pkg = await fs.readJson(path.join(generated.targetDir, "package.json"));
+  it("keeps every Lovable-only artifact out of the complete React project tree", async () => {
+    const lovable = await generateProjectFixture({ template: "fullstack", frontend: "lovable" });
 
-    expect(pkg.scripts["doctor:lovable"]).toBeUndefined();
-    expect(pkg.scripts["dev:lovable"]).toBeUndefined();
-    expect(pkg.scripts["dev:lovable:watch"]).toBeUndefined();
-    expect(await fs.pathExists(path.join(
-      generated.targetDir,
-      "integrations/lovable/LOVABLE_PROMPT.md",
-    ))).toBe(false);
-    expect(await fs.pathExists(path.join(
-      generated.targetDir,
-      "integrations/lovable/START_HERE.md",
-    ))).toBe(false);
-    expect(await fs.pathExists(path.join(
-      generated.targetDir,
-      ".agents/skills/authenik8-lovable/SKILL.md",
-    ))).toBe(false);
-    expect(await fs.pathExists(path.join(
-      generated.targetDir,
-      "integrations/lovable/openapi.json",
-    ))).toBe(true);
+    try {
+      generated = await generateProjectFixture({ template: "fullstack", frontend: "react" });
+      const pkg = await fs.readJson(path.join(generated.targetDir, "package.json"));
+      const reactTree = await collectProjectTree(generated.targetDir);
+      const lovableTree = await collectProjectTree(lovable.targetDir);
+      const reactPaths = new Set(reactTree);
+      const lovablePaths = new Set(lovableTree);
+
+      expect(pkg.scripts["doctor:lovable"]).toBeUndefined();
+      expect(pkg.scripts["export:lovable-client"]).toBeUndefined();
+      expect(pkg.scripts["dev:lovable"]).toBeUndefined();
+      expect(pkg.scripts["dev:lovable:watch"]).toBeUndefined();
+      expect(reactTree.filter((entry) => !lovablePaths.has(entry))).toEqual([]);
+      expect(lovableTree.filter((entry) => !reactPaths.has(entry))).toEqual([
+        "integrations/lovable/",
+        "integrations/lovable/FRONTEND_CONTRACT.md",
+        "integrations/lovable/LOVABLE_PROMPT.md",
+        "integrations/lovable/README.md",
+        "integrations/lovable/SECURITY_RULES.md",
+        "integrations/lovable/START_HERE.md",
+        "integrations/lovable/TROUBLESHOOTING.md",
+        "integrations/lovable/acceptance-checklist.md",
+        "integrations/lovable/env.example",
+        "integrations/lovable/openapi.json",
+        "scripts/doctor-lovable.mjs",
+        "scripts/export-lovable-client.mjs",
+      ]);
+    } finally {
+      await lovable.cleanup();
+    }
   });
 });

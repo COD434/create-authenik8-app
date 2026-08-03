@@ -64,7 +64,7 @@ function printLovableSummary(state: CliState): void {
     `cd ${state.projectName}`,
     ...(state.installDeps === false ? [installCommand(packageManager)] : []),
     runCommand(state, "dev:lovable"),
-    'Open this directory in Codex and say:\n     "Start the Lovable frontend for this project."',
+    "Open integrations/lovable/START_HERE.md and use ChatGPT with the Authenik8 MCP app and Lovable.",
   ].forEach((step, index) => {
     console.log(`  ${chalk.cyan(`${index + 1}.`)} ${step}`);
   });

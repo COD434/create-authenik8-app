@@ -11,27 +11,35 @@ npm run dev:lovable
 This starts PostgreSQL, migrations, seeding, package watchers, and the API.
 It does not start the reference frontend on port 5173.
 
-## 2. Connect Lovable to Codex once
+## 2. Use ChatGPT with Authenik8 MCP and Lovable
 
-In Codex, enable the Lovable connector and sign into the Lovable workspace
-where the frontend should be created.
+When the Authenik8 MCP app is available in ChatGPT, make it and Lovable
+available to the chat where you will build the frontend. Sign into the Lovable
+workspace where the frontend should be created.
 
-This is the only unavoidable account-related step.
+Authenik8 MCP plans and validates the integration without writing repositories,
+handling secrets, or carrying authentication traffic. Lovable creates and edits
+the frontend. Authenik8 remains the identity and backend authority.
 
-## 3. Tell Codex one thing
+## 3. Give Lovable the generated contract
 
-Open this project in Codex and say:
+Use the following files from this directory with Lovable:
 
-> Start the Lovable frontend for this project.
+- `openapi.json`
+- `FRONTEND_CONTRACT.md`
+- `SECURITY_RULES.md`
+- `LOVABLE_PROMPT.md`
+- `vendor/authenik8-contracts.tgz` and `vendor/authenik8-api-client.tgz` after
+  running `npm run export:lovable-client`
 
-Codex uses `.agents/skills/authenik8-lovable/SKILL.md` to create the Lovable
-project, apply the staged prompts, and return the editor and preview links.
+Use Authenik8 MCP to plan or validate the proposed integration. Apply
+`LOVABLE_PROMPT.md` one numbered step at a time in Lovable, keeping the
+security rules unchanged.
 
 ## What may still need you
 
 - Selecting a Lovable workspace when more than one is available.
-- Connecting the resulting Lovable project to GitHub (the connector does not
-  expose GitHub-link setup).
+- Connecting the resulting Lovable project to GitHub.
 
-Everything else is handled by the skill. Detailed contracts in this directory
-are reference material for the agent, not a manual checklist for you.
+Detailed contracts in this directory are the source of truth for the frontend
+integration. Complete `acceptance-checklist.md` before deployment.

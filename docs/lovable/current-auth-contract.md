@@ -73,9 +73,11 @@ accurately. The updated document uses origin-level server examples and exact
 mounted paths, includes the JWKS response, and marks active-session,
 credentialed-cookie, and administrator requirements.
 
-`npm run openapi:generate` writes the deterministic static artifact to
-`integrations/lovable/openapi.json`. `npm run openapi:check` fails if that file
-is stale and validates it as OpenAPI 3.1.
+`npm run openapi:generate` writes the canonical deterministic artifact to
+`apps/api/openapi.json`. Projects generated with `--frontend lovable` also
+receive an identical `integrations/lovable/openapi.json` export. `npm run
+openapi:check` fails if any applicable artifact is stale and validates each one
+as OpenAPI 3.1.
 
 ## Generated client surface
 

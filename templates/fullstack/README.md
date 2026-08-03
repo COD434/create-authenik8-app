@@ -87,10 +87,10 @@ When generated with `--frontend lovable`, start here:
 
 `integrations/lovable/START_HERE.md`
 
-That file has the three developer actions. Codex uses
-`.agents/skills/authenik8-lovable/SKILL.md` to create the Lovable project and
-apply the staged prompts. Keep `apps/web` as the tested React reference until
-the Lovable frontend passes the same lifecycle.
+That file explains how to use ChatGPT, with the Authenik8 MCP app when
+available, and Lovable to plan, validate, and build the frontend from the
+generated integration materials. Keep `apps/web` as the tested React reference
+until the Lovable frontend passes the same lifecycle.
 
 ```bash
 npm run dev:lovable

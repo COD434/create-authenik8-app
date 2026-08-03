@@ -203,13 +203,7 @@ export async function createProject(
       await Promise.all([
         fs.remove(path.join(stageDir, "scripts/doctor-lovable.mjs")),
         fs.remove(path.join(stageDir, "scripts/export-lovable-client.mjs")),
-        fs.remove(path.join(stageDir, "integrations/lovable/README.md")),
-        fs.remove(path.join(stageDir, "integrations/lovable/START_HERE.md")),
-        fs.remove(path.join(stageDir, "integrations/lovable/LOVABLE_PROMPT.md")),
-        fs.remove(path.join(stageDir, "integrations/lovable/env.example")),
-        fs.remove(path.join(stageDir, "integrations/lovable/acceptance-checklist.md")),
-        fs.remove(path.join(stageDir, "integrations/lovable/TROUBLESHOOTING.md")),
-        fs.remove(path.join(stageDir, ".agents/skills/authenik8-lovable")),
+        fs.remove(path.join(stageDir, "integrations/lovable")),
       ]);
       const readmePath = path.join(stageDir, "README.md");
       const readme = await fs.readFile(readmePath, "utf8");

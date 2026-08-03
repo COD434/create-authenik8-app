@@ -95,7 +95,7 @@ describe("completion output", () => {
 
     expect(printed()).toContain("Authenik8 with Lovable is ready.");
     expect(printed()).toContain("npm run dev:lovable");
-    expect(printed()).toContain("Start the Lovable frontend for this project.");
+    expect(printed()).toContain("ChatGPT with the Authenik8 MCP app and Lovable");
     expect(printed()).toContain("integrations/lovable/START_HERE.md");
     expect(printed()).toContain("API  http://localhost:3000/api");
     expect(printed()).not.toContain("Web  http://localhost:5173");
