@@ -223,6 +223,7 @@ code { overflow-wrap: anywhere; color: #246a43; font-family: "SFMono-Regular", C
 .security-action { padding: 0 20px 20px; }
 
 .table-wrap { max-width: 100%; overflow-x: auto; }
+.pagination { min-height: 64px; padding: 12px 20px; border-top: 1px solid #e8eaf0; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 16px; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { padding: 13px 18px; border-bottom: 1px solid #eceef3; text-align: left; vertical-align: middle; }
 th { color: #737b8d; background: #fafbfc; font-size: 10px; font-weight: 850; text-transform: uppercase; white-space: nowrap; }
@@ -362,4 +363,67 @@ tbody tr:hover { background: #fbfcfd; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
+/* Public product landing */
+.landing-page {
+  min-height: 100vh;
+  padding: 1.25rem clamp(1rem, 4vw, 4rem);
+  color: var(--color-text, #172033);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(64, 201, 214, 0.18), transparent 34rem),
+    linear-gradient(145deg, #f7fbfc, #eef4ff);
+}
+
+.landing-nav,
+.landing-actions,
+.landing-cta,
+.landing-brand,
+.security-mark {
+  display: flex;
+  align-items: center;
+}
+
+.landing-nav {
+  max-width: 72rem;
+  margin: 0 auto;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.landing-brand {
+  gap: 0.7rem;
+  color: inherit;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.landing-brand img { width: 2.1rem; height: 2.1rem; }
+.landing-actions, .landing-cta { gap: 0.75rem; flex-wrap: wrap; }
+
+.landing-hero {
+  max-width: 68rem;
+  margin: clamp(5rem, 14vh, 9rem) auto 0;
+}
+
+.landing-hero h1 {
+  max-width: 16ch;
+  margin: 1.2rem 0;
+  font-size: clamp(2.7rem, 7vw, 5.8rem);
+  line-height: 0.98;
+  letter-spacing: -0.055em;
+}
+
+.landing-hero > p {
+  max-width: 42rem;
+  color: #526077;
+  font-size: clamp(1.05rem, 2vw, 1.3rem);
+  line-height: 1.65;
+}
+
+.landing-cta { margin-top: 2rem; }
+
+@media (max-width: 520px) {
+  .landing-nav { align-items: flex-start; }
+  .landing-actions .button-secondary { display: none; }
+  .landing-hero { margin-top: 4rem; }
 }

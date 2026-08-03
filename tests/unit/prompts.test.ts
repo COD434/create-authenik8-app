@@ -100,6 +100,7 @@ describe('prompts.ts', () => {
       framework: 'Express',
       authMode: 'fullstack',
       fullstackOAuthProviders: ['github'],
+      frontend: 'lovable',
       database: 'sqlite',
       useGit: true,
     });
@@ -110,6 +111,7 @@ describe('prompts.ts', () => {
     expect(answers.database).toBe('postgresql');
     expect(answers.runtime).toBe('node');
     expect(answers.oauthProviders).toEqual(['github']);
+    expect(answers.frontend).toBe('lovable');
   });
 
   it('does not offer fullstack choices that the preset cannot honor', async () => {
@@ -127,6 +129,7 @@ describe('prompts.ts', () => {
     const database = questions.find((question) => question.name === 'database');
     const runtime = questions.find((question) => question.name === 'runtime');
     const preset = questions.find((question) => question.name === 'authMode');
+    const frontend = questions.find((question) => question.name === 'frontend');
 
     expect(questions.some((question) => question.name === 'applicationModules')).toBe(false);
     expect(database.when({ authMode: 'fullstack', usePrisma: true })).toBe(false);
@@ -136,6 +139,9 @@ describe('prompts.ts', () => {
     expect(preset.choices[0].name).toContain('embedded PostgreSQL, npm');
     expect(preset.choices[0].name).not.toContain('Docker');
     expect(preset.choices[1].name).toContain('bring your own identity source');
+    expect(frontend.when({ authMode: 'fullstack' })).toBe(true);
+    expect(frontend.default).toBe('react');
+    expect(frontend.choices.map((choice: any) => choice.value)).toEqual(['react', 'lovable']);
   });
 
   it('keeps password auth while making fullstack OAuth opt-in', async () => {

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { Spinner } from "@authenik8/ui";
-import { authApi } from "@authenik8/api-client";
+import { authApi } from "../../lib/authenik8";
 import { AuthShell } from "../../components/AuthShell";
 import { ErrorNotice, SuccessNotice } from "../../components/Page";
 

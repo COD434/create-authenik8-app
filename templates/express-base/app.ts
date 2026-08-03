@@ -1,7 +1,8 @@
-import  express  from "express";
+import express from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createBaseRoutes } from "./routes/base.routes";
 
-export const createApp = (auth: any) => {
+export const createApp = (auth: Authenik8Instance) => {
   const app = express();
 
   app.use(express.json({ limit: "16kb", strict: true }));

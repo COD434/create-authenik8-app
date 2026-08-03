@@ -43,7 +43,7 @@ External systems are outside the generated app boundary:
 - Database credentials are private.
 - OAuth callback URLs match provider dashboard settings exactly.
 - Production traffic uses HTTPS.
-- Reverse proxy headers are trusted only when you control the proxy.
+- Forwarding headers are trusted only from explicitly configured proxy CIDRs.
 - Developers validate and authorize their own business-domain routes.
 - Applications authenticate workloads before calling privileged agent-token issuance and explicitly authorize every user delegation.
 
@@ -51,15 +51,15 @@ External systems are outside the generated app boundary:
 
 ### Refresh-token replay
 
-Refresh tokens are stateful. The currently valid token for each session is stored under `refresh:<userId>:<sessionId>`. When a refresh succeeds, Authenik8-core atomically replaces it. Reusing an old refresh token fails and revokes that refresh family.
+Refresh tokens are stateful. Authenik8-core stores a fingerprint of the current token for each session and atomically replaces it after a successful refresh. Reusing an old refresh token fails and revokes that refresh family.
 
 ### Concurrent refresh abuse
 
-Refresh requests acquire a Redis lock under `lock:<userId>:<sessionId>`. Two simultaneous refresh attempts for the same session cannot both rotate successfully.
+Refresh requests acquire a namespaced Redis lock scoped to the user and session. Two simultaneous refresh attempts for the same session cannot both rotate successfully.
 
 ### Stateless JWT logout limitations
 
-Access-token sessions are persisted in Redis under `sessions:<userId>`. Admin helpers can list sessions and revoke one or all sessions for a user.
+Access-token sessions are persisted in a core-owned Redis namespace. Admin helpers can list sessions and revoke one or all sessions for a user.
 
 ### Basic request flooding
 
@@ -71,7 +71,11 @@ Access-token sessions are persisted in Redis under `sessions:<userId>`. Admin he
 
 ### OAuth CSRF/state tampering
 
-OAuth redirects generate random state and store it in Redis for five minutes under `oauth:state:<state>`. Callback handlers reject missing, invalid, or expired state.
+OAuth redirects generate random state and store it in Redis for five minutes. Callback handlers atomically consume it and reject missing, invalid, expired, or reused state.
+
+Account linking starts with an authenticated POST that creates a provider-bound, one-use Redis
+ticket. The browser-facing redirect consumes that ticket atomically before creating OAuth state, so
+the bearer token is never placed in a navigation URL.
 
 ### Duplicate OAuth identities
 
@@ -88,8 +92,8 @@ Provider callbacks verify the provider email before the Identity Engine issues a
 ### Agent identity and revocation
 
 Human and agent tokens have distinct purposes and middleware. Agent scopes must
-be an exact subset of the live registry grant. M2M sessions are stored under
-`agent-sessions:<agentId>`, and removing a grant, revoking one session, or
+be an exact subset of the live registry grant. M2M sessions use core-owned
+namespaced Redis state, and removing a grant, revoking one session, or
 revoking the whole agent invalidates its tokens. Delegated tokens record the
 human and agent actor chain and become invalid when the originating human
 session is revoked.
@@ -130,7 +134,7 @@ Global rate limiting is included. Add stricter per-email or per-account login th
 
 ### Token theft before expiry
 
-Short-lived access tokens reduce exposure, but a stolen access token can be used until it expires or is rejected by your session policy.
+Short-lived access tokens reduce exposure. Session-aware middleware rejects revoked or quarantined tokens immediately; public-key-only verification cannot observe that Redis state.
 
 ### Workload authentication and offline agent verification
 

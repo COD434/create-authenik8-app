@@ -90,24 +90,25 @@ Secure application scaffolding
 Usage:
   create-authenik8-app <project-name> [options]
   create-authenik8-app create <project-name> [options]
-  create-authenik8-app doctor [directory] [--json] [--skip-services]
+  create-authenik8-app doctor [directory] [options]
+  create-authenik8-app doctor frontend --target lovable [directory] [--json]
+  create-authenik8-app ops <operation> [directory] [options]
   create-authenik8-app add <recipe> [directory] [--dry-run]
-  create-authenik8-app upgrade [directory] [--check] [--json]
+  create-authenik8-app upgrade [directory] [--check|--acknowledge] [--json]
+  create-authenik8-app studio [directory] [--port <number>] [--no-open]
 
 Options:
   --package-manager <npm|pnpm|bun>  Select the installer for Express presets
   --non-interactive, --yes          Generate without prompts (requires --preset)
   --preset <base|auth|auth-oauth|fullstack>
                                     Select a preset non-interactively
+  --frontend <react|lovable>         Frontend path for the fullstack preset
   --prisma, --no-prisma             Choose Prisma for the base preset
   --database <sqlite|postgresql>    Select a database where applicable
   --oauth <google|github|google,github>
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)
   --runtime <node|bun>              Runtime for --production-ready Express apps
-
-  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
-
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets
@@ -290,7 +291,12 @@ async function main() {
 
     const raw = getState();
     if (raw.authMode === "fullstack") {
-      saveState({ usePrisma: true, database: "postgresql", runtime: "node" });
+      saveState({
+        usePrisma: true,
+        database: "postgresql",
+        runtime: "node",
+        frontend: raw.frontend ?? "react",
+      });
     } else if (["auth", "auth-oauth"].includes(raw.authMode ?? "") && !raw.usePrisma) {
       console.log(chalk.yellow("\nPassword and OAuth presets require Prisma; it has been enabled.\n"));
       saveState({ usePrisma: true, database: raw.database ?? "sqlite" });
@@ -381,6 +387,7 @@ async function main() {
       usePrisma: manifestState.usePrisma,
       oauthProviders: manifestState.oauthProviders ?? [],
       productionReady: isProduction && manifestState.authMode !== "fullstack",
+      ...(manifestState.frontend ? { frontend: manifestState.frontend } : {}),
     });
 
     if (

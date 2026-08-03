@@ -6,7 +6,7 @@ Account credentials, OAuth identities, access and refresh tokens, agent grants a
 
 ## Trust boundaries
 
-The browser is untrusted. React route guards provide navigation behavior only. Express middleware and module policies make every authorization decision. PostgreSQL and Redis must be reachable only from trusted application networks.
+The browser is untrusted. React route guards provide navigation behavior only. Express middleware and module policies make every authorization decision. PostgreSQL is the application session authority: every Redis-valid access token must also match an active, unexpired PostgreSQL session row. Authenik8 owns token issuance, rotation, and OAuth identity resolution; its Prisma adapter owns OAuth user/provider persistence. PostgreSQL and Redis must be reachable only from trusted application networks.
 
 ## Threats addressed
 
@@ -17,13 +17,15 @@ The browser is untrusted. React route guards provide navigation behavior only. E
 - Privilege escalation: admin APIs require authenticated server-side role checks and record audit events.
 - Account enumeration: login and recovery responses are generic.
 - OAuth login CSRF: provider state is handled by Authenik8; the SPA receives only a single-use, short-lived exchange code.
+- Cross-store revocation races: application revocation marks PostgreSQL first, authentication fails closed against that row, refresh temporarily closes the row while rotating, and failed session registration is compensated with core revocation.
+- OAuth account confusion: one Prisma-backed Authenik8 identity adapter resolves and links identities; matching verified email alone does not auto-link an existing account.
 - Password database compromise: passwords and recovery/verification tokens are stored as one-way hashes.
 - Basic abuse and injection: Redis-backed Authenik8 rate limiting, request size limits, Zod validation, Prisma parameterization, security headers, and structured logging.
 - Agent identity: human and machine token purposes are separated, exact scopes are checked against the live registry, M2M sessions are revocable, and delegated tokens remain bound to their human session.
 
 ## Residual risks
 
-An active XSS can make authenticated API calls while the page is open even though it cannot read the refresh cookie. Keep the content security policy strict and audit third-party scripts. Access tokens remain valid until their short expiry after some session revocations. Agent-token issuance is privileged but does not authenticate the workload for you; use mTLS, cloud workload identity, or signed assertions and never expose an unauthenticated mint route. Public JWKS verification cannot observe Redis agent revocation. OAuth provider compromise, malicious dependencies, host compromise, denial of service at volumes beyond one Redis limiter, and mistakes in deployment infrastructure require controls outside this starter.
+An active XSS can make authenticated API calls while the page is open even though it cannot read the refresh cookie. Keep the content security policy strict and audit third-party scripts. Session-aware API middleware rejects revoked or quarantined access tokens, but public-key-only verification cannot observe Redis state. Agent-token issuance is privileged but does not authenticate the workload for you; use mTLS, cloud workload identity, or signed assertions and never expose an unauthenticated mint route. Public JWKS verification cannot observe Redis agent revocation. OAuth provider compromise, malicious dependencies, host compromise, denial of service at volumes beyond one Redis limiter, and mistakes in deployment infrastructure require controls outside this starter.
 
 ## Review triggers
 

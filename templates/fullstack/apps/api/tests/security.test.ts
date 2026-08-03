@@ -12,6 +12,7 @@ vi.mock("../src/config/env.js", () => ({
 import { readRefreshCookie, refreshCookieName, refreshCookieOptions, setRefreshCookie } from "../src/auth/cookies.js";
 import { csrfCookieName, issueCsrfToken, requireCsrf } from "../src/middleware/csrf.js";
 import { requireAllowedOrigin } from "../src/middleware/origin.js";
+import { exactHttpOriginSchema } from "../src/config/exact-origin.js";
 
 describe("browser session defenses", () => {
   it("restricts the refresh cookie", () => {
@@ -83,16 +84,51 @@ describe("browser session defenses", () => {
     expect(next).not.toHaveBeenCalled();
   });
 
-  it("allows the local preview origin during development", () => {
+  it("allows the configured browser origin", () => {
     const status = vi.fn().mockReturnThis();
     const json = vi.fn();
     const next = vi.fn();
     requireAllowedOrigin(
-      { get: () => "http://localhost:4173", id: "request-2" } as never,
+      { get: () => "http://localhost:5173", id: "request-2" } as never,
       { status, json } as never,
       next,
     );
     expect(next).toHaveBeenCalledOnce();
     expect(status).not.toHaveBeenCalled();
+  });
+
+  it("rejects missing, null, and lookalike origins for cookie-driven mutations", () => {
+    for (const origin of [undefined, "null", "http://localhost:5173.attacker.example"]) {
+      const status = vi.fn().mockReturnThis();
+      const next = vi.fn();
+      requireAllowedOrigin(
+        { get: () => origin, id: "request-origin" } as never,
+        { status, json: vi.fn() } as never,
+        next,
+      );
+      expect(status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
+
+  it("normalizes a trailing slash but rejects wildcards and URL paths", () => {
+    expect(exactHttpOriginSchema.parse("https://app.example.com/")).toBe(
+      "https://app.example.com",
+    );
+    expect(exactHttpOriginSchema.safeParse("*").success).toBe(false);
+    expect(exactHttpOriginSchema.safeParse("https://app.example.com/login").success).toBe(false);
+  });
+
+  it("rejects an unconfigured loopback port during development", () => {
+    const status = vi.fn().mockReturnThis();
+    const json = vi.fn();
+    const next = vi.fn();
+    requireAllowedOrigin(
+      { get: () => "http://localhost:4173", id: "request-5" } as never,
+      { status, json } as never,
+      next,
+    );
+    expect(status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
   });
 });

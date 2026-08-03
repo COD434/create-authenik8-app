@@ -13,10 +13,12 @@ import { SecurityPage } from "./pages/settings/SecurityPage";
 import { UsersPage } from "./pages/admin/UsersPage";
 import { AuditPage } from "./pages/admin/AuditPage";
 import { ForbiddenPage, NotFoundPage } from "./pages/StatusPages";
+import { LandingPage } from "./pages/LandingPage";
 
 export function App() {
   return (
     <Routes>
+      <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -25,7 +27,7 @@ export function App() {
       <Route path="/auth/callback" element={<OAuthCallbackPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route index element={<DashboardPage />} />
+          <Route path="dashboard" element={<DashboardPage />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="projects/new" element={<ProjectFormPage />} />
           <Route path="projects/:id" element={<ProjectDetailPage />} />

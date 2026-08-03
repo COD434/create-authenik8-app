@@ -42,6 +42,12 @@ class MemoryRedis {
     return 1;
   }
 
+  async incr(key: string) {
+    const value = Number(this.strings.get(key) ?? "0") + 1;
+    this.strings.set(key, String(value));
+    return value;
+  }
+
   async exists(key: string) {
     return this.strings.has(key) || this.hashes.has(key) ? 1 : 0;
   }
@@ -132,7 +138,9 @@ describe("generated authentication acceptance", () => {
 
       const registration = await request(app).post("/auth/register").send(credentials);
       expect(registration.status).toBe(200);
-      expect(registration.body).toMatchObject({ message: "User created", userId: "user-1" });
+      expect(registration.body).toEqual({
+        message: "Registration request accepted",
+      });
 
       const login = await request(app).post("/auth/login").send(credentials);
       expect(login.status).toBe(200);

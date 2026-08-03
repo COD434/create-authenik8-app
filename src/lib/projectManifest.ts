@@ -7,6 +7,7 @@ import {
   authModeSchema,
   databaseSchema,
   firstZodIssue,
+  frontendModeSchema,
   oauthProvidersSchema,
   packageManagerSchema,
   projectNameSchema,
@@ -15,6 +16,7 @@ import {
 import type {
   AuthMode,
   Database,
+  FrontendMode,
   OAuthProviderName,
   PackageManager,
   Runtime,
@@ -44,6 +46,7 @@ export const projectManifestSchema = z.strictObject({
     prisma: z.boolean(),
     oauthProviders: oauthProvidersSchema,
     pm2: z.boolean(),
+    frontend: frontendModeSchema.optional(),
   }),
 }).superRefine((manifest, context) => {
   const issue = (path: Array<string | number>, message: string) => context.addIssue({
@@ -99,6 +102,7 @@ export type ProjectManifestInput = {
   usePrisma: boolean;
   oauthProviders?: OAuthProviderName[];
   productionReady: boolean;
+  frontend?: FrontendMode;
 };
 
 export type ProjectManifestReadResult =
@@ -143,6 +147,7 @@ export async function writeProjectManifest(
       prisma: input.usePrisma,
       oauthProviders: input.oauthProviders ?? [],
       pm2: input.productionReady,
+      ...(input.frontend ? { frontend: input.frontend } : {}),
     },
   });
   const manifestPath = path.join(targetDir, PROJECT_MANIFEST_FILENAME);

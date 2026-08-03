@@ -45,5 +45,20 @@ export type UpgradeOptions = {
   directory: string;
   json: boolean;
   check: boolean;
+  acknowledge: boolean;
   help: boolean;
+};
+
+export type UpgradeAcknowledgement = {
+  schemaVersion: 1;
+  rootDir: string;
+  status: "acknowledged" | "unchanged";
+  previous: {
+    generator: string;
+    engine: string;
+  };
+  current: {
+    generator: string;
+    engine: string;
+  };
 };

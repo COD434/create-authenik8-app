@@ -13,11 +13,13 @@ export function parseUpgradeArguments(
   let directory: string | undefined;
   let json = false;
   let check = false;
+  let acknowledge = false;
   let help = false;
 
   for (const argument of args) {
     if (argument === "--json") json = true;
     else if (argument === "--check") check = true;
+    else if (argument === "--acknowledge") acknowledge = true;
     else if (argument === "--help" || argument === "-h") help = true;
     else if (argument.startsWith("-")) {
       throw new UpgradeUsageError(`Unknown upgrade option: ${argument}`);
@@ -25,7 +27,16 @@ export function parseUpgradeArguments(
       throw new UpgradeUsageError("Upgrade accepts at most one project directory.");
     } else directory = argument;
   }
-  return { directory: path.resolve(cwd, directory ?? "."), json, check, help };
+  if (check && acknowledge) {
+    throw new UpgradeUsageError("--check and --acknowledge cannot be combined.");
+  }
+  return {
+    directory: path.resolve(cwd, directory ?? "."),
+    json,
+    check,
+    acknowledge,
+    help,
+  };
 }
 
 export async function runUpgrade(options: UpgradeOptions): Promise<UpgradePlan> {

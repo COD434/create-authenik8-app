@@ -35,6 +35,12 @@ describe("built-in add recipes", () => {
       "src/auth/routes/oauth.routes.ts",
     ];
     try {
+      const linkIntentPath = path.join(
+        project.targetDir,
+        "src/auth/oauth-link-intent.ts",
+      );
+      await fs.appendFile(linkIntentPath, "// application-specific ticket policy\n");
+      const linkIntentBefore = await fs.readFile(linkIntentPath, "utf8");
       const before = await sources(project.targetDir, managed);
       const preview = await runAdd({
         recipeName: "oauth-github",
@@ -60,6 +66,7 @@ describe("built-in add recipes", () => {
       expect(applied.status).toBe("applied");
       expect(await fs.readFile(path.join(project.targetDir, "src/auth/routes/oauth.routes.ts"), "utf8"))
         .toContain('router.get("/github/link"');
+      expect(await fs.readFile(linkIntentPath, "utf8")).toBe(linkIntentBefore);
       expect((await fs.readJson(path.join(project.targetDir, "authenik8.json"))).features.oauthProviders)
         .toEqual(["google", "github"]);
 
@@ -72,8 +79,8 @@ describe("built-in add recipes", () => {
         { redisProbe: async () => {} },
       );
       expect(report.summary.failed).toBe(0);
-      expect(report.checks.find((check) => check.id === "project.manifest")?.status).toBe("pass");
-      expect(report.checks.find((check) => check.id === "oauth.github")?.status).toBe("warn");
+      expect(report.checks.find((check) => check.id === "A8-PROJECT-002")?.status).toBe("pass");
+      expect(report.checks.find((check) => check.id === "A8-OAUTH-003")?.status).toBe("warn");
 
       const repeated = await runAdd({
         recipeName: "oauth-github",
@@ -83,6 +90,35 @@ describe("built-in add recipes", () => {
         help: false,
       });
       expect(repeated.status).toBe("unchanged");
+    } finally {
+      await project.cleanup();
+    }
+  });
+
+  it("creates a missing OAuth support file without managing later local policy edits", async () => {
+    const project = await generateProjectFixture({
+      template: "auth-oauth",
+      oauthProviders: ["google"],
+      usePrisma: true,
+    });
+    const linkIntentPath = path.join(
+      project.targetDir,
+      "src/auth/oauth-link-intent.ts",
+    );
+
+    try {
+      await fs.remove(linkIntentPath);
+      const result = await runAdd({
+        recipeName: "oauth-github",
+        directory: project.targetDir,
+        dryRun: false,
+        list: false,
+        help: false,
+      });
+
+      expect(result.status).toBe("applied");
+      expect(await fs.readFile(linkIntentPath, "utf8"))
+        .toContain("export async function consumeOAuthLinkIntent");
     } finally {
       await project.cleanup();
     }
@@ -119,7 +155,7 @@ describe("built-in add recipes", () => {
         { redisProbe: async () => {} },
       );
       expect(report.summary.failed).toBe(0);
-      expect(report.checks.find((check) => check.id === "oauth.google")?.status).toBe("warn");
+      expect(report.checks.find((check) => check.id === "A8-OAUTH-002")?.status).toBe("warn");
     } finally {
       await project.cleanup();
     }
@@ -197,7 +233,7 @@ describe("built-in add recipes", () => {
       });
       expect(applied.status).toBe("applied");
       const workflow = await fs.readFile(workflowPath, "utf8");
-      expect(workflow).toContain("doctor --json --skip-services");
+      expect(workflow).toContain("doctor --ci --offline --strict");
       expect(workflow).toContain("upgrade --check --json");
       expect(workflow).toContain("npm ci --no-audit --no-fund");
       expect([...workflow.matchAll(/uses: [^@]+@([0-9a-f]+)/g)].map((match) => match[1]))
@@ -211,6 +247,26 @@ describe("built-in add recipes", () => {
         help: false,
       });
       expect(repeated.status).toBe("unchanged");
+
+      await fs.writeFile(
+        workflowPath,
+        workflow
+          .replace("authenik8-ci-schema: 2", "authenik8-ci-schema: 1")
+          .replace(
+            "doctor --ci --offline --strict",
+            "doctor --json --skip-services",
+          ),
+      );
+      const upgraded = await runAdd({
+        recipeName: "ci-github",
+        directory: project.targetDir,
+        dryRun: false,
+        list: false,
+        help: false,
+      });
+      expect(upgraded.status).toBe("applied");
+      expect(await fs.readFile(workflowPath, "utf8"))
+        .toContain("authenik8-ci-schema: 2");
 
       await fs.appendFile(workflowPath, "# local policy\n");
       await expect(runAdd({

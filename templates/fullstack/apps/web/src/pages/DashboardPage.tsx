@@ -15,7 +15,7 @@ import { Card } from "@astryxdesign/core/Card";
 import { StatusDot } from "@astryxdesign/core/StatusDot";
 import { Link, useNavigate } from "react-router";
 import { EmptyState, Spinner } from "@authenik8/ui";
-import { accountApi, healthApi, projectApi } from "@authenik8/api-client";
+import { accountApi, healthApi, projectApi } from "../lib/authenik8";
 import { ErrorNotice } from "../components/Page";
 import { useAuth } from "../auth/AuthProvider";
 

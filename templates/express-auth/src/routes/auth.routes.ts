@@ -1,7 +1,8 @@
 import { Router } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createAuthController } from "../controllers/auth.controller";
 
-export const createAuthRoutes = (auth: any) => {
+export const createAuthRoutes = (auth: Authenik8Instance) => {
   const router = Router();
   const controller = createAuthController(auth);
 

@@ -16,6 +16,12 @@ function rejectOAuthOption(options: CliArguments): void {
   }
 }
 
+function rejectFrontendOption(options: CliArguments): void {
+  if (options.frontend !== undefined) {
+    fail("--frontend only applies to the fullstack preset");
+  }
+}
+
 function productionRuntime(
   options: CliArguments,
   environment: NonInteractiveEnvironment,
@@ -45,6 +51,7 @@ export function resolveNonInteractiveAnswers(
   let raw: Record<string, unknown>;
 
   if (authMode === "base") {
+    rejectFrontendOption(options);
     rejectOAuthOption(options);
     if (options.usePrisma === undefined) fail("the base preset requires --prisma or --no-prisma");
     if (options.usePrisma && !options.database) fail("--prisma requires --database sqlite or postgresql");
@@ -59,6 +66,7 @@ export function resolveNonInteractiveAnswers(
       ...(runtime ? { runtime } : {}),
     };
   } else if (authMode === "auth") {
+    rejectFrontendOption(options);
     rejectOAuthOption(options);
     if (options.usePrisma === false) fail("the auth preset requires Prisma");
     if (!options.database) fail("the auth preset requires --database sqlite or postgresql");
@@ -72,6 +80,7 @@ export function resolveNonInteractiveAnswers(
       ...(runtime ? { runtime } : {}),
     };
   } else if (authMode === "auth-oauth") {
+    rejectFrontendOption(options);
     if (options.usePrisma === false) fail("the auth-oauth preset requires Prisma");
     if (!options.database) fail("the auth-oauth preset requires --database sqlite or postgresql");
     const oauthProviders = options.oauthProviders;
@@ -102,6 +111,7 @@ export function resolveNonInteractiveAnswers(
     raw = {
       framework: "Express",
       authMode,
+      frontend: options.frontend ?? "react",
       authMethods: ["password", ...oauthProviders],
       useGit,
     };

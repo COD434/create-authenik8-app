@@ -5,6 +5,10 @@ import { parseEnv } from "node:util";
 
 import { supportsFullstackPreset } from "../../lib/preflight.js";
 import { PROJECT_MANIFEST_FILENAME } from "../../lib/projectManifest.js";
+import { exerciseEngineSigningKeyRing } from "../../lib/engineSigning.js";
+import { loadProjectEngine } from "../../lib/projectEngine.js";
+import { inspectSigningKeyRing } from "../../lib/signingKeyRing.js";
+import { stableDiagnosticId } from "./catalog.js";
 import { redisEndpointFromEnv } from "./services.js";
 import type {
   DoctorCheck,
@@ -15,6 +19,10 @@ import type {
 const AGENT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const AGENT_SCOPE = /^[a-z][a-z0-9._/-]*(?::[a-z][a-z0-9._/-]*)+$/;
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
 function check(
   id: string,
   label: string,
@@ -22,45 +30,13 @@ function check(
   message: string,
   fix?: string,
 ): DoctorCheck {
-  return { id, label, status, message, ...(fix ? { fix } : {}) };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function validateSigningKeys(source: string | undefined, activeKid: string | undefined): string | undefined {
-  if (!source?.trim()) return "AUTHENIK8_SIGNING_JWKS is missing";
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch {
-    return "AUTHENIK8_SIGNING_JWKS is not valid JSON";
-  }
-  if (!Array.isArray(parsed) || parsed.length === 0) {
-    return "AUTHENIK8_SIGNING_JWKS must contain at least one key";
-  }
-
-  const keys = parsed.filter(isRecord);
-  if (keys.length !== parsed.length || keys.some((key) =>
-    key.kty !== "EC" || key.crv !== "P-256" ||
-    typeof key.kid !== "string" || !key.kid ||
-    typeof key.x !== "string" || !key.x ||
-    typeof key.y !== "string" || !key.y ||
-    (key.alg !== undefined && key.alg !== "ES256")
-  )) {
-    return "the signing key ring must contain only ES256 P-256 JWKs with kid, x, and y";
-  }
-
-  const keyIds = keys.map((key) => key.kid as string);
-  if (new Set(keyIds).size !== keyIds.length) return "signing key IDs must be unique";
-  if (!activeKid?.trim()) return "AUTHENIK8_ACTIVE_KID is missing";
-  const active = keys.find((key) => key.kid === activeKid);
-  if (!active) return "AUTHENIK8_ACTIVE_KID does not select a key in the signing key ring";
-  if (typeof active.d !== "string" || !active.d) {
-    return "AUTHENIK8_ACTIVE_KID must select a private signing key";
-  }
-  return undefined;
+  return {
+    id: stableDiagnosticId(id),
+    label,
+    status,
+    message,
+    ...(fix ? { fix } : {}),
+  };
 }
 
 function validHttpUrl(value: string | undefined): boolean {
@@ -93,7 +69,6 @@ function looksLikePlaceholder(value: string | undefined): boolean {
 
 async function requiredFilesCheck(context: DoctorContext): Promise<DoctorCheck> {
   const files = [
-    ".env",
     ".env.example",
     ".gitignore",
     "README.md",
@@ -101,6 +76,7 @@ async function requiredFilesCheck(context: DoctorContext): Promise<DoctorCheck> 
     "AGENT_IDENTITY.md",
     context.preset === "fullstack" ? "apps/api/src/server.ts" : "src/server.ts",
   ];
+  if (context.envSource !== ".env.example") files.unshift(".env");
   if (context.preset === "fullstack") {
     files.push("scripts/run-local.mjs");
   } else {
@@ -128,6 +104,47 @@ async function requiredFilesCheck(context: DoctorContext): Promise<DoctorCheck> 
       "fail",
       `Missing required files: ${missing.join(", ")}`,
       "Restore the files from source control or regenerate the project before changing auth code.",
+    );
+}
+
+async function environmentPermissionsCheck(
+  context: DoctorContext,
+): Promise<DoctorCheck> {
+  if (process.platform === "win32" || context.envSource !== ".env") {
+    return check(
+      "security.env.permissions",
+      "Environment permissions",
+      "skip",
+      context.envSource === ".env.example"
+        ? "Offline diagnostics keep synthetic secrets in memory"
+        : "POSIX environment permissions do not apply on this platform",
+    );
+  }
+
+  const envPath = path.join(context.rootDir, ".env");
+  if (!(await fs.pathExists(envPath))) {
+    return check(
+      "security.env.permissions",
+      "Environment permissions",
+      "fail",
+      ".env is missing",
+      "Restore the generated private environment file and restrict it to mode 0600.",
+    );
+  }
+  const mode = (await fs.stat(envPath)).mode & 0o777;
+  return (mode & 0o077) === 0
+    ? check(
+      "security.env.permissions",
+      "Environment permissions",
+      "pass",
+      `.env permissions are restricted (${mode.toString(8).padStart(3, "0")})`,
+    )
+    : check(
+      "security.env.permissions",
+      "Environment permissions",
+      "fail",
+      `.env permissions are too broad (${mode.toString(8).padStart(3, "0")})`,
+      "Restrict .env to the owning user with mode 0600.",
     );
 }
 
@@ -381,6 +398,55 @@ function oauthChecks(context: DoctorContext): DoctorCheck[] {
   });
 }
 
+function oauthRoutesCheck(context: DoctorContext): DoctorCheck | undefined {
+  if (context.oauthProviders.length > 0) {
+    return check(
+      "oauth.routes",
+      "OAuth routes",
+      "pass",
+      `Recognized provider routes are present: ${context.oauthProviders.join(", ")}`,
+    );
+  }
+  if (context.preset !== "auth-oauth") return undefined;
+  return check(
+    "oauth.routes",
+    "OAuth routes",
+    "fail",
+    "The OAuth preset has no recognized provider routes",
+    "Restore at least one generated Google or GitHub route and its matching configuration.",
+  );
+}
+
+function skippedEnvironmentChecks(context: DoctorContext): DoctorCheck[] {
+  const skipped = (
+    id: string,
+    label: string,
+  ): DoctorCheck => check(
+    id,
+    label,
+    "skip",
+    "Skipped because the environment source did not pass A8-ENV-002",
+  );
+  const checks = [
+    skipped("auth.signing", "Signing key ring"),
+    skipped("auth.claims", "Token claims"),
+    skipped("auth.refresh", "Refresh-token secret"),
+    skipped("auth.agents", "Agent identity"),
+    skipped("environment.port", "Application port"),
+    skipped("environment.redis", "Redis configuration"),
+  ];
+  if (context.preset === "fullstack") {
+    checks.push(skipped("environment.origin", "Web origin"));
+  }
+  if (context.usesPrisma) {
+    checks.push(skipped("environment.database", "Database configuration"));
+  }
+  for (const provider of context.oauthProviders) {
+    checks.push(skipped(`oauth.${provider}`, `${provider} OAuth`));
+  }
+  return checks;
+}
+
 function runtimeEnvironmentChecks(context: DoctorContext): DoctorCheck[] {
   const portSource = context.env.PORT?.trim() || "3000";
   const port = Number(portSource);
@@ -448,6 +514,7 @@ export async function runStaticChecks(
   context: DoctorContext,
   nodeVersion = process.versions.node,
   allowMissingCore = false,
+  verifyInstalledEngine = true,
 ): Promise<DoctorCheck[]> {
   const checks: DoctorCheck[] = [];
   checks.push(supportsFullstackPreset(nodeVersion)
@@ -456,21 +523,79 @@ export async function runStaticChecks(
   checks.push(await requiredFilesCheck(context));
   checks.push(await projectManifestCheck(context));
   checks.push(scriptsCheck(context));
-  checks.push(await coreDependencyCheck(context, allowMissingCore));
+  const coreDependency = await coreDependencyCheck(context, allowMissingCore);
+  checks.push(coreDependency);
   checks.push(await environmentSafetyCheck(context));
+  checks.push(await environmentPermissionsCheck(context));
+  const oauthRoutes = oauthRoutesCheck(context);
+  if (oauthRoutes) checks.push(oauthRoutes);
 
-  if (context.envParseError) {
-    checks.push(check("environment.syntax", "Environment file", "fail", `.env is invalid: ${context.envParseError}`, "Fix .env syntax without printing or committing its values."));
+  if (context.envSource === "none") {
+    checks.push(check(
+      "environment.syntax",
+      "Environment file",
+      "fail",
+      ".env is missing",
+      "Restore the generated .env file, or use --offline in a clean checkout.",
+    ));
+    checks.push(...skippedEnvironmentChecks(context));
     return checks;
   }
+  if (context.envParseError) {
+    checks.push(check(
+      "environment.syntax",
+      "Environment file",
+      "fail",
+      `${context.envSource} is invalid: ${context.envParseError}`,
+      `Fix ${context.envSource} syntax without printing or committing its values.`,
+    ));
+    checks.push(...skippedEnvironmentChecks(context));
+    return checks;
+  }
+  checks.push(check(
+    "environment.syntax",
+    "Environment file",
+    "pass",
+    `${context.envSource} parsed successfully`,
+  ));
 
-  const signingError = validateSigningKeys(
+  const signingInspection = inspectSigningKeyRing(
     context.env.AUTHENIK8_SIGNING_JWKS,
     context.env.AUTHENIK8_ACTIVE_KID,
   );
+  let signingError = signingInspection.valid
+    ? undefined
+    : signingInspection.error;
+  if (
+    signingInspection.valid
+    && coreDependency.status === "pass"
+    && verifyInstalledEngine
+  ) {
+    try {
+      await exerciseEngineSigningKeyRing(
+        loadProjectEngine(
+          context.appDir,
+          ["createAuthenik8", "verifyAccessTokenWithJwks"],
+        ),
+        signingInspection.keys,
+        signingInspection.active.kid,
+      );
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      signingError =
+        `Installed authenik8-core rejected the signing key ring: ${detail.slice(0, 400)}`;
+    }
+  }
   checks.push(signingError
     ? check("auth.signing", "Signing key ring", "fail", signingError, "Restore the generated private ES256 key ring or rotate it deliberately.")
-    : check("auth.signing", "Signing key ring", "pass", "The active ES256 P-256 signing key is private and selectable"));
+    : check(
+        "auth.signing",
+        "Signing key ring",
+        "pass",
+        verifyInstalledEngine
+          ? "The installed engine can sign and verify with the active ES256 P-256 key"
+          : "The ES256 P-256 key ring is structurally valid; offline mode did not load project dependency code",
+      ));
 
   const issuerValid = validHttpUrl(context.env.AUTHENIK8_ISSUER);
   const audienceValid = Boolean(context.env.AUTHENIK8_AUDIENCE?.trim());
@@ -488,15 +613,134 @@ export async function runStaticChecks(
 
   checks.push(...runtimeEnvironmentChecks(context));
   if (context.usesPrisma) checks.push(await databaseCheck(context));
-  if (context.preset === "auth-oauth" && context.oauthProviders.length === 0) {
-    checks.push(check(
-      "oauth.routes",
-      "OAuth routes",
-      "fail",
-      "The OAuth preset has no recognized provider routes",
-      "Restore at least one generated Google or GitHub route and its matching configuration.",
-    ));
-  }
   checks.push(...oauthChecks(context));
+  return checks;
+}
+
+function localHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  return normalized === "localhost"
+    || normalized === "127.0.0.1"
+    || normalized === "::1"
+    || normalized === "0.0.0.0";
+}
+
+function productionUrl(
+  value: string | undefined,
+  options: { allowRedis?: boolean } = {},
+): boolean {
+  if (!value?.trim() || value.includes("*")) return false;
+  try {
+    const url = new URL(value);
+    const allowedProtocol = options.allowRedis
+      ? url.protocol === "redis:" || url.protocol === "rediss:"
+      : url.protocol === "https:";
+    return allowedProtocol && !localHostname(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+export function runProductionChecks(context: DoctorContext): DoctorCheck[] {
+  const checks: DoctorCheck[] = [];
+  checks.push(context.env.NODE_ENV === "production"
+    ? check(
+      "production.runtime",
+      "Production runtime",
+      "pass",
+      "NODE_ENV is production",
+    )
+    : check(
+      "production.runtime",
+      "Production runtime",
+      "fail",
+      "NODE_ENV must be production for a production diagnostic",
+      "Set NODE_ENV=production in the deployment environment.",
+    ));
+
+  const redisUrl = context.env.REDIS_URL?.trim();
+  const redisProductionReady = redisUrl
+    ? productionUrl(redisUrl, { allowRedis: true })
+    : context.preset !== "fullstack"
+      && Boolean(context.env.REDIS_HOST?.trim())
+      && !localHostname(context.env.REDIS_HOST!.trim());
+  checks.push(redisProductionReady
+    ? check(
+      "production.redis",
+      "Production Redis",
+      "pass",
+      "An external non-loopback Redis endpoint is configured",
+    )
+    : check(
+      "production.redis",
+      "Production Redis",
+      "fail",
+      "Production requires an external non-loopback Redis endpoint",
+      "Replace memory:// or loopback Redis with a private redis:// or rediss:// service.",
+    ));
+
+  const deploymentUrls = [
+    context.env.AUTHENIK8_ISSUER,
+    ...(context.preset === "fullstack" ? [context.env.WEB_ORIGIN] : []),
+    ...context.oauthProviders.map(
+      (provider) => context.env[`${provider.toUpperCase()}_REDIRECT_URI`],
+    ),
+  ];
+  checks.push(deploymentUrls.every((value) => productionUrl(value))
+    ? check(
+      "production.http",
+      "Production origins",
+      "pass",
+      "Issuer, browser origin, and enabled OAuth callbacks use exact non-local HTTPS URLs",
+    )
+    : check(
+      "production.http",
+      "Production origins",
+      "fail",
+      "Production issuer, browser origin, and OAuth callbacks must be exact non-local HTTPS URLs",
+      "Replace HTTP, wildcard, and local URLs with the exact deployed HTTPS origins.",
+    ));
+
+  if (context.preset === "fullstack") {
+    checks.push(context.env.COOKIE_SECURE === "true"
+      ? check(
+        "production.cookies",
+        "Production cookies",
+        "pass",
+        "Refresh cookies require secure transport",
+      )
+      : check(
+        "production.cookies",
+        "Production cookies",
+        "fail",
+        "COOKIE_SECURE must be true in production",
+        "Set COOKIE_SECURE=true behind the trusted HTTPS boundary.",
+      ));
+
+    let externalDatabase = false;
+    try {
+      const databaseUrl = new URL(context.env.DATABASE_URL ?? "");
+      externalDatabase = (
+        databaseUrl.protocol === "postgresql:"
+        || databaseUrl.protocol === "postgres:"
+      ) && !localHostname(databaseUrl.hostname)
+        && context.env.AUTHENIK8_LOCAL_DATABASE === "external";
+    } catch {}
+    checks.push(externalDatabase
+      ? check(
+        "production.database",
+        "Production database",
+        "pass",
+        "An external non-loopback PostgreSQL database is configured",
+      )
+      : check(
+        "production.database",
+        "Production database",
+        "fail",
+        "Fullstack production requires external non-loopback PostgreSQL",
+        "Set AUTHENIK8_LOCAL_DATABASE=external and use a managed postgresql:// endpoint.",
+      ));
+  }
+
   return checks;
 }

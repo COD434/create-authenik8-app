@@ -11,9 +11,17 @@ npx create-authenik8-app my-api --yes --preset auth-oauth --database sqlite --oa
 
 # Fullstack with password auth and no OAuth providers
 npx create-authenik8-app my-app --yes --preset fullstack --no-oauth --git
+
+# Fullstack backend, React reference, and complete Lovable integration pack
+npx create-authenik8-app my-app --yes --preset fullstack \
+  --frontend lovable --oauth google,github --git
 ```
 
-The base preset requires `--prisma` plus a database, or `--no-prisma`. The OAuth API requires at least one provider. Fullstack requires an explicit `--oauth` list or `--no-oauth`. Its PostgreSQL, Prisma, Node.js, and npm workspace choices remain fixed.
+The base preset requires `--prisma` plus a database, or `--no-prisma`. The OAuth
+API requires at least one provider. Fullstack requires an explicit `--oauth`
+list or `--no-oauth`. `--frontend react|lovable` applies only to fullstack and
+defaults to `react`. Its PostgreSQL, Prisma, Node.js, and npm workspace choices
+remain fixed.
 
 Interactive fullstack generation defaults to password-only so a developer can reach a working application without creating OAuth provider credentials. Non-interactive generation keeps this security-relevant choice explicit through `--oauth` or `--no-oauth`.
 

@@ -34,6 +34,7 @@ export const stepNameSchema = z.enum([
 ]);
 
 export const authModeSchema = z.enum(["base", "auth", "auth-oauth", "fullstack"]);
+export const frontendModeSchema = z.enum(["react", "lovable"]);
 export const databaseSchema = z.enum(["sqlite", "postgresql"]);
 export const runtimeSchema = z.enum(["node", "bun"]);
 export const oauthProviderSchema = z.enum(["google", "github"]);
@@ -70,6 +71,7 @@ export const oauthProviderSelectionSchema = z.preprocess(
 const promptAnswersInputSchema = z.strictObject({
   framework: z.literal("Express"),
   authMode: authModeSchema,
+  frontend: frontendModeSchema.optional(),
   authMethods: z.array(authMethodSchema).optional(),
   oauthProviders: z.array(oauthProviderSchema).optional(),
   usePrisma: z.boolean().optional(),
@@ -123,6 +125,7 @@ const promptAnswersInputSchema = z.strictObject({
   const authMethods = authMethodSelectionSchema.parse(answers.authMethods);
   return {
     ...answers,
+    frontend: answers.frontend ?? "react" as const,
     authMethods,
     usePrisma: true,
     database: "postgresql" as const,
@@ -144,6 +147,7 @@ export const cliStateSchema = z.strictObject({
   database: databaseSchema.optional(),
   useGit: z.boolean().optional(),
   authMode: authModeSchema.optional(),
+  frontend: frontendModeSchema.optional(),
   hashLib: z.literal("bcryptjs").optional(),
   installDeps: z.boolean().optional(),
   productionReady: z.boolean().optional(),

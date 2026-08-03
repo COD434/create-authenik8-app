@@ -38,8 +38,9 @@ const token = await agent.issueToken({
 ```
 
 Requested scopes must be an exact subset of the registry grant. Tokens are
-short-lived and stored under a separate `agent-sessions:<agentId>` namespace.
-Human middleware rejects them.
+short-lived and tracked in an SDK-prefixed Redis session hash dedicated to
+agent identity. Treat that key layout as an internal implementation detail.
+Human middleware rejects agent tokens.
 
 ## Protect an agent route
 

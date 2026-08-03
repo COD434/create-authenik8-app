@@ -3,6 +3,7 @@ import {
   authModeSchema,
   databaseSchema,
   firstZodIssue,
+  frontendModeSchema,
   oauthProvidersSchema,
   packageManagerSchema,
   runtimeSchema,
@@ -10,6 +11,7 @@ import {
 import type {
   AuthMode,
   Database,
+  FrontendMode,
   OAuthProviderName,
   PackageManager,
   Runtime,
@@ -25,6 +27,7 @@ const cliArgumentsSchema = z.strictObject({
   packageManager: packageManagerSchema.optional(),
   nonInteractive: z.boolean(),
   preset: authModeSchema.optional(),
+  frontend: frontendModeSchema.optional(),
   usePrisma: z.boolean().optional(),
   database: databaseSchema.optional(),
   oauthProviders: oauthProvidersSchema.optional(),
@@ -176,6 +179,19 @@ export function parseCliArguments(argv: string[]): CliArguments {
       if (!inline) index += 1;
       continue;
     }
+    if (argument === "--frontend" || argument.startsWith("--frontend=")) {
+      if (parsed.frontend !== undefined) throw new Error("--frontend may only be provided once.");
+      const inline = argument.startsWith("--frontend=");
+      const value = inline ? argument.slice("--frontend=".length) : argv[index + 1];
+      parsed.frontend = parseChoice<FrontendMode>(
+        value,
+        frontendModeSchema,
+        "--frontend",
+        "react or lovable",
+      );
+      if (!inline) index += 1;
+      continue;
+    }
     if (argument === "--runtime" || argument.startsWith("--runtime=")) {
       if (parsed.runtime !== undefined) throw new Error("--runtime may only be provided once.");
       const inline = argument.startsWith("--runtime=");
@@ -211,6 +227,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
   if (positionalResult.data[0]) parsed.projectName = positionalResult.data[0];
   const nonInteractiveOnly = [
     parsed.preset,
+    parsed.frontend,
     parsed.usePrisma,
     parsed.database,
     parsed.oauthProviders,
@@ -218,7 +235,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
     parsed.runtime,
   ];
   if (!parsed.nonInteractive && nonInteractiveOnly.some((value) => value !== undefined)) {
-    throw new Error("--preset, --prisma, --database, --oauth, --git, and --runtime require --non-interactive (or --yes).");
+    throw new Error("--preset, --frontend, --prisma, --database, --oauth, --git, and --runtime require --non-interactive (or --yes).");
   }
   if (parsed.nonInteractive && parsed.resume) {
     throw new Error("--resume cannot be combined with --non-interactive or --yes.");

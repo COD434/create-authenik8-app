@@ -10,6 +10,7 @@ import {
 } from "../../lib/oauth.js";
 import {
   expressOAuthFiles,
+  expressOAuthSupportFiles,
   renderExpressOAuthFiles,
 } from "../../lib/expressOAuth.js";
 import {
@@ -33,7 +34,7 @@ async function requiredSource(context: AddContext, relativePath: string): Promis
 function addChange(
   changes: PlannedFileChange[],
   relativePath: string,
-  before: string,
+  before: string | null,
   after: string,
   sensitive = false,
 ): void {
@@ -102,6 +103,13 @@ async function planExpressSource(
       );
     }
     addChange(changes, relativePath, before, next[relativePath]);
+  }
+
+  for (const relativePath of Object.values(expressOAuthSupportFiles)) {
+    const filename = path.join(context.rootDir, relativePath);
+    if (!(await fs.pathExists(filename))) {
+      addChange(changes, relativePath, null, next[relativePath]);
+    }
   }
 }
 

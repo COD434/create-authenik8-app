@@ -1,8 +1,10 @@
 export type RootCommand =
   | { name: "create"; args: string[] }
   | { name: "doctor"; args: string[] }
+  | { name: "ops"; args: string[] }
   | { name: "add"; args: string[] }
-  | { name: "upgrade"; args: string[] };
+  | { name: "upgrade"; args: string[] }
+  | { name: "studio"; args: string[] };
 
 export function resolveRootCommand(args: readonly string[]): RootCommand {
   const [command, ...rest] = args;
@@ -11,12 +13,20 @@ export function resolveRootCommand(args: readonly string[]): RootCommand {
     return { name: "doctor", args: rest };
   }
 
+  if (command === "ops") {
+    return { name: "ops", args: rest };
+  }
+
   if (command === "add") {
     return { name: "add", args: rest };
   }
 
   if (command === "upgrade") {
     return { name: "upgrade", args: rest };
+  }
+
+  if (command === "studio") {
+    return { name: "studio", args: rest };
   }
 
   if (command === "create") {

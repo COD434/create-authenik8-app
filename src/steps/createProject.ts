@@ -106,6 +106,7 @@ async function writeProviderSpecificOAuthFiles(targetDir: string, providers: OAu
       .flatMap((provider) => [
         `GET /auth/${provider}`,
         `GET /auth/${provider}/callback`,
+        `POST /auth/${provider}/link-intent`,
         `GET /auth/${provider}/link`,
       ])
       .join("\n");
@@ -115,6 +116,10 @@ async function writeProviderSpecificOAuthFiles(targetDir: string, providers: OAu
       .join("\n\n");
 
     let readme = (await fs.readFile(readmePath, "utf-8")).replace(/\r\n/g, "\n");
+    readme = readme.replace(
+      'type OAuthProvider = "google" | "github";',
+      `type OAuthProvider = ${providers.map((provider) => `"${provider}"`).join(" | ")};`,
+    );
     readme = readme.replace(
       /GOOGLE_CLIENT_ID=your-google-client-id\nGOOGLE_CLIENT_SECRET=your-google-client-secret\nGOOGLE_REDIRECT_URI=http:\/\/localhost:3000\/auth\/google\/callback\nGITHUB_CLIENT_ID=your-github-client-id\nGITHUB_CLIENT_SECRET=your-github-client-secret\nGITHUB_REDIRECT_URI=http:\/\/localhost:3000\/auth\/github\/callback/,
       providers
@@ -129,7 +134,7 @@ async function writeProviderSpecificOAuthFiles(targetDir: string, providers: OAu
         .join("\n"),
     );
     readme = readme.replace(
-      /GET \/auth\/google\nGET \/auth\/google\/callback\nGET \/auth\/github\nGET \/auth\/github\/callback\nGET \/auth\/google\/link\nGET \/auth\/github\/link/,
+      /GET \/auth\/google\nGET \/auth\/google\/callback\nPOST \/auth\/google\/link-intent\nGET \/auth\/google\/link\nGET \/auth\/github\nGET \/auth\/github\/callback\nPOST \/auth\/github\/link-intent\nGET \/auth\/github\/link/,
       routeList,
     );
     readme = readme.replace(/http:\/\/localhost:3000\/auth\/google\nhttp:\/\/localhost:3000\/auth\/github/, browserUrls);
@@ -190,6 +195,29 @@ export async function createProject(
     const generatedPkgPath = path.join(stageDir, "package.json");
     const generatedPkg = await fs.readJson(generatedPkgPath);
     generatedPkg.name = state.projectName;
+    if (state.authMode === "fullstack" && state.frontend !== "lovable") {
+      delete generatedPkg.scripts?.["doctor:lovable"];
+      delete generatedPkg.scripts?.["export:lovable-client"];
+      delete generatedPkg.scripts?.["dev:lovable"];
+      delete generatedPkg.scripts?.["dev:lovable:watch"];
+      await Promise.all([
+        fs.remove(path.join(stageDir, "scripts/doctor-lovable.mjs")),
+        fs.remove(path.join(stageDir, "scripts/export-lovable-client.mjs")),
+        fs.remove(path.join(stageDir, "integrations/lovable/README.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/START_HERE.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/LOVABLE_PROMPT.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/env.example")),
+        fs.remove(path.join(stageDir, "integrations/lovable/acceptance-checklist.md")),
+        fs.remove(path.join(stageDir, "integrations/lovable/TROUBLESHOOTING.md")),
+        fs.remove(path.join(stageDir, ".agents/skills/authenik8-lovable")),
+      ]);
+      const readmePath = path.join(stageDir, "README.md");
+      const readme = await fs.readFile(readmePath, "utf8");
+      await fs.writeFile(
+        readmePath,
+        readme.replace(/\n?<!-- LOVABLE_START -->[\s\S]*?<!-- LOVABLE_END -->\n?/u, "\n"),
+      );
+    }
     await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
 
     const packagedGitignore = path.join(stageDir, "gitignore.template");

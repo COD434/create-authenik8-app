@@ -25,17 +25,27 @@ const emailSchema = z.string()
   .email("Enter a valid email address")
   .max(254);
 
+const maximumBcryptPasswordBytes = 72;
+const passwordFitsBcrypt = (value: string) =>
+  new TextEncoder().encode(value).byteLength <= maximumBcryptPasswordBytes;
+
 const passwordSchema = z.string()
   .min(10, "Use at least 10 characters")
-  .max(128)
+  .max(maximumBcryptPasswordBytes, "Use at most 72 UTF-8 bytes")
+  .refine(passwordFitsBcrypt, "Use at most 72 UTF-8 bytes")
   .regex(/[a-z]/, "Include a lowercase letter")
   .regex(/[A-Z]/, "Include an uppercase letter")
   .regex(/[0-9]/, "Include a number")
   .refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "Password contains unsupported control characters");
 
+const loginPasswordSchema = z.string()
+  .min(1)
+  .max(maximumBcryptPasswordBytes)
+  .refine(passwordFitsBcrypt);
+
 export const loginSchema = z.strictObject({
   email: emailSchema,
-  password: z.string().min(1).max(128),
+  password: loginPasswordSchema,
 });
 
 export const registerSchema = z.strictObject({

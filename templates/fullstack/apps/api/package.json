@@ -12,7 +12,10 @@
     "start": "node dist/server.js",
     "test": "vitest run",
     "pretypecheck": "prisma generate",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.scripts.json",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "openapi:check": "tsx scripts/generate-openapi.ts --check",
+    "openapi:validate": "tsx scripts/validate-openapi.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate deploy && prisma generate",
     "prisma:seed": "prisma generate && prisma db seed",
@@ -22,7 +25,7 @@
     "@authenik8/contracts": "0.1.0",
     "@prisma/adapter-pg": "7.9.0",
     "@prisma/client": "7.9.0",
-    "authenik8-core": "2.0.3",
+    "authenik8-core": "2.0.6",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -35,6 +38,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@readme/openapi-parser": "6.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.19",

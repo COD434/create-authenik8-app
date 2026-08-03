@@ -40,12 +40,51 @@ function runCommand(state: CliState, script: string): string {
   return runScriptCommand(state.packageManager ?? "npm", script);
 }
 
+function printLovableSummary(state: CliState): void {
+  const packageManager = state.packageManager ?? "npm";
+  const details: Array<[string, string]> = [
+    ["Location", `./${state.projectName}`],
+    ["Preset", presetLabel(state)],
+    ["Authentication", authLabel(state)],
+    ["Database", databaseLabel(state)],
+    ["Frontend", "Lovable + React reference"],
+    ["Package manager", packageManager],
+  ];
+  const labelWidth = Math.max(...details.map(([label]) => label.length));
+
+  console.log("");
+  console.log(`${chalk.green("◆")} ${chalk.green.bold("Authenik8 with Lovable is ready.")}`);
+  console.log(chalk.dim("│"));
+  for (const [label, value] of details) {
+    console.log(`${chalk.green("◇")}  ${chalk.dim(label.padEnd(labelWidth))}  ${value}`);
+  }
+  console.log(chalk.dim("│"));
+  console.log(`${chalk.cyan("└")} ${chalk.bold("Next steps")}`);
+  [
+    `cd ${state.projectName}`,
+    ...(state.installDeps === false ? [installCommand(packageManager)] : []),
+    runCommand(state, "dev:lovable"),
+    'Open this directory in Codex and say:\n     "Start the Lovable frontend for this project."',
+  ].forEach((step, index) => {
+    console.log(`  ${chalk.cyan(`${index + 1}.`)} ${step}`);
+  });
+
+  console.log(chalk.dim("\n  API  http://localhost:3000/api"));
+  console.log(chalk.dim("  See integrations/lovable/START_HERE.md"));
+  console.log(chalk.dim("\n  Review .env, authenik8.json, README.md, and THREAT_MODEL.md before deployment.\n"));
+}
+
 export function printSummary(
   state: CliState,
   isProduction: boolean,
   hasDockerCompose = true,
   hasDockerDaemon = true,
 ): void {
+  if (state.authMode === "fullstack" && state.frontend === "lovable") {
+    printLovableSummary(state);
+    return;
+  }
+
   const packageManager = state.packageManager ?? "npm";
   const firstSuccess = firstSuccessGuide(state.authMode ?? "base");
   const isFullstack = state.authMode === "fullstack";
@@ -67,6 +106,9 @@ export function printSummary(
     ["Preset", presetLabel(state)],
     ["Authentication", authLabel(state)],
     ["Database", databaseLabel(state)],
+    ...(state.authMode === "fullstack"
+      ? [["Frontend", "React reference"] as [string, string]]
+      : []),
     ["Package manager", packageManager],
   ];
   const labelWidth = Math.max(...details.map(([label]) => label.length));

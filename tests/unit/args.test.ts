@@ -32,18 +32,17 @@ describe("CLI argument parsing", () => {
     expect(parseCliArguments([
       "demo-app",
       "--yes",
-      "--preset=auth-oauth",
-      "--database",
-      "postgresql",
-      "--oauth=google,github",
+      "--preset=fullstack",
+      "--frontend=lovable",
+      "--no-oauth",
       "--no-git",
       "--no-install",
     ])).toMatchObject({
       projectName: "demo-app",
       nonInteractive: true,
-      preset: "auth-oauth",
-      database: "postgresql",
-      oauthProviders: ["google", "github"],
+      preset: "fullstack",
+      frontend: "lovable",
+      oauthProviders: [],
       useGit: false,
       skipInstall: true,
     });
@@ -60,6 +59,8 @@ describe("CLI argument parsing", () => {
     [["demo-app", "--yes", "--preset", "unknown"], "--preset must be"],
     [["demo-app", "--yes", "--resume", "--preset", "base"], "cannot be combined"],
     [["demo-app", "--yes", "--preset", "base", "--preset", "auth"], "only be provided once"],
+    [["demo-app", "--yes", "--frontend", "custom"], "--frontend must be react or lovable"],
+    [["demo-app", "--frontend", "lovable"], "require --non-interactive"],
   ])("rejects invalid arguments %#", (argv, message) => {
     expect(() => parseCliArguments(argv)).toThrow(message);
   });

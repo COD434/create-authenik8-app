@@ -1,10 +1,11 @@
 import { createAuthenik8 } from "authenik8-core";
+import type { Authenik8Instance } from "authenik8-core";
 import dotenv  from "dotenv";
 import { agentIdentityConfig, authJwkConfig, requiredEnv, requiredSecret } from "../../../../src/utils/security";
 
 dotenv.config();
 
-let authInstance: any;
+let authInstance: Authenik8Instance | undefined;
 
 function oauthConfig() {
   return {
@@ -40,4 +41,4 @@ export const auth = new Proxy(
       return getAuth()[property as keyof ReturnType<typeof getAuth>];
     },
   },
-) as any;
+) as Authenik8Instance;
