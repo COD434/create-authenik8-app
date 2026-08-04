@@ -101,11 +101,16 @@ export function agentIdentityConfig(): AgentIdentityConfig | undefined {
   const source = process.env.AUTHENIK8_AGENTS?.trim();
   if (!source) return undefined;
 
+<<<<<<< HEAD
   let parsed: unknown;
   try {
     parsed = JSON.parse(source);
   } catch {
     throw new InputValidationError("AUTHENIK8_AGENTS must be a JSON object of agent scope arrays");
+=======
+  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 || dotIndex === normalizedEmail.length - 1) {
+	  throw new Error("A valid email is required");
+>>>>>>> 4011375 (fix(deps):fixed window install)
   }
   const result = agentRegistrySchema.safeParse(parsed);
   if (!result.success) {
