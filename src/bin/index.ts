@@ -107,23 +107,6 @@ Options:
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)
   --runtime <node|bun>              Runtime for --production-ready Express apps
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-=======
->>>>>>> 69568dd (feat:fixed merge conflict)
-<<<<<<< HEAD
-
-  --package-manager <npm|pnpm|bun>  Select the installer for Express presets
-
-=======
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
-<<<<<<< HEAD
->>>>>>> 55013fd (addons: alot of tests features and broken func fixes)
-=======
-=======
->>>>>>> 43ae699 (feat:fixed merge conflict)
->>>>>>> 69568dd (feat:fixed merge conflict)
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
   --production-ready                Configure PM2 for Express API presets
@@ -131,10 +114,7 @@ Options:
   -h, --help                        Show this help message
 
 Presets:
-<<<<<<< HEAD
 
-=======
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
   fullstack    Recommended connected React + Express app
                Requires npm; local PostgreSQL and Redis run in process
   base         JWT boundary for applications with their own identity source

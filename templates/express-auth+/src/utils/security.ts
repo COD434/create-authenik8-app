@@ -68,71 +68,6 @@ export function requiredEnv(name: string): string {
   if (!result.success) throw new InputValidationError(`${name} must be set`);
   return result.data;
 }
-<<<<<<< HEAD
-
-<<<<<<< HEAD
-export function requiredPort(): number {
-  const result = portSchema.safeParse(process.env.PORT ?? 3000);
-  if (!result.success) throw new InputValidationError("PORT must be between 1 and 65535");
-  return result.data;
-}
-
-export function authJwkConfig(): Authenik8JwkConfig {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(requiredEnv("AUTHENIK8_SIGNING_JWKS"));
-  } catch {
-    throw new InputValidationError("AUTHENIK8_SIGNING_JWKS must be a valid JSON array");
-  }
-  const result = z.array(signingJwkSchema).min(1).safeParse(parsed);
-  if (!result.success) {
-    throw new InputValidationError("AUTHENIK8_SIGNING_JWKS must contain ES256 P-256 JWKs");
-  }
-  const activeKid = requiredEnv("AUTHENIK8_ACTIVE_KID");
-  const activeKey = result.data.find((key) => key.kid === activeKid);
-  if (!activeKey?.d) throw new InputValidationError("AUTHENIK8_ACTIVE_KID must select a private signing JWK");
-  return {
-    keys: result.data,
-    activeKid,
-    issuer: requiredEnv("AUTHENIK8_ISSUER"),
-    audience: requiredEnv("AUTHENIK8_AUDIENCE"),
-  };
-}
-
-export function agentIdentityConfig(): AgentIdentityConfig | undefined {
-  const source = process.env.AUTHENIK8_AGENTS?.trim();
-  if (!source) return undefined;
-
-<<<<<<< HEAD
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(source);
-  } catch {
-    throw new InputValidationError("AUTHENIK8_AGENTS must be a JSON object of agent scope arrays");
-=======
-  if (atIndex < 1 || atIndex !== normalizedEmail.lastIndexOf("@") || dotIndex < atIndex + 2 || dotIndex === normalizedEmail.length - 1) {
-	  throw new Error("A valid email is required");
->>>>>>> 4011375 (fix(deps):fixed window install)
-  }
-  const result = agentRegistrySchema.safeParse(parsed);
-  if (!result.success) {
-    throw new InputValidationError("AUTHENIK8_AGENTS must map valid agent IDs to resource:action scopes");
-  }
-  if (!Object.keys(result.data).length) return undefined;
-
-  const registry = result.data;
-  return {
-    resolveAgent: async (agentId) => {
-      const scopes = Object.prototype.hasOwnProperty.call(registry, agentId)
-        ? registry[agentId]
-        : undefined;
-      return scopes ? { agentId, scopes, active: true } : null;
-    },
-  };
-}
-=======
->>>>>>> 77891ef ( chore: ci mess)
-
 export function requiredPort(): number {
   const result = portSchema.safeParse(process.env.PORT ?? 3000);
   if (!result.success) throw new InputValidationError("PORT must be between 1 and 65535");
@@ -204,19 +139,6 @@ export function parseRefreshToken(body: unknown): string {
   return result.data.refreshToken;
 }
 
-<<<<<<< HEAD
-=======
-export function parseCredentials(body: unknown): z.infer<typeof credentialsSchema> {
-  const result = credentialsSchema.safeParse(body);
-  if (!result.success) {
-    throw new InputValidationError(validationMessage(result.error, "Email and password are required"));
-  }
-  return result.data;
-}
-
->>>>>>> befe6e3 (feat:new presets)
-=======
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 export function parseIdentifier(value: unknown, label: string): string {
   const result = identifierSchema.safeParse(value);
   if (!result.success) throw new InputValidationError(`${label} is invalid`);

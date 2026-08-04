@@ -61,33 +61,9 @@ describe("cross-platform process execution", () => {
     const child = mockChild();
     vi.mocked(spawn).mockReturnValue(child as never);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     const promise = processLib.run("npm", ["install"], {
       cwd: "/tmp/project",
       stdio: "pipe",
-=======
-    it('resolves on successful exit (code 0)', async () => {
-      const mockChild = { on: vi.fn() } as any;
-      vi.mocked(spawn).mockReturnValue(mockChild);
-
-      const promise = processLib.run('npm', ['install'], options);
-
-      const exitHandler = mockChild.on.mock.calls.find(([event]) => event === 'exit')![1];
-      exitHandler(0);
-
-      await expect(promise).resolves.toBeUndefined();
-      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
-        cwd: '/tmp/test-project',
-        stdio: 'ignore',
-	shell:true
-      });
->>>>>>> 372ba3c (fix(deps):fixed window install)
-=======
-    const promise = processLib.run("npm", ["install"], {
-      cwd: "/tmp/project",
-      stdio: "pipe",
->>>>>>> befe6e3 (feat:new presets)
     });
     child.stderr.emit("data", "registry request failed");
     child.emit("close", 1, null);
@@ -102,23 +78,8 @@ describe("cross-platform process execution", () => {
     const promise = processLib.run("npm", ["install"], { cwd: "/tmp/project" });
     child.emit("close", null, "SIGINT");
 
-<<<<<<< HEAD
-<<<<<<< HEAD
     await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
   });
-=======
-      await expect(promise).resolves.toBeUndefined();
-      expect(spawn).toHaveBeenCalledWith('npm', ['install'], {
-        cwd: '/tmp/test-project',
-        stdio: 'inherit',
-	shell:true
-      });
-    });
->>>>>>> 372ba3c (fix(deps):fixed window install)
-=======
-    await expect(promise).rejects.toMatchObject({ signal: "SIGINT" });
-  });
->>>>>>> befe6e3 (feat:new presets)
 
   it("rejects executable spawn errors", async () => {
     const child = mockChild();
@@ -149,33 +110,6 @@ describe("cross-platform process execution", () => {
       error: new Error("missing"),
     } as never);
     expect(processLib.commandExists("bun", "darwin")).toBe(false);
-<<<<<<< HEAD
-  });
-
-  it("checks the Docker Compose plugin instead of only the Docker executable", () => {
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
-
-    expect(processLib.dockerComposeAvailable("win32")).toBe(true);
-    expect(spawnSync).toHaveBeenCalledWith("docker", ["compose", "version"], {
-      stdio: "ignore",
-      shell: true,
-      windowsHide: true,
-    });
-  });
-
-  it("checks whether the Docker daemon is reachable", () => {
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
-
-    expect(processLib.dockerDaemonAvailable("win32")).toBe(true);
-    expect(spawnSync).toHaveBeenCalledWith(
-      "docker",
-      ["info", "--format", "{{.ServerVersion}}"],
-      {
-        stdio: "ignore",
-        shell: true,
-        windowsHide: true,
-      },
-    );
   });
 
   it("checks the Docker Compose plugin instead of only the Docker executable", () => {
@@ -235,30 +169,6 @@ describe("cross-platform process execution", () => {
     expect(child.kill).not.toHaveBeenCalled();
   });
 
-<<<<<<< HEAD
-=======
-  });
-
-  it("terminates child trees with taskkill on Windows", async () => {
-    const child = mockChild(9876);
-    vi.mocked(spawn).mockReturnValue(child as never);
-    vi.mocked(spawnSync).mockReturnValue({ status: 0 } as never);
-
-    const promise = processLib.run("npm.cmd", ["install"], { cwd: "C:\\project" });
-    processLib.killAllProcesses("win32");
-    child.emit("close", 0, null);
-    await promise;
-
-    expect(spawnSync).toHaveBeenCalledWith(
-      "taskkill.exe",
-      ["/pid", "9876", "/T", "/F"],
-      { stdio: "ignore", windowsHide: true },
-    );
-  });
-
->>>>>>> befe6e3 (feat:new presets)
-=======
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
   it("classifies only supported interrupt signals", async () => {
     expect(processLib.isInterruptedError({ signal: "SIGINT" })).toBe(true);
     expect(processLib.isInterruptedError({ signal: "SIGTERM" })).toBe(true);

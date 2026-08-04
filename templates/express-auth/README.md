@@ -48,16 +48,7 @@ AUTHENIK8_ISSUER=http://localhost:3000
 AUTHENIK8_AUDIENCE=your-app-api
 AUTHENIK8_AGENTS={}
 REFRESH_SECRET=<generated-random-secret>
-<<<<<<< HEAD
-<<<<<<< HEAD
 REDIS_URL=memory://
-=======
-REDIS_HOST=127.0.0.1
-REDIS_PORT=6379
->>>>>>> 20fbce9 (fix: aligned wires with latest core)
-=======
-REDIS_URL=memory://
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 ```
 
 ## API Contract
@@ -207,17 +198,9 @@ export async function getProtected() {
 `Redis connection refused`: verify `REDIS_URL`, or omit it and check `REDIS_HOST`, `REDIS_PORT`, and `REDIS_PASSWORD`.
 
 `Prisma Client did not initialize`: run `npm run db:migrate`, then restart `npm run dev`.
-<<<<<<< HEAD
-=======
 
 `REDIS_URL=memory:// is for local development only`: configure a `redis://` or `rediss://` endpoint before running in production.
->>>>>>> 6ce4a8b (addons: alot of tests features and broken func fixes)
 
-<<<<<<< HEAD
-`REDIS_URL=memory:// is for local development only`: configure a `redis://` or `rediss://` endpoint before running in production.
-
-=======
->>>>>>> 20fbce9 (fix: aligned wires with latest core)
 `AUTHENIK8_SIGNING_JWKS must be a valid JSON array`: restore the generated `.env` value or provide an ES256 P-256 key ring and matching `AUTHENIK8_ACTIVE_KID`.
 
 `Cannot POST /auth/login`: confirm the server is running and you generated the password auth template, not the JWT-only base template.
