@@ -64,7 +64,6 @@ function waitForRedis(client: RedisClient): Promise<RedisClient> {
 
 export async function createRedisClient(): Promise<RedisClient> {
   const redisUrl = process.env.REDIS_URL?.trim();
-
   const nodeEnv = process.env.NODE_ENV?.trim() || "development";
 
   const hasExternalRedisConfig = Boolean(
@@ -85,34 +84,15 @@ export async function createRedisClient(): Promise<RedisClient> {
     (!hasExternalRedisConfig && nodeEnv !== "production");
 
   if (shouldUseMemoryRedis) {
-
-
-  const hasExternalRedisConfig = Boolean(
-    redisUrl ||
-      process.env.REDIS_HOST?.trim() ||
-      process.env.REDIS_PORT?.trim() ||
-      process.env.REDIS_PASSWORD?.trim(),
-  );
-
-
-  if (redisUrl === localRedisUrl && nodeEnv === "production") {
-    throw new Error(
-      "REDIS_URL=memory:// is for local development only; use redis:// or rediss:// in production",
-    );
-  }
-
- 
     const { default: RedisMock } = await import("ioredis-mock");
     return new RedisMock() as unknown as RedisClient;
   }
-
 
   if (nodeEnv === "production" && !hasExternalRedisConfig) {
     throw new Error(
       "REDIS_URL=memory:// is for local development only; use redis:// or rediss:// in production",
     );
   }
-
 
   if (redisUrl) {
     return waitForRedis(new Redis(externalRedisUrl(redisUrl), redisOptions));

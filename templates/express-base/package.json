@@ -8,11 +8,6 @@
     "db:migrate": "prisma db push && prisma generate",
     "prisma:migrate": "prisma db push && prisma generate",
 
-  
-    
-
-    "prisma:migrate": "prisma migrate",
-
     "docker:up": "docker compose up -d",
 
     "docker:down": "docker compose down"
@@ -38,10 +33,6 @@
   "overrides": {
     "find-my-way": "9.7.0",
     "valibot": "1.4.2"
-
-  },
-  "overrides": {
-    "@hono/node-server": "1.19.13"
   },
   "type": "commonjs"
 }
