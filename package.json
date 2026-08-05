@@ -35,7 +35,7 @@
     "@inquirer/core": "^11.2.1",
     "authenik8-core": "2.0.7",
     "chalk": "^6.0.0",
-    "fs-extra": "^11.3.4",
+    "fs-extra": "^11.4.0",
     "inquirer": "^12.11.1",
     "ora": "^8.2.0",
     "zod": "^4.4.3"
