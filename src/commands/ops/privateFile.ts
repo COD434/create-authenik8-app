@@ -19,7 +19,7 @@ export async function replacePrivateFile(
       mode: 0o600,
       flag: "wx",
     });
-    const handle = await open(temporaryPath, "r");
+    const handle = await open(temporaryPath, "r+");
     try {
       await handle.sync();
     } finally {

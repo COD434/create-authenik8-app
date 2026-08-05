@@ -73,7 +73,7 @@ describe("Express OAuth link intents", () => {
       import.meta.dirname,
       "../../templates/express-auth+/src/auth/oauth-link-intent.ts",
     );
-    const templateSource = await fs.readFile(templatePath, "utf8");
+    const templateSource = (await fs.readFile(templatePath, "utf8")).replace(/\r\n/g, "\n");
     const rendered = renderExpressOAuthFiles(["google"]);
 
     expect(rendered[expressOAuthSupportFiles.linkIntent]).toBe(templateSource);

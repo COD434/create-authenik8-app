@@ -83,7 +83,7 @@ async function writePackageStub(targetDir: string, name: string, source: string)
 export async function generateProjectFixture(
   options: GenerateProjectOptions,
 ): Promise<GeneratedProject> {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), "authenik8-vitest-"));
+  const rootDir = await fs.realpath(await mkdtemp(path.join(os.tmpdir(), "authenik8-vitest-")));
   const targetDir = path.join(rootDir, "generated-app");
   const state: CliState = {
     step: "prompts",
@@ -593,7 +593,10 @@ process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
 let failed = false;
 try {
   await import(${JSON.stringify(entryImportPath)});
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline && stdout.length === 0 && stderr.length === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 } catch (error) {
   failed = true;
   stderr.push(error instanceof Error ? (error.stack ?? error.message) : String(error));
