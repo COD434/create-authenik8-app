@@ -72,7 +72,7 @@
     "axe-core": "4.12.1",
     "bcryptjs": "^2.4.3",
     "esbuild": "0.28.1",
-    "fast-check": "^4.8.0",
+    "fast-check": "^4.9.0",
     "ioredis-mock": "^8.13.1",
     "jose": "6.2.3",
     "jsdom": "28.1.0",
