@@ -22,7 +22,7 @@ const snapshot: StudioSnapshot = {
     database: "postgresql",
     versions: {
       generator: "2.4.4",
-      engine: "2.0.6",
+      engine: "2.0.7",
     },
   },
   scan: {
@@ -77,7 +77,7 @@ const snapshot: StudioSnapshot = {
   upgrade: {
     status: "current",
     generator: { current: "2.4.4", target: "2.4.4" },
-    engine: { current: "2.0.6", target: "2.0.6" },
+    engine: { current: "2.0.7", target: "2.0.7" },
     actions: [],
   },
   nextAction: {

@@ -16,7 +16,7 @@ function context(overrides: Partial<UpgradeContext> = {}): UpgradeContext {
     schemaVersion: 1,
     projectName: "demo-app",
     generatedBy: { package: "create-authenik8-app", version: "2.4.4" },
-    engine: { package: "authenik8-core", version: "2.0.6" },
+    engine: { package: "authenik8-core", version: "2.0.7" },
     preset: "auth-oauth",
     packageManager: "npm",
     runtime: "node",
@@ -28,10 +28,10 @@ function context(overrides: Partial<UpgradeContext> = {}): UpgradeContext {
     appDir: "/tmp/demo-app",
     manifest,
     packageManager: "npm",
-    declaredEngineVersion: "2.0.6",
-    installedEngineVersion: "2.0.6",
+    declaredEngineVersion: "2.0.7",
+    installedEngineVersion: "2.0.7",
     targetGeneratorVersion: "2.4.4",
-    targetEngineVersion: "2.0.6",
+    targetEngineVersion: "2.0.7",
     ...overrides,
   };
 }
@@ -127,8 +127,8 @@ describe("upgrade command", () => {
     });
     const plan = createUpgradePlan(context({
       manifest: newerManifest,
-      declaredEngineVersion: "2.0.6",
-      installedEngineVersion: "2.0.6",
+      declaredEngineVersion: "2.0.7",
+      installedEngineVersion: "2.0.7",
     }));
     expect(plan.status).toBe("blocked");
     expect(plan.actions.map((action) => action.id)).toEqual(expect.arrayContaining([

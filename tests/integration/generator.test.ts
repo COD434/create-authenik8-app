@@ -74,7 +74,7 @@ describe("generator happy paths", () => {
         preset: "base",
         packageManager: "npm",
         database: "sqlite",
-        engine: { package: "authenik8-core", version: "2.0.6" },
+        engine: { package: "authenik8-core", version: "2.0.7" },
         features: { prisma: true, oauthProviders: [], pm2: false },
       });
     } finally {
@@ -301,7 +301,7 @@ describe("generator happy paths", () => {
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies["ts-node"]).toBeUndefined();
 
-      expect(pkg.dependencies["authenik8-core"]).toBe("2.0.6");
+      expect(pkg.dependencies["authenik8-core"]).toBe("2.0.7");
 
       expect(pkg.scripts["docker:up"]).toBe("docker compose up -d --wait");
       expect(pkg.scripts["pm2:start"]).toBe("npm run build && npx pm2 start ecosystem.config.js");
@@ -589,7 +589,7 @@ describe("generator happy paths", () => {
       const apiPkg = JSON.parse(files["apps/api/package.json"]);
       expect(apiPkg.dependencies["@prisma/client"]).toBe("7.9.0");
       expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.9.0");
-      expect(apiPkg.dependencies["authenik8-core"]).toBe("2.0.6");
+      expect(apiPkg.dependencies["authenik8-core"]).toBe("2.0.7");
       expect(apiPkg.dependencies["express-rate-limit"]).toBeUndefined();
       expect(apiPkg.dependencies.zod).toBe("^4.4.3");
       expect(apiPkg.dependencies["ioredis-mock"]).toBe("8.13.1");
@@ -710,7 +710,7 @@ describe("generator happy paths", () => {
         packageManager: "npm",
         runtime: "node",
         database: "postgresql",
-        engine: { package: "authenik8-core", version: "2.0.6" },
+        engine: { package: "authenik8-core", version: "2.0.7" },
         features: {
           prisma: true,
           oauthProviders: ["google", "github"],

@@ -98,7 +98,7 @@ describe("generated project doctor", () => {
       expect(report.preset).toBe("base");
       expect(report.summary.failed).toBe(0);
       expect(report.checks.find((check) => check.id === "A8-JWK-006")?.status).toBe("pass");
-      expect(report.checks.find((check) => check.id === "A8-CORE-001")?.message).toContain("2.0.6");
+      expect(report.checks.find((check) => check.id === "A8-CORE-001")?.message).toContain("2.0.7");
       expect(report.checks.find((check) => check.id === "A8-PROJECT-002")?.status).toBe("pass");
       expect(report.checks.find((check) => check.id === "A8-REDIS-002")?.status).toBe("pass");
       expect(report.checks.find((check) => check.id === "A8-REDIS-002")?.message).toContain(
@@ -391,7 +391,7 @@ describe("generated project doctor", () => {
       await fs.ensureDir(coreDirectory);
       await fs.writeJson(path.join(coreDirectory, "package.json"), {
         name: "authenik8-core",
-        version: "2.0.6",
+        version: "2.0.7",
         main: "index.js",
       });
       await fs.writeFile(

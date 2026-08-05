@@ -33,7 +33,7 @@
   },
   "dependencies": {
     "@inquirer/core": "^11.2.1",
-    "authenik8-core": "2.0.6",
+    "authenik8-core": "2.0.7",
     "chalk": "^5.6.2",
     "fs-extra": "^11.3.4",
     "inquirer": "^12.11.1",
@@ -61,13 +61,13 @@
   "devDependencies": {
     "@astryxdesign/core": "0.1.9",
     "@astryxdesign/theme-neutral": "0.1.9",
+    "@readme/openapi-parser": "6.3.0",
     "@types/express": "^5.0.6",
     "@types/fs-extra": "^11.0.4",
     "@types/node": "^25.9.3",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/supertest": "^7.2.0",
-    "@readme/openapi-parser": "6.3.0",
     "@vitest/coverage-v8": "^4.1.8",
     "axe-core": "4.12.1",
     "bcryptjs": "^2.4.3",

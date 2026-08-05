@@ -27,7 +27,7 @@ const manifest = projectManifestSchema.parse({
   schemaVersion: 1,
   projectName: "studio-app",
   generatedBy: { package: "create-authenik8-app", version: "2.4.4" },
-  engine: { package: "authenik8-core", version: "2.0.6" },
+  engine: { package: "authenik8-core", version: "2.0.7" },
   preset: "auth-oauth",
   packageManager: "npm",
   runtime: "node",
@@ -83,10 +83,10 @@ const upgrade: UpgradePlan = {
   versions: {
     generator: { project: "2.4.4", target: "2.4.4" },
     engine: {
-      manifest: "2.0.6",
-      declared: "2.0.6",
-      installed: "2.0.6",
-      target: "2.0.6",
+      manifest: "2.0.7",
+      declared: "2.0.7",
+      installed: "2.0.7",
+      target: "2.0.7",
     },
   },
   actions: [],
@@ -151,7 +151,7 @@ describe("Studio snapshot", () => {
       project: {
         name: "studio-app",
         preset: "auth-oauth",
-        versions: { generator: "2.4.4", engine: "2.0.6" },
+        versions: { generator: "2.4.4", engine: "2.0.7" },
       },
       scan: {
         mode: "offline",

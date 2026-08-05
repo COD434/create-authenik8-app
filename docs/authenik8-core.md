@@ -1,6 +1,6 @@
 # Using authenik8-core
 
-Generated projects use `authenik8-core` v2.0.6, a JOSE and JWK human and agent identity engine.
+Generated projects use `authenik8-core` v2.0.7, a JOSE and JWK human and agent identity engine.
 
 ## Create the auth object
 

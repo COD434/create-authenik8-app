@@ -34,10 +34,10 @@ describe("generated project upgrade plans", () => {
       expect(plan.versions).toMatchObject({
         generator: { project: "2.4.4", target: "2.4.4" },
         engine: {
-          manifest: "2.0.6",
-          declared: "2.0.6",
-          installed: "2.0.6",
-          target: "2.0.6",
+          manifest: "2.0.7",
+          declared: "2.0.7",
+          installed: "2.0.7",
+          target: "2.0.7",
         },
       });
       expect(formatUpgradePlan(plan, true)).not.toMatch(/secret|"d"\s*:/i);
@@ -96,12 +96,12 @@ describe("generated project upgrade plans", () => {
       expect(result).toMatchObject({
         status: "acknowledged",
         previous: { generator: "2.3.0", engine: "2.0.3" },
-        current: { generator: "2.4.4", engine: "2.0.6" },
+        current: { generator: "2.4.4", engine: "2.0.7" },
       });
       expect(after).toEqual({
         ...before,
         generatedBy: { ...before.generatedBy, version: "2.4.4" },
-        engine: { ...before.engine, version: "2.0.6" },
+        engine: { ...before.engine, version: "2.0.7" },
       });
     } finally {
       await project.cleanup();
@@ -152,7 +152,7 @@ describe("generated project upgrade plans", () => {
         ...pkg,
         dependencies: {
           ...pkg.dependencies,
-          "authenik8-core": "^2.0.6",
+          "authenik8-core": "^2.0.7",
         },
       });
       await expect(acknowledgeUpgrade(project.targetDir))
