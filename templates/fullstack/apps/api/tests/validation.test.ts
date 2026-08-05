@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   identifierSchema,
+  loginSchema,
   pageSchema,
   projectCreateSchema,
   registerSchema,
@@ -25,6 +26,20 @@ describe("request validation", () => {
       email: "not-an-email",
       password: "password",
       role: "ADMIN",
+    }).success).toBe(false);
+  });
+
+  it("rejects passwords beyond bcrypt's 72-byte input boundary", () => {
+    const oversizedPassword = `SecurePass1${"x".repeat(63)}`;
+    expect(new TextEncoder().encode(oversizedPassword).byteLength).toBeGreaterThan(72);
+    expect(registerSchema.safeParse({
+      name: "Jane Example",
+      email: "jane@example.com",
+      password: oversizedPassword,
+    }).success).toBe(false);
+    expect(loginSchema.safeParse({
+      email: "jane@example.com",
+      password: oversizedPassword,
     }).success).toBe(false);
   });
 

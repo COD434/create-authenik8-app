@@ -8,6 +8,7 @@ const envPath = path.join(projectRoot, ".env");
 const command = process.argv[2];
 const commandScripts = {
   dev: ["db:migrate:apply", "db:seed:apply", "dev:watch"],
+  lovable: ["db:migrate:apply", "db:seed:apply", "dev:lovable:watch"],
   migrate: ["db:migrate:apply"],
   seed: ["db:seed:apply"],
   setup: ["db:migrate:apply", "db:seed:apply"],
@@ -94,7 +95,7 @@ async function startEmbeddedDatabase() {
 }
 
 if (!Object.hasOwn(commandScripts, command)) {
-  console.error("Usage: node scripts/run-local.mjs <dev|migrate|seed|setup|studio>");
+  console.error("Usage: node scripts/run-local.mjs <dev|lovable|migrate|seed|setup|studio>");
   process.exit(1);
 }
 

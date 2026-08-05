@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Github, KeyRound, Link2, LogOut, MonitorSmartphone, ShieldCheck } from "lucide-react";
 import { Badge, Button, Input, Spinner } from "@authenik8/ui";
-import { accountApi, authApi } from "@authenik8/api-client";
+import { accountApi, authApi } from "../../lib/authenik8";
 import { ErrorNotice, Field, PageHeader, SuccessNotice } from "../../components/Page";
 import { enabledOAuthProviders } from "../../auth/providers";
 
@@ -14,6 +14,11 @@ export function SecurityPage() {
   const [passwordSaved, setPasswordSaved] = useState(false);
   const passwordMutation = useMutation({ mutationFn: () => accountApi.changePassword(passwords), onSuccess: () => { setPasswords({ currentPassword: "", newPassword: "" }); setPasswordSaved(true); } });
   const revoke = useMutation({ mutationFn: accountApi.revokeSession, onSuccess: () => client.invalidateQueries({ queryKey: ["sessions"] }) });
+  const revokeOthers = useMutation({ mutationFn: accountApi.revokeOtherSessions, onSuccess: () => client.invalidateQueries({ queryKey: ["sessions"] }) });
+  const unlink = useMutation({
+    mutationFn: (provider: "google" | "github") => accountApi.unlinkProvider(provider),
+    onSuccess: () => client.invalidateQueries({ queryKey: ["providers"] }),
+  });
   async function link(provider: "google" | "github") {
     const result = await accountApi.startProviderLink(provider);
     window.location.assign(result.url);
@@ -35,17 +40,19 @@ export function SecurityPage() {
 
           <section className="panel settings-panel">
             <div className="form-section-heading"><span className="stat-icon cyan"><Link2 size={19} /></span><div><h2>Linked providers</h2><p>External identities connected to this account.</p></div></div>
+            {unlink.error && <ErrorNotice error={unlink.error} />}
             {providers.isPending ? <Spinner /> : providers.error ? <ErrorNotice error={providers.error} /> : <div className="provider-list">
               {enabledOAuthProviders.map((provider) => {
                 const linked = providers.data!.providers.find((item) => item.provider === provider);
-                return <div className="provider-row" key={provider}><span className="provider-icon">{provider === "github" ? <Github size={20} /> : <span className="provider-g">G</span>}</span><div><strong>{provider === "github" ? "GitHub" : "Google"}</strong><small>{linked?.providerEmail ?? "Not connected"}</small></div>{linked ? <Badge tone="success">Connected</Badge> : <Button variant="secondary" onClick={() => void link(provider)}>Connect</Button>}</div>;
+                return <div className="provider-row" key={provider}><span className="provider-icon">{provider === "github" ? <Github size={20} /> : <span className="provider-g">G</span>}</span><div><strong>{provider === "github" ? "GitHub" : "Google"}</strong><small>{linked?.providerEmail ?? "Not connected"}</small></div>{linked ? <><Badge tone="success">Connected</Badge><Button variant="ghost" disabled={unlink.isPending} onClick={() => unlink.mutate(provider)}>Disconnect</Button></> : <Button variant="secondary" onClick={() => void link(provider)}>Connect</Button>}</div>;
               })}
             </div>}
           </section>
 
           <section className="panel settings-panel">
             <div className="form-section-heading"><span className="stat-icon green"><MonitorSmartphone size={19} /></span><div><h2>Active sessions</h2><p>Devices with refresh access.</p></div></div>
-            {revoke.error && <ErrorNotice error={revoke.error} />}
+            {(revoke.error || revokeOthers.error) && <ErrorNotice error={revoke.error ?? revokeOthers.error} />}
+            <div className="form-actions"><Button variant="secondary" disabled={revokeOthers.isPending} onClick={() => revokeOthers.mutate()}>Revoke other sessions</Button></div>
             {sessions.isPending ? <Spinner /> : sessions.error ? <ErrorNotice error={sessions.error} /> : <div className="session-list">
               {sessions.data!.sessions.map((session) => <div className="session-row" key={session.id}><span className="device-icon"><ShieldCheck size={19} /></span><div><strong>{session.userAgent}</strong><small>{session.ipAddress} · Last used {new Date(session.lastUsedAt).toLocaleString()}</small></div>{session.current && <Badge tone="accent">Current</Badge>}<Button className="icon-button" variant="ghost" onClick={() => revoke.mutate(session.id)} aria-label="Revoke session" title="Revoke session"><LogOut size={18} /></Button></div>)}
             </div>}

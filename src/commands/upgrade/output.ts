@@ -1,4 +1,8 @@
-import type { UpgradeAction, UpgradePlan } from "./types.js";
+import type {
+  UpgradeAcknowledgement,
+  UpgradeAction,
+  UpgradePlan,
+} from "./types.js";
 
 const actionSymbol: Record<UpgradeAction["kind"], string> = {
   required: "!",
@@ -17,12 +21,14 @@ Usage:
 Options:
   --json             Print a stable machine-readable plan
   --check            Exit non-zero when an upgrade is pending or blocked
+  --acknowledge      Update only verified generator and engine manifest versions
   -h, --help         Show this help message
 
 Examples:
   npx create-authenik8-app upgrade
   npx create-authenik8-app upgrade ./my-app --json
   npx create-authenik8-app upgrade --check --json
+  npx create-authenik8-app upgrade --acknowledge
 `;
 }
 
@@ -49,4 +55,24 @@ export function formatUpgradePlan(plan: UpgradePlan, json: boolean): string {
   }
   lines.push("");
   return lines.join("\n");
+}
+
+export function formatUpgradeAcknowledgement(
+  result: UpgradeAcknowledgement,
+  json: boolean,
+): string {
+  if (json) return `${JSON.stringify(result, null, 2)}\n`;
+  return [
+    "",
+    "Authenik8 upgrade acknowledgement",
+    `${result.status} · ${result.rootDir}`,
+    "",
+    `Generator  ${result.previous.generator} → ${result.current.generator}`,
+    `Engine     ${result.previous.engine} → ${result.current.engine}`,
+    "",
+    result.status === "acknowledged"
+      ? "authenik8.json release metadata was updated atomically."
+      : "authenik8.json already records the verified release.",
+    "",
+  ].join("\n");
 }

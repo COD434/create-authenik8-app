@@ -16,7 +16,7 @@ function context(overrides: Partial<UpgradeContext> = {}): UpgradeContext {
     schemaVersion: 1,
     projectName: "demo-app",
     generatedBy: { package: "create-authenik8-app", version: "2.4.4" },
-    engine: { package: "authenik8-core", version: "2.0.3" },
+    engine: { package: "authenik8-core", version: "2.0.7" },
     preset: "auth-oauth",
     packageManager: "npm",
     runtime: "node",
@@ -28,10 +28,10 @@ function context(overrides: Partial<UpgradeContext> = {}): UpgradeContext {
     appDir: "/tmp/demo-app",
     manifest,
     packageManager: "npm",
-    declaredEngineVersion: "2.0.3",
-    installedEngineVersion: "2.0.3",
+    declaredEngineVersion: "2.0.7",
+    installedEngineVersion: "2.0.7",
     targetGeneratorVersion: "2.4.4",
-    targetEngineVersion: "2.0.3",
+    targetEngineVersion: "2.0.7",
     ...overrides,
   };
 }
@@ -53,8 +53,17 @@ describe("upgrade command", () => {
         directory: path.resolve("/tmp/work/project"),
         json: true,
         check: true,
+        acknowledge: false,
         help: false,
       });
+    expect(parseUpgradeArguments(["project", "--acknowledge"], "/tmp/work"))
+      .toMatchObject({
+        directory: path.resolve("/tmp/work/project"),
+        acknowledge: true,
+        check: false,
+      });
+    expect(() => parseUpgradeArguments(["--check", "--acknowledge"]))
+      .toThrow("cannot be combined");
     expect(() => parseUpgradeArguments(["--apply"])).toThrow(UpgradeUsageError);
     expect(() => parseUpgradeArguments(["one", "two"])).toThrow("at most one");
   });
@@ -90,6 +99,26 @@ describe("upgrade command", () => {
     expect(upgradeCheckExitCode(plan)).toBe(1);
   });
 
+  it("surfaces the hardened adapter and proxy contract after 2.0.3", () => {
+    const oldManifest = projectManifestSchema.parse({
+      ...context().manifest,
+      engine: { package: "authenik8-core", version: "2.0.3" },
+    });
+    const plan = createUpgradePlan(context({
+      manifest: oldManifest,
+      declaredEngineVersion: "2.0.3",
+      installedEngineVersion: "2.0.3",
+    }));
+
+    expect(plan.actions.map((action) => action.id)).toEqual([
+      "engine.hardening-v2.0.4",
+      "engine.upgrade",
+      "upgrade.verify",
+    ]);
+    expect(plan.actions[0]?.detail).toContain("trustedProxyCidrs");
+    expect(plan.actions[0]?.detail).toContain("findUserById()");
+  });
+
   it("blocks manifest drift and attempted downgrades", () => {
     const newerManifest = projectManifestSchema.parse({
       ...context().manifest,
@@ -98,8 +127,8 @@ describe("upgrade command", () => {
     });
     const plan = createUpgradePlan(context({
       manifest: newerManifest,
-      declaredEngineVersion: "2.0.3",
-      installedEngineVersion: "2.0.3",
+      declaredEngineVersion: "2.0.7",
+      installedEngineVersion: "2.0.7",
     }));
     expect(plan.status).toBe("blocked");
     expect(plan.actions.map((action) => action.id)).toEqual(expect.arrayContaining([

@@ -14,6 +14,12 @@ export async function listUsers(page: number) {
   return { items: items.map(presentUser), total, page: safePage, pageSize };
 }
 
+export async function getUser(targetId: string) {
+  const user = await prisma.user.findUnique({ where: { id: targetId } });
+  if (!user) throw new AppError(404, "USER_NOT_FOUND", "User not found");
+  return presentUser(user);
+}
+
 export async function updateUser(actorId: string, targetId: string, body: unknown, ipAddress: string) {
   const input = adminUserUpdateSchema.parse(body);
   if (actorId === targetId && (input.role === "USER" || input.status === "SUSPENDED")) {
@@ -37,18 +43,29 @@ export async function revokeAllSessions(actorId: string, targetId: string, ipAdd
   }
 }
 
-export async function listAuditEvents() {
-  const events = await prisma.auditEvent.findMany({
-    include: { actor: { select: { email: true } } },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-  return events.map((event) => ({
-    id: event.id,
-    action: event.action,
-    actorEmail: event.actor?.email ?? null,
-    targetType: event.targetType,
-    targetId: event.targetId,
-    createdAt: event.createdAt.toISOString(),
-  }));
+export async function listAuditEvents(page: number) {
+  const pageSize = 50;
+  const safePage = Math.max(1, page);
+  const [events, total] = await prisma.$transaction([
+    prisma.auditEvent.findMany({
+      include: { actor: { select: { email: true } } },
+      orderBy: { createdAt: "desc" },
+      skip: (safePage - 1) * pageSize,
+      take: pageSize,
+    }),
+    prisma.auditEvent.count(),
+  ]);
+  return {
+    items: events.map((event) => ({
+      id: event.id,
+      action: event.action,
+      actorEmail: event.actor?.email ?? null,
+      targetType: event.targetType,
+      targetId: event.targetId,
+      createdAt: event.createdAt.toISOString(),
+    })),
+    total,
+    page: safePage,
+    pageSize,
+  };
 }

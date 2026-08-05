@@ -129,7 +129,7 @@ export function createUpgradePlan(context: UpgradeContext): UpgradePlan {
       kind: "required",
       title: "Validate the upgraded auth boundary before updating metadata",
       detail: "Run static and live-service diagnostics, exercise login, refresh rotation, OAuth callbacks, linking, and authorization, then update authenik8.json as the final audited change.",
-      command: `npx create-authenik8-app@${context.targetGeneratorVersion} doctor`,
+      command: `npx create-authenik8-app@${context.targetGeneratorVersion} doctor --deep --ci`,
       references: ["THREAT_MODEL.md"],
     });
   }

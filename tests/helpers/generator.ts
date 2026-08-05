@@ -38,6 +38,7 @@ export type GenerateProjectOptions = {
   oauthProviders?: string[];
   packageManager?: "npm" | "pnpm" | "bun";
   templateLineEndings?: "lf" | "crlf";
+  frontend?: "react" | "lovable";
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -82,7 +83,7 @@ async function writePackageStub(targetDir: string, name: string, source: string)
 export async function generateProjectFixture(
   options: GenerateProjectOptions,
 ): Promise<GeneratedProject> {
-  const rootDir = await mkdtemp(path.join(os.tmpdir(), "authenik8-vitest-"));
+  const rootDir = await fs.realpath(await mkdtemp(path.join(os.tmpdir(), "authenik8-vitest-")));
   const targetDir = path.join(rootDir, "generated-app");
   const state: CliState = {
     step: "prompts",
@@ -94,6 +95,9 @@ export async function generateProjectFixture(
     useGit: false,
     runtime: options.productionRuntime,
     oauthProviders: options.oauthProviders,
+    ...(options.template === "fullstack"
+      ? { frontend: options.frontend ?? "react" }
+      : {}),
   };
 
   let fixtureTemplateRoot = templateRoot;
@@ -169,6 +173,7 @@ export async function generateProjectFixture(
     usePrisma: state.authMode === "fullstack" || Boolean(state.usePrisma),
     oauthProviders: manifestProviders,
     productionReady: Boolean(options.productionRuntime) && state.authMode !== "fullstack",
+    frontend: state.frontend,
   });
 
   return {
@@ -229,7 +234,12 @@ export async function readProjectFiles(rootDir: string, relativePaths: string[])
 
 export async function installGeneratedAppStubs(
   targetDir: string,
-  options: { realAuthCore?: boolean; realExpress?: boolean; authCorePath?: string } = {},
+  options: {
+    realAuthCore?: boolean;
+    realExpress?: boolean;
+    realRedis?: boolean;
+    authCorePath?: string;
+  } = {},
 ): Promise<void> {
   await fs.copy(
     path.join(repoRoot, "node_modules", "zod"),
@@ -387,10 +397,22 @@ export async function installGeneratedAppStubs(
   );
   await fs.writeFile(path.join(dotenvDir, "config.js"), "export {};\n");
 
-  await writePackageStub(
-    targetDir,
-    "ioredis",
-    `import { EventEmitter } from "node:events";
+  if (options.realRedis) {
+    await fs.ensureSymlink(
+      path.join(repoRoot, "node_modules", "ioredis"),
+      path.join(targetDir, "node_modules", "ioredis"),
+      "junction",
+    );
+    await fs.ensureSymlink(
+      path.join(repoRoot, "node_modules", "ioredis-mock"),
+      path.join(targetDir, "node_modules", "ioredis-mock"),
+      "junction",
+    );
+  } else {
+    await writePackageStub(
+      targetDir,
+      "ioredis",
+      `import { EventEmitter } from "node:events";
 
 export class Redis extends EventEmitter {
   status = "ready";
@@ -401,14 +423,15 @@ export class Redis extends EventEmitter {
 }
 export default Redis;
 `,
-  );
+    );
 
-  await writePackageStub(
-    targetDir,
-    "ioredis-mock",
-    `export default class RedisMock {}
+    await writePackageStub(
+      targetDir,
+      "ioredis-mock",
+      `export default class RedisMock {}
 `,
-  );
+    );
+  }
 
   if (options.realExpress) {
     await fs.ensureSymlink(
@@ -570,7 +593,10 @@ process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
 let failed = false;
 try {
   await import(${JSON.stringify(entryImportPath)});
-  await new Promise((resolve) => setTimeout(resolve, 100));
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline && stdout.length === 0 && stderr.length === 0) {
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
 } catch (error) {
   failed = true;
   stderr.push(error instanceof Error ? (error.stack ?? error.message) : String(error));

@@ -3,4 +3,5 @@ dist/
 .env
 *.log
 coverage/
+.authenik8/
 .DS_Store

@@ -51,11 +51,12 @@ enum Role {
   USER
   ADMIN
 }",
-    "src/app.ts": "import  express from "express";
+    "src/app.ts": "import express from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createAuthRoutes } from "./routes/auth.routes";
 import { createProtectedRoutes } from "./routes/protected.routes";
 
-export const createApp = (auth: any) => {
+export const createApp = (auth: Authenik8Instance) => {
   const app = express();
 
   app.use(express.json({ limit: "16kb", strict: true }));
@@ -71,19 +72,27 @@ export const createApp = (auth: any) => {
   return app;
 };",
     "src/controllers/auth.controller.ts": "import { Request, Response } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { AuthService } from "../services/auth.services";
-import { parseCredentials, parseRefreshToken } from "../utils/security";
+import {
+  InputValidationError,
+  parseCredentials,
+  parseRefreshToken,
+} from "../utils/security";
 
-export const createAuthController = (auth: any) => ({
+export const createAuthController = (auth: Authenik8Instance) => ({
   async register(req: Request, res: Response) {
     try {
       const { email, password } = parseCredentials(req.body);
 
-      const user = await AuthService.register(email, password);
+      await AuthService.register(email, password);
 
-      res.json({ message: "User created", userId: user.id });
+      res.json({ message: "Registration request accepted" });
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message || "Invalid registration request" });
+      if (err instanceof InputValidationError) {
+        return res.status(400).json({ error: err.message });
+      }
+      res.status(500).json({ error: "Registration could not be completed" });
     }
   },
 
@@ -198,9 +207,10 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }",
     "src/routes/auth.routes.ts": "import { Router } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createAuthController } from "../controllers/auth.controller";
 
-export const createAuthRoutes = (auth: any) => {
+export const createAuthRoutes = (auth: Authenik8Instance) => {
   const router = Router();
   const controller = createAuthController(auth);
 
@@ -211,10 +221,11 @@ export const createAuthRoutes = (auth: any) => {
   return router;
 };",
     "src/routes/protected.routes.ts": "import { Router } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createProtectedController } from "../controllers/protected.controller";
 import { createAuthMiddleware } from "../middleware/auth.middleware";
 
-export const createProtectedRoutes = (auth: any) => {
+export const createProtectedRoutes = (auth: Authenik8Instance) => {
   const router = Router();
   const controller = createProtectedController();
   const requireAuth = createAuthMiddleware(auth);
@@ -276,10 +287,11 @@ return bcrypt.compare(password, hash);
 exports[`generator snapshots > 'express-base' folder tree and key files match the snapshot 1`] = `
 {
   "keyFiles": {
-    "app.ts": "import  express  from "express";
+    "app.ts": "import express from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createBaseRoutes } from "./routes/base.routes";
 
-export const createApp = (auth: any) => {
+export const createApp = (auth: Authenik8Instance) => {
   const app = express();
 
   app.use(express.json({ limit: "16kb", strict: true }));
@@ -294,6 +306,7 @@ export const createApp = (auth: any) => {
   return app;
 };",
     "controllers/base.controller.ts": "import { Request, Response } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import {
   InputValidationError,
   parseIdentifier,
@@ -301,13 +314,13 @@ import {
   sanitizeSessionResponse,
 } from "../utils/security";
 
-export const createBaseController = (auth: any) => ({
+export const createBaseController = (auth: Authenik8Instance) => ({
   publicRoute(req: Request, res: Response) {
     res.json({ message: "Public route" });
   },
 
   async guest(req: Request, res: Response) {
-    const token = await auth.guestToken({ role: "guest" });
+    const token = await auth.guestToken();
     res.json({ token });
   },
 
@@ -431,9 +444,10 @@ model Session {
   createdAt DateTime @default(now())
 }",
     "routes/base.routes.ts": "import { Router } from "express";
+import type { Authenik8Instance } from "authenik8-core";
 import { createBaseController } from "../controllers/base.controller";
 
-export const createBaseRoutes = (auth: any) => {
+export const createBaseRoutes = (auth: Authenik8Instance) => {
   const router = Router();
   const controller = createBaseController(auth);
 

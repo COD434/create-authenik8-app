@@ -1,6 +1,7 @@
-import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
 import fs from "fs-extra";
+import { generateSigningJwk } from "authenik8-core";
 
 const managedNames = [
   "JWT_SECRET",
@@ -22,15 +23,12 @@ function withoutManagedValues(source: string): string {
     .replace(/\n*$/, "\n");
 }
 
-function signingJwk() {
-  const { privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
-  return {
-    ...privateKey.export({ format: "jwk" }),
-    alg: "ES256",
-    use: "sig",
-    key_ops: ["sign"],
-    kid: randomUUID(),
-  };
+function withGeneratedSeedPassword(source: string): string {
+  if (!/^SEED_ADMIN_PASSWORD=/m.test(source)) return source;
+  return source.replace(
+    /^SEED_ADMIN_PASSWORD=.*$/m,
+    `SEED_ADMIN_PASSWORD=${randomBytes(24).toString("base64url")}`,
+  );
 }
 
 export async function configureSigningKeys(
@@ -41,9 +39,9 @@ export async function configureSigningKeys(
   const examplePath = path.join(targetDir, ".env.example");
   const issuer = "http://localhost:3000";
   const audience = `${projectName}-api`;
-  const key = signingJwk();
+  const key = await generateSigningJwk();
   const refreshSecret = randomBytes(48).toString("base64url");
-  const env = await fs.readFile(envPath, "utf8");
+  const env = withGeneratedSeedPassword(await fs.readFile(envPath, "utf8"));
   const example = await fs.readFile(examplePath, "utf8");
 
   await fs.writeFile(
@@ -54,4 +52,5 @@ export async function configureSigningKeys(
     examplePath,
     `${withoutManagedValues(example)}AUTHENIK8_SIGNING_JWKS=\nAUTHENIK8_ACTIVE_KID=\nAUTHENIK8_ISSUER=${issuer}\nAUTHENIK8_AUDIENCE=${audience}\nREFRESH_SECRET=replace-with-at-least-32-random-characters\n`,
   );
+  await fs.chmod(envPath, 0o600);
 }

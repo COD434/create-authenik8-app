@@ -35,6 +35,8 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Quickstart](docs/quickstart.md)
 - [Non-interactive generation](docs/non-interactive-generation.md)
 - [Project diagnostics](docs/project-diagnostics.md)
+- [Local security dashboard](docs/local-security-dashboard.md)
+- [Operational auth maintenance](docs/operational-maintenance.md)
 - [Post-generation recipes](docs/post-generation-recipes.md)
 - [Upgrade planning and CI policy](docs/upgrades-and-ci.md)
 - [CLI reference](docs/cli-reference.md)
@@ -43,6 +45,7 @@ Choose the fullstack application for a connected React and Express project, or s
 
 - [Presets](docs/presets.md)
 - [Fullstack App Kit](docs/fullstack-app-kit.md)
+- [Lovable frontend integration](docs/lovable.md)
 - [Core authentication features](docs/authentication-features.md)
 - [Why create-authenik8-app](docs/why-create-authenik8-app.md)
 - [Requirements](docs/requirements.md)

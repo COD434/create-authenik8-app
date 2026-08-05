@@ -8,18 +8,26 @@
     "packages/*"
   ],
   "engines": {
-    "node": "^22.22 || >=24"
+    "node": "^20.19 || ^22.12 || >=24"
   },
   "scripts": {
     "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
     "dev": "node scripts/run-local.mjs dev",
+    "dev:lovable": "node scripts/run-local.mjs lovable",
     "dev:watch": "npm run build:packages && concurrently -n contracts,client,ui,api,web -c blue,green,yellow,cyan,magenta \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\" \"npm run dev -w @authenik8/web\"",
+    "dev:lovable:watch": "npm run build:packages && concurrently -n contracts,client,ui,api -c blue,green,yellow,cyan \"npm run dev -w @authenik8/contracts\" \"npm run dev -w @authenik8/api-client\" \"npm run dev -w @authenik8/ui\" \"npm run dev -w @authenik8/api\"",
     "build": "npm run build:packages && npm run build -w @authenik8/web && npm run build -w @authenik8/api",
     "start": "npm run start -w @authenik8/api",
-    "test": "npm run build:packages && npm run test -w @authenik8/api && npm run test -w @authenik8/web",
+    "test": "npm run build:packages && npm run openapi:check && npm run test -w @authenik8/api && npm run test -w @authenik8/web",
     "pretypecheck": "npm run build:packages",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "openapi:generate": "npm run openapi:generate -w @authenik8/api",
+    "openapi:check": "npm run openapi:check -w @authenik8/api && npm run openapi:validate",
+    "openapi:validate": "npm run openapi:validate -w @authenik8/api",
+    "doctor:lovable": "node scripts/doctor-lovable.mjs",
+    "export:lovable-client": "npm run build:packages && node scripts/export-lovable-client.mjs",
     "db:generate": "npm run prisma:generate -w @authenik8/api",
+
     "setup": "node scripts/run-local.mjs setup",
     "db:migrate": "node scripts/run-local.mjs migrate",
     "db:migrate:apply": "npm run prisma:migrate -w @authenik8/api",
@@ -27,6 +35,7 @@
     "db:seed:apply": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "node scripts/run-local.mjs studio",
     "db:studio:apply": "npm run prisma:studio -w @authenik8/api",
+
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
@@ -37,12 +46,14 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
+
     "find-my-way": "9.7.0",
     "valibot": "1.4.2"
   },
   "allowScripts": {
     "prisma@7.9.0": true,
     "@prisma/engines@7.9.0": true,
+
     "esbuild": true
   }
 }

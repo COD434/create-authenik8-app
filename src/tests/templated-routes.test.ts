@@ -297,9 +297,10 @@ beforeEach(() => {
   redisForAuthFactory = undefined;
   dotenvMock.config.mockReset();
   authenik8CoreMock.createAuthenik8.mockReset();
-  authenik8CoreMock.createAuthenik8.mockImplementation(async () =>
-    createMockAuth(redisForAuthFactory),
-  );
+  authenik8CoreMock.createAuthenik8.mockImplementation(async (config) => {
+    config?.redis?.disconnect?.();
+    return createMockAuth(redisForAuthFactory);
+  });
 });
 
 describe("templates/express-base protected route", () => {

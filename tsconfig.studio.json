@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["react", "react-dom"]
+  },
+  "include": ["studio-src/**/*.ts", "studio-src/**/*.tsx"],
+  "exclude": ["dist", "node_modules", "templates"]
+}

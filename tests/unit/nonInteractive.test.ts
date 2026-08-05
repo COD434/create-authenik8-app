@@ -50,7 +50,29 @@ describe("non-interactive generation", () => {
       database: "postgresql",
       runtime: "node",
       useGit: false,
+      frontend: "react",
     });
+  });
+
+  it("selects the Lovable pack only for the fullstack preset", () => {
+    expect(resolve([
+      "--preset",
+      "fullstack",
+      "--no-oauth",
+      "--frontend",
+      "lovable",
+    ])).toMatchObject({
+      authMode: "fullstack",
+      frontend: "lovable",
+    });
+    expect(() => resolve([
+      "--preset",
+      "auth",
+      "--database",
+      "sqlite",
+      "--frontend",
+      "lovable",
+    ])).toThrow("--frontend only applies");
   });
 
   it.each([

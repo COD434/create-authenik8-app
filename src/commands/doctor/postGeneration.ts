@@ -8,7 +8,7 @@ export type PostGenerationDoctorResult = {
 };
 
 function withoutServiceProbe(checks: readonly DoctorCheck[]): DoctorCheck[] {
-  return checks.filter((check) => check.id !== "service.redis");
+  return checks.filter((check) => check.id !== "A8-REDIS-002");
 }
 
 export async function runPostGenerationDoctor(

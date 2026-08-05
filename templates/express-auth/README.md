@@ -18,6 +18,18 @@ Validate the generated auth configuration and Redis connection at any time:
 npx create-authenik8-app@latest doctor
 ```
 
+Preview production readiness and plan operational auth maintenance with:
+
+```bash
+npx create-authenik8-app@latest ops readiness
+npx create-authenik8-app@latest ops --help
+```
+
+Signing-key rotation is a two-phase stage/deploy/activate workflow. Session
+revocation requires shared Redis; a separate CLI process intentionally refuses
+to operate on `memory://`. Applied revocations write private, git-ignored
+receipts under `.authenik8/operations`.
+
 `authenik8.json` records the generated architecture and Authenik8 engine version. It contains no secrets and should be committed with the project.
 
 After committing the package-manager lockfile, run `npx create-authenik8-app@latest add ci-github` to add the pinned Doctor and upgrade-policy workflow. Preview it first with `--dry-run`.

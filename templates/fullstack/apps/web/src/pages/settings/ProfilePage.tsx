@@ -2,7 +2,7 @@ import { useState, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Save, UserRound } from "lucide-react";
 import { Button, Input } from "@authenik8/ui";
-import { accountApi } from "@authenik8/api-client";
+import { accountApi } from "../../lib/authenik8";
 import { useAuth } from "../../auth/AuthProvider";
 import { ErrorNotice, Field, PageHeader, SuccessNotice } from "../../components/Page";
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { LoginInput, User } from "@authenik8/contracts";
-import { authApi } from "@authenik8/api-client";
+import { authApi, onAuthenticationLost } from "../lib/authenik8";
 
 type AuthContextValue = {
   user: User | null;
@@ -19,10 +19,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const unsubscribe = onAuthenticationLost(() => {
+      if (active) setUser(null);
+    });
     authApi.restore()
       .then((result) => { if (active) setUser(result?.user ?? null); })
       .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = useMemo<AuthContextValue>(() => ({
@@ -33,8 +39,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(result.user);
     },
     async logout() {
-      await authApi.logout();
-      setUser(null);
+      try {
+        await authApi.logout();
+      } finally {
+        setUser(null);
+      }
     },
     async completeOAuth(code) {
       const result = await authApi.exchangeOAuth(code);

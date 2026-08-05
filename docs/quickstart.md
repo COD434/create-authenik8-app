@@ -33,9 +33,9 @@ uses an in-process Redis-compatible store. Open
 `http://localhost:5173`. Vite proxies `/api` to Express on
 `http://localhost:3000`.
 
-The unchanged local seed signs in with `admin@example.com` and
-`ChangeMe123!`. The generated `.env` controls both values. Change the password
-before sharing the environment.
+The unchanged local seed signs in with `admin@example.com` and the unique
+password in `SEED_ADMIN_PASSWORD`. The generated `.env` controls both values.
+Change the password before sharing the environment.
 
 ## Express API
 
@@ -54,6 +54,8 @@ Express presets use an in-process Redis-compatible store locally. Docker is not 
 - Review the available [presets](presets.md).
 - Use [non-interactive generation](non-interactive-generation.md) in scripts or CI.
 - Run [project diagnostics](project-diagnostics.md) after configuring the generated application.
+- Open the opt-in [local security dashboard](local-security-dashboard.md) to review posture, drift, capabilities, and upgrades.
+- Use the plan-first [operational maintenance](operational-maintenance.md) runbooks for readiness, OAuth verification, signing-key rotation, and targeted session revocation.
 
 Generation runs the static Doctor checks before reporting success. When dependency installation is skipped, the missing engine is reported as an expected warning and the rest of the generated auth boundary is still validated. Run the complete Doctor command after installing dependencies and configuring any external services.
 

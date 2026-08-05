@@ -2,10 +2,17 @@ import { z } from "zod";
 import type { AgentIdentityConfig, Authenik8JwkConfig } from "authenik8-core";
 
 const sensitiveKeys = new Set(["token", "accessToken", "refreshToken"]);
+const maximumBcryptPasswordBytes = 72;
+const passwordLengthMessage = "Password must be between 8 and 72 UTF-8 bytes";
 
 const passwordSchema = z.string()
-  .min(8, "Password must be between 8 and 1024 characters")
-  .max(1024, "Password must be between 8 and 1024 characters")
+  .min(8, passwordLengthMessage)
+  .max(maximumBcryptPasswordBytes, passwordLengthMessage)
+  .refine(
+    (password) =>
+      new TextEncoder().encode(password).byteLength <= maximumBcryptPasswordBytes,
+    passwordLengthMessage,
+  )
   .refine((password) => !/[\u0000-\u001f\u007f]/.test(password), "Password contains unsupported control characters");
 
 export const credentialsSchema = z.strictObject({
@@ -61,7 +68,6 @@ export function requiredEnv(name: string): string {
   if (!result.success) throw new InputValidationError(`${name} must be set`);
   return result.data;
 }
-
 export function requiredPort(): number {
   const result = portSchema.safeParse(process.env.PORT ?? 3000);
   if (!result.success) throw new InputValidationError("PORT must be between 1 and 65535");

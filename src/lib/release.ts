@@ -39,7 +39,8 @@ export function currentToolRelease(): ToolRelease {
   const rootDir = releaseRoot();
   const metadata = packageMetadata(path.join(rootDir, "package.json"));
   const generatorVersion = metadata.version?.trim();
-  const engineVersion = metadata.devDependencies?.["authenik8-core"]?.trim();
+  const engineVersion = metadata.dependencies?.["authenik8-core"]?.trim()
+    ?? metadata.devDependencies?.["authenik8-core"]?.trim();
   if (!generatorVersion || !engineVersion) {
     throw new Error("The CLI release metadata is missing its generator or authenik8-core version");
   }

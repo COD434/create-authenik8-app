@@ -15,6 +15,12 @@ vi.mock("../src/config/prisma.js", () => ({
     },
   },
 }));
+vi.mock("../src/config/env.js", () => ({
+  env: {
+    NODE_ENV: "test",
+    REFRESH_SECRET: "test-refresh-secret-with-more-than-32-characters",
+  },
+}));
 vi.mock("../src/config/mailer.js", () => ({
   sendPasswordResetEmail: vi.fn(),
   sendVerificationEmail: mocks.sendVerificationEmail,

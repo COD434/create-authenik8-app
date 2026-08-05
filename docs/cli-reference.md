@@ -7,6 +7,7 @@
 | `--package-manager npm\|pnpm\|bun` | Select the installer for an Express preset |
 | `--yes`, `--non-interactive` | Generate without prompts; requires `--preset` and applicable choices |
 | `--preset base\|auth\|auth-oauth\|fullstack` | Select the deterministic preset |
+| `--frontend react\|lovable` | Keep the React reference only, or add the complete Lovable pack; fullstack only |
 | `--prisma`, `--no-prisma` | Choose Prisma for the base preset |
 | `--database sqlite\|postgresql` | Select the database for a Prisma-backed Express preset |
 | `--oauth google,github`, `--no-oauth` | Select providers or explicitly disable them for fullstack |
@@ -22,8 +23,60 @@
 Diagnostics:
 
 ```text
-create-authenik8-app doctor [directory] [--json] [--skip-services]
+create-authenik8-app doctor [directory] [options]
 ```
+
+Lovable frontend validation:
+
+```text
+create-authenik8-app doctor frontend --target lovable [directory] [--json]
+```
+
+Add `--runtime --api-url <origin> --origin <frontend-origin>` for the
+non-destructive deployed integration checks.
+
+| Option | Purpose |
+| --- | --- |
+| `--deep` | Run isolated Redis and installed-core lifecycle checks |
+| `--production` | Run deep checks plus production policy |
+| `--check A8-...` | Run one stable diagnostic and its prerequisites |
+| `--explain A8-...` | Explain a diagnostic without loading a project |
+| `--fix`, `--fix --dry-run` | Apply or preview eligible safe fixes |
+| `--json` | Print schema-versioned JSON |
+| `--ci` | Print deterministic output without colour |
+| `--strict` | Fail when warnings are present |
+| `--report` | Write a sanitized private support report |
+| `--offline` | Validate `.env.example` without live services or disk secrets |
+| `--skip-services` | Legacy service-skip mode |
+
+Local security dashboard:
+
+```text
+create-authenik8-app studio [directory] [--port <number>] [--no-open]
+```
+
+Studio is opt-in and read-only. It builds one offline Doctor snapshot, reads
+safe `authenik8.json` metadata, creates a version-aware upgrade plan, and binds
+only to `127.0.0.1`. It is not added to generated application startup. See the
+[local security dashboard guide](local-security-dashboard.md) for its data and
+failure boundaries.
+
+Operational maintenance:
+
+```text
+create-authenik8-app ops readiness [directory] [--json]
+create-authenik8-app ops audit production [directory] [--json]
+create-authenik8-app ops verify oauth [google|github] [directory] [--json]
+create-authenik8-app ops rotate signing-key [directory] [options]
+create-authenik8-app ops revoke user <user-id> [directory] --all-sessions [options]
+```
+
+Rotation and revocation are plan-only unless `--apply` is present. Rotation
+uses a two-phase stage/deploy/activate protocol and requires
+`--confirm-active-kid`. Revocation requires the exact target in
+`--confirm-user` and an operator `--reason`. See the
+[operational maintenance guide](operational-maintenance.md) before applying
+either mutation.
 
 Post-generation recipes:
 
@@ -36,8 +89,9 @@ Upgrade policy:
 
 ```text
 create-authenik8-app upgrade [directory] [--check] [--json]
+create-authenik8-app upgrade [directory] --acknowledge [--json]
 ```
 
-The focused guides explain [non-interactive generation](non-interactive-generation.md), [Doctor](project-diagnostics.md), [recipes](post-generation-recipes.md), and [upgrade policy](upgrades-and-ci.md).
+The focused guides explain [non-interactive generation](non-interactive-generation.md), [Doctor](project-diagnostics.md), [Studio](local-security-dashboard.md), [operational maintenance](operational-maintenance.md), [recipes](post-generation-recipes.md), and [upgrade policy](upgrades-and-ci.md).
 
 [Back to the documentation index](../README.md#documentation)

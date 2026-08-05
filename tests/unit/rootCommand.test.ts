@@ -24,6 +24,13 @@ describe("resolveRootCommand", () => {
     });
   });
 
+  it("routes operational maintenance without exposing it to the generator", () => {
+    expect(resolveRootCommand(["ops", "readiness", "./app", "--json"])).toEqual({
+      name: "ops",
+      args: ["readiness", "./app", "--json"],
+    });
+  });
+
   it("routes add recipes without exposing them to the generator", () => {
     expect(resolveRootCommand(["add", "oauth-github", "./app", "--dry-run"])).toEqual({
       name: "add",
@@ -35,6 +42,13 @@ describe("resolveRootCommand", () => {
     expect(resolveRootCommand(["upgrade", "./app", "--check", "--json"])).toEqual({
       name: "upgrade",
       args: ["./app", "--check", "--json"],
+    });
+  });
+
+  it("routes Studio without exposing it to the generator", () => {
+    expect(resolveRootCommand(["studio", "./app", "--no-open"])).toEqual({
+      name: "studio",
+      args: ["./app", "--no-open"],
     });
   });
 });

@@ -46,6 +46,23 @@ export async function runPrompts(
       default: "fullstack",
     },
     {
+      type: "list",
+      name: "frontend",
+      message: "How will you build the frontend?",
+      choices: [
+        {
+          name: "Generate the included React frontend (tested reference)",
+          value: "react",
+        },
+        {
+          name: "Build the frontend with Lovable (includes the tested React reference)",
+          value: "lovable",
+        },
+      ],
+      default: "react",
+      when: (answers) => answers.authMode === "fullstack",
+    },
+    {
       type: "checkbox",
       name: "fullstackOAuthProviders",
       message: "Add OAuth providers now? (optional; password auth is included)",

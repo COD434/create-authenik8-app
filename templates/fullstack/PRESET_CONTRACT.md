@@ -16,6 +16,7 @@ This document is the testable contract for the `fullstack` preset.
 | Command | Guarantee |
 | --- | --- |
 | `npm run dev` | Starts project-local PostgreSQL, prepares data, then starts API and web together. |
+| `npm run dev:lovable` | Starts project-local PostgreSQL, prepares data, package watchers, and the API only (no reference web on port 5173). Present when generated with `--frontend lovable`. |
 | `npm run setup` | Starts project-local PostgreSQL for the command, applies migrations, and creates idempotent seed data. |
 | `npm run build` | Produces the API and frontend production bundles. |
 | `npm start` | Starts Express, which serves `/api` and the built SPA. |
@@ -44,6 +45,8 @@ OAuth variables are required only for an enabled provider. `RESEND_API_KEY` and 
 - Access tokens exist only in module memory and are sent as Bearer tokens.
 - Refresh tokens are AES-256-GCM sealed in an HttpOnly cookie scoped to `/api`, with `SameSite=Strict` and `Secure` in production.
 - Refresh rotation, replay rejection, and server-side refresh revocation use Authenik8 and Redis.
+- PostgreSQL is the application session authority: authenticated middleware also requires an active, unexpired row matching the Authenik8 session ID.
+- Authenik8 resolves OAuth login/link policy through the Prisma identity adapter; application callback code consumes that result and does not perform a second identity lookup/linking policy.
 - Browser mutations enforce an exact allowed `Origin` and a signed double-submit CSRF token.
 - Admin and Project APIs enforce roles or ownership on the server.
 - Credential and recovery failures do not disclose whether an email address exists.

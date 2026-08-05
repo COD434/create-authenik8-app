@@ -2,6 +2,7 @@ import { createAuthenik8 } from "authenik8-core";
 import { Redis } from "ioredis";
 import RedisMock from "ioredis-mock";
 import { env } from "../config/env.js";
+import { identityAdapter } from "./identity.adapter.js";
 
 function createRedisClient(): Redis {
   if (env.REDIS_URL === "memory://") {
@@ -65,7 +66,8 @@ export async function initAuthenik8(): Promise<AuthInstance> {
     jwtExpiry: "15m",
     redis,
     oauth: Object.keys(oauth).length ? oauth : undefined,
-    trustProxyHeaders: env.TRUST_PROXY,
+    identityAdapter,
+    trustedProxyCidrs: env.TRUSTED_PROXY_CIDRS,
   });
   return instance;
 }

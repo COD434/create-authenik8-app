@@ -1,23 +1,25 @@
 import { prisma } from "../prisma/client";
 import { hashPassword, comparePassword } from "../utils/hash";
 
+function isUniqueConstraintError(error: unknown): boolean {
+  return Boolean(
+    error
+    && typeof error === "object"
+    && "code" in error
+    && error.code === "P2002",
+  );
+}
+
 export const AuthService = {
   async register(email: string, password: string) {
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existingUser) {
-      throw new Error("Email is already registered");
-    }
-
     const hashedPassword = await hashPassword(password);
-
-    const user = await prisma.user.create({
-      data: { email, password: hashedPassword },
-    });
-
-    return user;
+    try {
+      await prisma.user.create({
+        data: { email, password: hashedPassword },
+      });
+    } catch (error) {
+      if (!isUniqueConstraintError(error)) throw error;
+    }
   },
 
   async login(email: string, password: string) {

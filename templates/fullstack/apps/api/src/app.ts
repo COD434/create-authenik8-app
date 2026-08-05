@@ -7,7 +7,7 @@ import { pinoHttp } from "pino-http";
 import { getAuthenik8, redis } from "./auth/authenik8.js";
 import { authRoutes } from "./auth/auth.routes.js";
 import { env } from "./config/env.js";
-import { logger } from "./config/logger.js";
+import { httpLogSerializers, logger } from "./config/logger.js";
 import { isAllowedOrigin } from "./config/origins.js";
 import { prisma } from "./config/prisma.js";
 import { requestId } from "./middleware/request-id.js";
@@ -19,10 +19,12 @@ import { openApiDocument } from "./openapi.js";
 
 export function createApp() {
   const app = express();
-  if (env.TRUST_PROXY) app.set("trust proxy", 1);
+  if (env.TRUSTED_PROXY_CIDRS.length) {
+    app.set("trust proxy", env.TRUSTED_PROXY_CIDRS);
+  }
 
   app.use(requestId);
-  app.use(pinoHttp({ logger, genReqId: (req) => req.id }));
+  app.use(pinoHttp({ logger, genReqId: (req) => req.id, serializers: httpLogSerializers }));
   app.use(cors({
     credentials: true,
     origin(origin, callback) {
