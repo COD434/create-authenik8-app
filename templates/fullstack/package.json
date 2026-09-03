@@ -24,8 +24,6 @@
     "openapi:generate": "npm run openapi:generate -w @authenik8/api",
     "openapi:check": "npm run openapi:check -w @authenik8/api && npm run openapi:validate",
     "openapi:validate": "npm run openapi:validate -w @authenik8/api",
-    "preopenapi:generate": "npm run build:packages",
-    "preopenapi:check": "npm run build:packages",
     "doctor:lovable": "node scripts/doctor-lovable.mjs",
     "export:lovable-client": "npm run build:packages && node scripts/export-lovable-client.mjs",
     "db:generate": "npm run prisma:generate -w @authenik8/api",
