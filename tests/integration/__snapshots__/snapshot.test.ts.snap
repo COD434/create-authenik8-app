@@ -250,6 +250,7 @@ return bcrypt.compare(password, hash);
   "template": "auth",
   "tree": [
     ".gitignore",
+    "AGENTS.md",
     "AGENT_IDENTITY.md",
     "README.md",
     "THREAT_MODEL.md",
@@ -516,6 +517,7 @@ start();",
   "template": "base",
   "tree": [
     ".gitignore",
+    "AGENTS.md",
     "AGENT_IDENTITY.md",
     "README.md",
     "THREAT_MODEL.md",
