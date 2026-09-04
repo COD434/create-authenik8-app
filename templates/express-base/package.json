@@ -16,7 +16,7 @@
     "authenik8-core": "2.0.7",
     "dotenv": "^16.0.0",
     "express": "^4.18.2",
-    "@prisma/client": "7.9.0",
+    "@prisma/client": "7.9.1",
     "ioredis": "^5.8.1",
 
     "zod": "^4.4.3"
