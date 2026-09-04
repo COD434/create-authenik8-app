@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/node": "^22.10.2",
+    "@types/node": "^26.1.2",
 
     "ioredis-mock": "8.13.1",
     "prisma": "7.10.0",
