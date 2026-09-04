@@ -1,6 +1,6 @@
 import type { StepName } from "./types.js";
 
-export const PRISMA_VERSION = "7.9.0";
+export const PRISMA_VERSION = "7.10.0";
 
 export const stepOrder: StepName[] = [
   "start",

@@ -111,6 +111,10 @@ describe("generated Lovable integration contract", () => {
       expect(pkg.scripts["dev:lovable:watch"]).toBeUndefined();
       expect(reactTree.filter((entry) => !lovablePaths.has(entry))).toEqual([]);
       expect(lovableTree.filter((entry) => !reactPaths.has(entry))).toEqual([
+        ".agents/",
+        ".agents/skills/",
+        ".agents/skills/authenik8-lovable/",
+        ".agents/skills/authenik8-lovable/SKILL.md",
         "integrations/lovable/",
         "integrations/lovable/FRONTEND_CONTRACT.md",
         "integrations/lovable/LOVABLE_PROMPT.md",
@@ -124,6 +128,31 @@ describe("generated Lovable integration contract", () => {
         "scripts/doctor-lovable.mjs",
         "scripts/export-lovable-client.mjs",
       ]);
+    } finally {
+      await lovable.cleanup();
+    }
+  });
+
+  it("includes AGENTS.md in every generated project and the Lovable skill in Lovable mode", async () => {
+    const lovable = await generateProjectFixture({ template: "fullstack", frontend: "lovable" });
+
+    try {
+      generated = await generateProjectFixture({ template: "fullstack", frontend: "react" });
+
+      for (const dir of [lovable.targetDir, generated.targetDir]) {
+        const agents = await fs.readFile(path.join(dir, "AGENTS.md"), "utf8");
+        expect(agents).toContain("create-authenik8-app");
+        expect(agents).toContain("authenik8-core");
+        expect(agents).toContain("never weaken");
+      }
+
+      const skill = await fs.readFile(
+        path.join(lovable.targetDir, ".agents/skills/authenik8-lovable/SKILL.md"),
+        "utf8",
+      );
+      expect(skill).toContain("Authenik8 is the only identity and backend authority");
+      expect(skill).toContain("doctor:lovable");
+      await expect(fs.pathExists(path.join(generated.targetDir, ".agents"))).resolves.toBe(false);
     } finally {
       await lovable.cleanup();
     }
