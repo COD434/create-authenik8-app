@@ -57,6 +57,29 @@ function run(command, args, cwd) {
   });
 }
 
+async function runWithRetry(command, args, cwd, retries = 3) {
+  let lastError;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      return await run(command, args, cwd);
+    } catch (error) {
+      lastError = error;
+      if (
+        attempt < retries &&
+        (error.message.includes("Service Unavailable") ||
+          error.message.includes("ECONNRESET") ||
+          error.message.includes("ETIMEDOUT") ||
+          error.message.includes("503"))
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw lastError;
+}
+
 
 function createFreshProjectEnv(overrides = {}) {
   const environment = { ...process.env };
@@ -216,7 +239,7 @@ try {
       }
     }
   }
-  await run("npm", ["audit", "--audit-level=low"], targetDir);
+  await runWithRetry("npm", ["audit", "--audit-level=low"], targetDir, 3);
   await run("npm", ["run", "build"], targetDir);
   if (preset === "auth-oauth") {
     const port = await availablePort();

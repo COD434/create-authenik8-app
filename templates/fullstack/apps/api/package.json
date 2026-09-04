@@ -23,8 +23,8 @@
   },
   "dependencies": {
     "@authenik8/contracts": "0.1.0",
-    "@prisma/adapter-pg": "7.9.0",
-    "@prisma/client": "7.9.0",
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "authenik8-core": "2.0.7",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
@@ -45,10 +45,14 @@
     "@types/express": "^5.0.6",
     "@types/node": "^25.0.0",
     "@types/supertest": "^7.2.0",
-    "prisma": "7.9.0",
+    "prisma": "7.10.0",
     "supertest": "^7.2.2",
     "tsx": "^4.22.4",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8"
+  },
+  "overrides": {
+    "deepmerge-ts": "^8.0.0",
+    "mysql2": "^3.23.1"
   }
 }

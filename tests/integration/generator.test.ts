@@ -41,18 +41,18 @@ describe("generator happy paths", () => {
       expect(pkg.scripts["db:migrate"]).toBe(
         "prisma db push && prisma generate",
       );
-      expect(pkg.dependencies["@prisma/client"]).toBe("7.9.0");
+      expect(pkg.dependencies["@prisma/client"]).toBe("7.10.0");
       expect(pkg.devDependencies["ioredis-mock"]).toBe("8.13.1");
       expect(pkg.dependencies.zod).toBe("^4.4.3");
-      expect(pkg.dependencies["@prisma/adapter-libsql"]).toBe("7.9.0");
+      expect(pkg.dependencies["@prisma/adapter-libsql"]).toBe("7.10.0");
       expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBeUndefined();
       expect(pkg.dependencies["@prisma/adapter-pg"]).toBeUndefined();
-      expect(pkg.devDependencies.prisma).toBe("7.9.0");
+      expect(pkg.devDependencies.prisma).toBe("7.10.0");
       expect(pkg.overrides["find-my-way"]).toBe("9.7.0");
       expect(pkg.overrides.valibot).toBe("1.4.2");
       expect(pkg.allowScripts).toEqual({
-        "prisma@7.9.0": true,
-        "@prisma/engines@7.9.0": true,
+        "prisma@7.10.0": true,
+        "@prisma/engines@7.10.0": true,
       });
       expect(pkg.engines.node).toBe("^20.19 || ^22.12 || >=24");
       expect(files["app.ts"]).toContain("app.use(auth.helmet)");
@@ -245,12 +245,12 @@ describe("generator happy paths", () => {
       );
       expect(pkg.dependencies.zod).toBe("^4.4.3");
       expect(pkg.dependencies.ioredis).toBe("^5.8.1");
-      expect(pkg.dependencies["@prisma/adapter-pg"]).toBe("7.9.0");
+      expect(pkg.dependencies["@prisma/adapter-pg"]).toBe("7.10.0");
       expect(pkg.dependencies["@prisma/adapter-libsql"]).toBeUndefined();
       expect(pkg.dependencies["@prisma/adapter-better-sqlite3"]).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
-        "prisma@7.9.0": true,
-        "@prisma/engines@7.9.0": true,
+        "prisma@7.10.0": true,
+        "@prisma/engines@7.10.0": true,
       });
       expect(files["src/app.ts"]).toContain('app.use("/auth", createAuthRoutes(auth))');
       expect(files["src/server.ts"]).toContain("redis: await createRedisClient()");
@@ -582,18 +582,18 @@ describe("generator happy paths", () => {
       expect(pkg.engines.node).toBe("^20.19 || ^22.12 || >=24");
       expect(pkg.scripts.postinstall).toBeUndefined();
       expect(pkg.allowScripts).toEqual({
-        "prisma@7.9.0": true,
-        "@prisma/engines@7.9.0": true,
+        "prisma@7.10.0": true,
+        "@prisma/engines@7.10.0": true,
         esbuild: true,
       });
       const apiPkg = JSON.parse(files["apps/api/package.json"]);
-      expect(apiPkg.dependencies["@prisma/client"]).toBe("7.9.0");
-      expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.9.0");
+      expect(apiPkg.dependencies["@prisma/client"]).toBe("7.10.0");
+      expect(apiPkg.dependencies["@prisma/adapter-pg"]).toBe("7.10.0");
       expect(apiPkg.dependencies["authenik8-core"]).toBe("2.0.7");
       expect(apiPkg.dependencies["express-rate-limit"]).toBeUndefined();
       expect(apiPkg.dependencies.zod).toBe("^4.4.3");
       expect(apiPkg.dependencies["ioredis-mock"]).toBe("8.13.1");
-      expect(apiPkg.devDependencies.prisma).toBe("7.9.0");
+      expect(apiPkg.devDependencies.prisma).toBe("7.10.0");
       expect(apiPkg.scripts["prisma:migrate"]).toContain("prisma migrate deploy");
       expect(apiPkg.scripts.pretypecheck).toBe("prisma generate");
       expect(pkg.overrides["find-my-way"]).toBe("9.7.0");

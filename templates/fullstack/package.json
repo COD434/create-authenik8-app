@@ -50,11 +50,13 @@
   "overrides": {
 
     "find-my-way": "9.7.0",
-    "valibot": "1.4.2"
+    "valibot": "1.4.2",
+    "deepmerge-ts": "^8.0.0",
+    "mysql2": "^3.23.1"
   },
   "allowScripts": {
-    "prisma@7.9.0": true,
-    "@prisma/engines@7.9.0": true,
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
 
     "esbuild": true
   }
