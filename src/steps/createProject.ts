@@ -204,6 +204,7 @@ export async function createProject(
         fs.remove(path.join(stageDir, "scripts/doctor-lovable.mjs")),
         fs.remove(path.join(stageDir, "scripts/export-lovable-client.mjs")),
         fs.remove(path.join(stageDir, "integrations/lovable")),
+        fs.remove(path.join(stageDir, ".agents")),
       ]);
       const readmePath = path.join(stageDir, "README.md");
       const readme = await fs.readFile(readmePath, "utf8");
