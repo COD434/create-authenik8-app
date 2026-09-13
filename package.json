@@ -37,6 +37,7 @@
     "chalk": "^6.0.0",
     "fs-extra": "^11.3.4",
     "inquirer": "^12.11.1",
+    "ioredis": "^5.10.1",
     "ora": "^8.2.0",
     "zod": "^4.4.3"
   },
@@ -68,7 +69,7 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "axe-core": "4.12.1",
     "bcryptjs": "^2.4.3",
     "esbuild": "0.28.1",
@@ -84,13 +85,14 @@
     "supertest": "^7.2.2",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.11"
   },
   "repository": {
     "type": "git",
     "url": "https://github.com/COD434/create-authenik8-app.git"
   },
   "overrides": {
-    "brace-expansion": "2.0.3"
+    "brace-expansion": "2.0.3",
+    "js-yaml": "^4.3.2"
   }
 }

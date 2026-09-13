@@ -67,18 +67,22 @@ export function parseLovableDoctorArguments(args: string[]): LovableDoctorOption
   };
 }
 
-function findValidatorScript(directory: string): string {
+export function findValidatorScript(): string {
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  // SECURITY: only ever execute the validator template packaged with the CLI.
+  // Never resolve scripts/doctor-lovable.mjs from process.cwd() or from the
+  // user-supplied target directory: both are attacker-controlled data, and the
+  // entire purpose of this command is to audit potentially untrusted projects
+  // (CWE-94 arbitrary code execution). The target directory is passed to the
+  // trusted validator as a data argument only.
   const candidates = [
-    path.join(process.cwd(), "scripts/doctor-lovable.mjs"),
-    path.join(directory, "scripts/doctor-lovable.mjs"),
     path.resolve(currentDir, "../../../../templates/fullstack/scripts/doctor-lovable.mjs"),
     path.resolve(currentDir, "../../../templates/fullstack/scripts/doctor-lovable.mjs"),
   ];
   const script = candidates.find((candidate) => fs.existsSync(candidate));
   if (!script) {
     throw new Error(
-      "Could not find scripts/doctor-lovable.mjs. Run this from a generated Lovable-mode project.",
+      "Could not find the packaged scripts/doctor-lovable.mjs validator. The CLI installation may be incomplete.",
     );
   }
   return script;
@@ -87,7 +91,7 @@ function findValidatorScript(directory: string): string {
 export function runLovableDoctorCommand(options: LovableDoctorOptions): number {
   const result = spawnSync(
     process.execPath,
-    [findValidatorScript(options.directory), options.directory, ...options.forwardedArguments],
+    [findValidatorScript(), options.directory, ...options.forwardedArguments],
     { stdio: "inherit" },
   );
   if (result.error) throw result.error;
