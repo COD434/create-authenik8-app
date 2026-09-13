@@ -52,6 +52,7 @@
     "find-my-way": "9.7.0",
     "valibot": "1.4.2",
     "deepmerge-ts": "^8.0.0",
+    "js-yaml": "^4.3.2",
     "mysql2": "^3.23.1"
   },
   "allowScripts": {
