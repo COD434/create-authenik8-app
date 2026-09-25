@@ -28,7 +28,7 @@
     "ioredis-mock": "8.13.1",
     "prisma": "7.10.0",
     "tsx": "^4.22.4",
-    "typescript": "^5.0.0"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "find-my-way": "9.7.0",
