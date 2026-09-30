@@ -75,7 +75,7 @@
     "esbuild": "0.28.1",
     "fast-check": "^4.8.0",
     "ioredis-mock": "^8.13.1",
-    "jose": "6.2.3",
+    "jose": "6.2.12",
     "jsdom": "28.1.0",
     "lucide-react": "1.27.0",
     "pino": "^9.14.0",
