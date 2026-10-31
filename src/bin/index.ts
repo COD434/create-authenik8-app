@@ -46,7 +46,7 @@ import {
   isPackageManagerAvailable,
   resolvePackageManagerForPreset,
 } from "../steps/installDeps.js";
-import { configureProduction, initGit, appendProductionReadme, resolveRuntime } from "../steps/finalSetup.js";
+import { configureProduction, initGit, appendProductionReadme, resolveRuntime, writeProductionChecklist } from "../steps/finalSetup.js";
 import { printSummary, readSeedAdminCredentials } from "../utils/output.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -408,6 +408,10 @@ async function main() {
 
     if (isProduction && getState().authMode !== "fullstack") {
       appendProductionReadme(targetDir, projectName, packageManager);
+      writeProductionChecklist(targetDir, projectName, packageManager, {
+        prisma: getState().usePrisma === true,
+        oauthProviders: getState().oauthProviders ?? [],
+      });
     }
     await configureGeneratedReadme(targetDir, packageManager);
 

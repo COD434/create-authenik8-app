@@ -44,6 +44,7 @@ const mockModules = vi.hoisted(() => {
     configureProduction: vi.fn(async () => {}),
     initGit: vi.fn(async () => true),
     appendProductionReadme: vi.fn(),
+    writeProductionChecklist: vi.fn(),
     resolveRuntime: vi.fn((runtime: "node" | "bun" | undefined) => runtime ?? "node"),
     dockerComposeAvailable: vi.fn(() => false),
     dockerDaemonAvailable: vi.fn(() => false),
@@ -114,6 +115,7 @@ vi.mock("../../src/steps/finalSetup.js", () => ({
   configureProduction: mockModules.configureProduction,
   initGit: mockModules.initGit,
   appendProductionReadme: mockModules.appendProductionReadme,
+  writeProductionChecklist: mockModules.writeProductionChecklist,
   resolveRuntime: mockModules.resolveRuntime,
 }));
 
@@ -458,6 +460,7 @@ describe("CLI", () => {
     expect(mockModules.installAuth).toHaveBeenCalledTimes(1);
     expect(mockModules.configureProduction).toHaveBeenCalledTimes(1);
     expect(mockModules.appendProductionReadme).toHaveBeenCalledTimes(1);
+    expect(mockModules.writeProductionChecklist).toHaveBeenCalledTimes(1);
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({
         projectName: "demo-auth",
@@ -511,6 +514,7 @@ describe("CLI", () => {
     expect(mockModules.runPrompts).not.toHaveBeenCalled();
     expect(mockModules.configureProduction).toHaveBeenCalledTimes(1);
     expect(mockModules.appendProductionReadme).toHaveBeenCalledTimes(1);
+    expect(mockModules.writeProductionChecklist).toHaveBeenCalledTimes(1);
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ productionReady: true }),
       true,
@@ -540,6 +544,7 @@ describe("CLI", () => {
     expect(mockModules.runPrompts).not.toHaveBeenCalled();
     expect(mockModules.configureProduction).toHaveBeenCalledTimes(1);
     expect(mockModules.appendProductionReadme).toHaveBeenCalledTimes(1);
+    expect(mockModules.writeProductionChecklist).toHaveBeenCalledTimes(1);
     expect(mockModules.printSummary).toHaveBeenCalledWith(
       expect.objectContaining({ productionReady: true }),
       true,

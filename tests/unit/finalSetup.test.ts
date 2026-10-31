@@ -193,4 +193,56 @@ describe('finalSetup.ts', () => {
       expect(fs.appendFileSync).not.toHaveBeenCalled();
     });
   });
+
+  describe('writeProductionChecklist()', () => {
+    const targetDir = '/tmp/test-project';
+
+    beforeEach(() => {
+      vi.mocked(path.join).mockImplementation((...args) => args.join('/'));
+      vi.mocked(fs.writeFileSync).mockImplementation(() => undefined);
+    });
+
+    it('writes a preset-aware production checklist into docs/', () => {
+      finalSetup.writeProductionChecklist(targetDir, 'my-app', 'npm', {
+        prisma: true,
+        oauthProviders: ['google', 'github'],
+      });
+
+      expect(fs.mkdirSync).toHaveBeenCalledWith('/tmp/test-project/docs', { recursive: true });
+      const [writtenPath, rawContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1) as unknown as [string, string, string];
+      expect(writtenPath).toBe('/tmp/test-project/docs/PRODUCTION.md');
+      const content = String(rawContent);
+      expect(content).toContain('# Production deployment checklist for my-app');
+      expect(content).toContain('doctor --production');
+      expect(content).toContain('ops readiness');
+      expect(content).toContain('ops audit production');
+      expect(content).toContain('A8-PROD-001');
+      expect(content).toContain('A8-PROD-002');
+      expect(content).toContain('A8-PROD-003');
+      expect(content).toContain('A8-PROD-005');
+      expect(content).toContain('GOOGLE_REDIRECT_URI');
+      expect(content).toContain('GITHUB_REDIRECT_URI');
+      expect(content).toContain('DATABASE_URL');
+      expect(content).toContain('ecosystem.config.js');
+      expect(content).not.toContain('localhost');
+      expect(content).not.toContain('WEB_ORIGIN');
+      expect(content).not.toContain('COOKIE_SECURE');
+    });
+
+    it('omits database and OAuth rows the preset does not have', () => {
+      finalSetup.writeProductionChecklist(targetDir, 'plain-app', 'bun', {
+        prisma: false,
+        oauthProviders: [],
+      });
+
+      const [, rawContent] = vi.mocked(fs.writeFileSync).mock.calls.at(-1) as unknown as [string, string, string];
+      const content = String(rawContent);
+      expect(content).toContain('doctor --production');
+      expect(content).not.toContain('DATABASE_URL');
+      expect(content).not.toContain('REDIRECT_URI');
+      expect(content).not.toContain('Google');
+      expect(content).not.toContain('GitHub');
+      expect(content).not.toContain('A8-PROD-005');
+    });
+  });
 });

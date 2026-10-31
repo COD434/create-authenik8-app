@@ -16,7 +16,7 @@
 | `--no-install` | Generate files without installing dependencies |
 | `--demo` | Seed additional demo projects into a fullstack project's database on first seed |
 | `--resume` | Continue an interrupted generation |
-| `--production-ready` | Add PM2 configuration to an Express preset |
+| `--production-ready` | Add PM2 configuration, the production path, and a generated `docs/PRODUCTION.md` checklist to an Express preset |
 | `--version` | Print the installed CLI version |
 
 ## Project commands
