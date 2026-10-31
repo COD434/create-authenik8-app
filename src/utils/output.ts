@@ -1,4 +1,7 @@
 import chalk from "chalk";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { parseEnv } from "node:util";
 import { doctorCommand, firstSuccessGuide } from "../lib/onboarding.js";
 import { installCommand, runScriptCommand } from "../lib/packageManagerCommands.js";
 import type { CliState } from "../lib/types.js";
@@ -40,6 +43,28 @@ function runCommand(state: CliState, script: string): string {
   return runScriptCommand(state.packageManager ?? "npm", script);
 }
 
+export type SeedAdminCredentials = {
+  email: string;
+  password: string;
+};
+
+/**
+ * Reads the dev-only seed administrator keys from the generated project's
+ * .env. Only these two keys are surfaced; every other entry is discarded, so
+ * JWKS, refresh, Redis, and OAuth secrets never reach the completion printout.
+ */
+export function readSeedAdminCredentials(
+  projectDir: string,
+): SeedAdminCredentials | undefined {
+  const envPath = path.join(projectDir, ".env");
+  if (!existsSync(envPath)) return undefined;
+  const parsed = parseEnv(readFileSync(envPath, "utf8")) as Record<string, string | undefined>;
+  const email = parsed.SEED_ADMIN_EMAIL?.trim();
+  const password = parsed.SEED_ADMIN_PASSWORD?.trim();
+  if (!email || !password) return undefined;
+  return { email, password };
+}
+
 function printLovableSummary(state: CliState): void {
   const packageManager = state.packageManager ?? "npm";
   const details: Array<[string, string]> = [
@@ -79,6 +104,7 @@ export function printSummary(
   isProduction: boolean,
   hasDockerCompose = true,
   hasDockerDaemon = true,
+  credentials?: SeedAdminCredentials,
 ): void {
   if (state.authMode === "fullstack" && state.frontend === "lovable") {
     printLovableSummary(state);
@@ -146,6 +172,21 @@ export function printSummary(
   if (state.authMode === "fullstack") {
     console.log(chalk.dim("\n  Web  http://localhost:5173"));
     console.log(chalk.dim("  API  http://localhost:3000/api"));
+    if (state.frontend !== "lovable" && credentials) {
+      console.log(chalk.dim("│"));
+      console.log(`${chalk.cyan("└")} ${chalk.bold("First run")}`);
+      console.log(`  ${chalk.dim("Sign in  ")}http://localhost:5173/login`);
+      console.log(`  ${chalk.dim("Admin    ")}${credentials.email} / ${credentials.password}`);
+      console.log(chalk.dim("  Change SEED_ADMIN_PASSWORD before sharing or deploying."));
+      console.log(chalk.dim("  Try the signed-in API from the project directory:"));
+      console.log(chalk.dim("    1. curl -s -c .authenik8.cookies http://localhost:3000/api/auth/csrf"));
+      console.log(chalk.dim("    2. curl -s -b .authenik8.cookies -X POST http://localhost:3000/api/auth/login \\"));
+      console.log(chalk.dim("      -H 'content-type: application/json' -H 'X-CSRF-Token: <token-from-step-1>' \\"));
+      console.log(chalk.dim(`      -d '{"email":"${credentials.email}","password":"${credentials.password}"}'`));
+      if (state.demo) {
+        console.log(chalk.dim("  Demo data: three demo projects are waiting after the first dev seed."));
+      }
+    }
   }
   if (state.authMode === "fullstack" && state.frontend === "lovable") {
     console.log("");

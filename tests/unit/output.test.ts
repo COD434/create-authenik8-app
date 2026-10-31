@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import fs from "fs-extra";
+import os from "os";
+import path from "path";
 import type { CliState } from "../../src/lib/types.js";
-import { printSummary } from "../../src/utils/output.js";
+import { printSummary, readSeedAdminCredentials } from "../../src/utils/output.js";
 
 describe("completion output", () => {
   let consoleSpy: ReturnType<typeof vi.spyOn>;
@@ -83,6 +86,7 @@ describe("completion output", () => {
     expect(printed()).toContain("http://localhost:5173");
     expect(printed()).toContain("SEED_ADMIN_EMAIL");
     expect(printed()).toContain("Change the seeded password");
+    expect(printed()).not.toContain("First run");
   });
 
   it("prints the concise Lovable handoff only for Lovable mode", () => {
@@ -144,5 +148,81 @@ describe("completion output", () => {
     expect(printed()).toContain("daemon is not reachable");
     expect(printed()).toContain("Start Docker Desktop or the Docker service");
     expect(printed()).not.toContain("npm run docker:up");
+  });
+
+  it("prints the first-run admin credentials and CSRF-protected try-it curl", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+      oauthProviders: [],
+    }, false, true, true, { email: "admin@example.com", password: "dev-password-123" });
+
+    expect(printed()).toContain("First run");
+    expect(printed()).toContain("http://localhost:5173/login");
+    expect(printed()).toContain("admin@example.com / dev-password-123");
+    expect(printed()).toContain("Change SEED_ADMIN_PASSWORD");
+    expect(printed()).toContain("curl -s -c .authenik8.cookies http://localhost:3000/api/auth/csrf");
+    expect(printed()).toContain("X-CSRF-Token: <token-from-step-1>");
+    expect(printed()).toContain('"email":"admin@example.com","password":"dev-password-123"');
+    expect(printed()).not.toContain("three demo projects");
+  });
+
+  it("mentions the seeded demo data only when the demo flag is set", () => {
+    printSummary({
+      ...baseState,
+      authMode: "fullstack",
+      database: "postgresql",
+      oauthProviders: [],
+      demo: true,
+    }, false, true, true, { email: "admin@example.com", password: "dev-password-123" });
+
+    expect(printed()).toContain("three demo projects");
+  });
+
+  it("keeps the credential block out of non-fullstack summaries", () => {
+    printSummary({ ...baseState, demo: true }, false, true, true, {
+      email: "admin@example.com",
+      password: "dev-password-123",
+    });
+
+    expect(printed()).not.toContain("First run");
+    expect(printed()).not.toContain("dev-password-123");
+  });
+});
+
+describe("readSeedAdminCredentials", () => {
+  it("surfaces only the two dev seed keys from the generated .env", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-output-"));
+    try {
+      await fs.writeFile(
+        path.join(dir, ".env"),
+        [
+          "SEED_ADMIN_EMAIL=admin@example.com",
+          "SEED_ADMIN_PASSWORD=dev-password-123",
+          "AUTHENIK8_SIGNING_JWKS=[{\"kid\":\"secret\"}]",
+          "REDIS_URL=memory://",
+        ].join("\n"),
+      );
+
+      expect(readSeedAdminCredentials(dir)).toStrictEqual({
+        email: "admin@example.com",
+        password: "dev-password-123",
+      });
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns undefined when the keys or the file are missing", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-output-"));
+    try {
+      expect(readSeedAdminCredentials(dir)).toBeUndefined();
+
+      await fs.writeFile(path.join(dir, ".env"), "SEED_ADMIN_EMAIL=admin@example.com\n");
+      expect(readSeedAdminCredentials(dir)).toBeUndefined();
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -37,6 +37,10 @@ The unchanged local seed signs in with `admin@example.com` and the unique
 password in `SEED_ADMIN_PASSWORD`. The generated `.env` controls both values.
 Change the password before sharing the environment.
 
+The completion summary prints the same values plus a ready-to-run login curl
+that includes the CSRF bootstrap steps, so a signed-in request is one
+copy-paste away in your terminal.
+
 ## Express API
 
 Requirements: Node.js 20.19+, 22.12+, or 24+.

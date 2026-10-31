@@ -47,7 +47,7 @@ import {
   resolvePackageManagerForPreset,
 } from "../steps/installDeps.js";
 import { configureProduction, initGit, appendProductionReadme, resolveRuntime } from "../steps/finalSetup.js";
-import { printSummary } from "../utils/output.js";
+import { printSummary, readSeedAdminCredentials } from "../utils/output.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -486,6 +486,7 @@ async function main() {
       isProduction,
       hasDockerCompose,
       hasDockerCompose && dockerDaemonAvailable(),
+      readSeedAdminCredentials(targetDir),
     );
 
     saveState({ step: "done", ...(getState().authMode !== "base" && { hashLib: selectedHash }) });

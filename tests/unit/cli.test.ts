@@ -49,6 +49,7 @@ const mockModules = vi.hoisted(() => {
     dockerDaemonAvailable: vi.fn(() => false),
     killAllProcesses: vi.fn(),
     printSummary: vi.fn(),
+    readSeedAdminCredentials: vi.fn(() => undefined),
     spinner: {
       start: vi.fn(),
       stop: vi.fn(),
@@ -118,6 +119,7 @@ vi.mock("../../src/steps/finalSetup.js", () => ({
 
 vi.mock("../../src/utils/output.js", () => ({
   printSummary: mockModules.printSummary,
+  readSeedAdminCredentials: mockModules.readSeedAdminCredentials,
 }));
 
 vi.mock("../../src/lib/process.js", () => ({
@@ -384,6 +386,7 @@ describe("CLI", () => {
       false,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
     expect(result.errors).toHaveLength(0);
   });
@@ -403,6 +406,7 @@ describe("CLI", () => {
       false,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
   });
 
@@ -464,6 +468,7 @@ describe("CLI", () => {
       true,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
     expect(result.logs.join("\n")).toContain("require Prisma");
   });
@@ -482,6 +487,7 @@ describe("CLI", () => {
       false,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
   });
 
@@ -510,6 +516,7 @@ describe("CLI", () => {
       true,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
   });
 
@@ -538,6 +545,7 @@ describe("CLI", () => {
       true,
       expect.any(Boolean),
       expect.any(Boolean),
+      undefined,
     );
   });
 
