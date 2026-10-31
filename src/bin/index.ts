@@ -92,7 +92,7 @@ Usage:
   create-authenik8-app doctor frontend --target lovable [directory] [--json]
   create-authenik8-app ops <operation> [directory] [options]
   create-authenik8-app add <recipe> [directory] [--dry-run]
-  create-authenik8-app upgrade [directory] [--check|--acknowledge] [--json]
+  create-authenik8-app upgrade [directory] [--check|--explain|--acknowledge] [--json]
   create-authenik8-app studio [directory] [--port <number>] [--no-open]
   create-authenik8-app mcp
 

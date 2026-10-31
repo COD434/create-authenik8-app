@@ -47,6 +47,7 @@ const defaultSources: StudioSnapshotSources = {
       json: false,
       check: false,
       acknowledge: false,
+      explain: false,
       help: false,
     }),
   now: () => new Date(),

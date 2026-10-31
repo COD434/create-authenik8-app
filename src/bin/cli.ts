@@ -24,6 +24,7 @@ import { AddProjectError } from "../commands/add/context.js";
 import { AddRecipeError } from "../commands/add/plan.js";
 import {
   formatUpgradeAcknowledgement,
+  formatUpgradeExplanation,
   formatUpgradePlan,
   upgradeHelp,
 } from "../commands/upgrade/output.js";
@@ -119,7 +120,12 @@ async function main(): Promise<void> {
         );
       } else {
         const plan = await runUpgrade(options);
-        write(process.stdout, formatUpgradePlan(plan, options.json));
+        write(
+          process.stdout,
+          options.explain && !options.json
+            ? formatUpgradeExplanation(plan)
+            : formatUpgradePlan(plan, options.json),
+        );
         if (options.check) process.exitCode = upgradeCheckExitCode(plan);
       }
     } catch (error) {

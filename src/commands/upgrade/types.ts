@@ -46,6 +46,7 @@ export type UpgradeOptions = {
   json: boolean;
   check: boolean;
   acknowledge: boolean;
+  explain: boolean;
   help: boolean;
 };
 

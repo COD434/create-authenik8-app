@@ -14,12 +14,14 @@ export function parseUpgradeArguments(
   let json = false;
   let check = false;
   let acknowledge = false;
+  let explain = false;
   let help = false;
 
   for (const argument of args) {
     if (argument === "--json") json = true;
     else if (argument === "--check") check = true;
     else if (argument === "--acknowledge") acknowledge = true;
+    else if (argument === "--explain") explain = true;
     else if (argument === "--help" || argument === "-h") help = true;
     else if (argument.startsWith("-")) {
       throw new UpgradeUsageError(`Unknown upgrade option: ${argument}`);
@@ -30,11 +32,15 @@ export function parseUpgradeArguments(
   if (check && acknowledge) {
     throw new UpgradeUsageError("--check and --acknowledge cannot be combined.");
   }
+  if (explain && acknowledge) {
+    throw new UpgradeUsageError("--explain and --acknowledge cannot be combined.");
+  }
   return {
     directory: path.resolve(cwd, directory ?? "."),
     json,
     check,
     acknowledge,
+    explain,
     help,
   };
 }

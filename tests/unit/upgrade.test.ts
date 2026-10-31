@@ -9,6 +9,7 @@ import {
   UpgradeUsageError,
 } from "../../src/commands/upgrade/index.js";
 import { createUpgradePlan } from "../../src/commands/upgrade/plan.js";
+import { formatUpgradeExplanation } from "../../src/commands/upgrade/output.js";
 import type { UpgradeContext } from "../../src/commands/upgrade/types.js";
 
 function context(overrides: Partial<UpgradeContext> = {}): UpgradeContext {
@@ -54,6 +55,7 @@ describe("upgrade command", () => {
         json: true,
         check: true,
         acknowledge: false,
+        explain: false,
         help: false,
       });
     expect(parseUpgradeArguments(["project", "--acknowledge"], "/tmp/work"))
@@ -62,7 +64,16 @@ describe("upgrade command", () => {
         acknowledge: true,
         check: false,
       });
+    expect(parseUpgradeArguments(["project", "--explain"], "/tmp/work"))
+      .toMatchObject({
+        directory: path.resolve("/tmp/work/project"),
+        explain: true,
+        acknowledge: false,
+        check: false,
+      });
     expect(() => parseUpgradeArguments(["--check", "--acknowledge"]))
+      .toThrow("cannot be combined");
+    expect(() => parseUpgradeArguments(["--explain", "--acknowledge"]))
       .toThrow("cannot be combined");
     expect(() => parseUpgradeArguments(["--apply"])).toThrow(UpgradeUsageError);
     expect(() => parseUpgradeArguments(["one", "two"])).toThrow("at most one");
@@ -136,5 +147,65 @@ describe("upgrade command", () => {
       "generator.downgrade",
       "engine.downgrade",
     ]));
+  });
+});
+
+describe("upgrade explanation", () => {
+  it("explains a confirmation-free current plan deterministically", () => {
+    const plan = createUpgradePlan(context());
+    const output = formatUpgradeExplanation(plan);
+
+    expect(output).toContain("Authenik8 upgrade explanation");
+    expect(output).toContain(`create-authenik8-app ${plan.versions.generator.project}`);
+    expect(output).toContain("no migration is planned");
+    expect(output).not.toContain("Ordered actions");
+    expect(output).not.toContain("1. ");
+    expect(formatUpgradeExplanation(plan)).toBe(output);
+  });
+
+  it("walks an upgrade-available plan in execution order", () => {
+    const oldManifest = projectManifestSchema.parse({
+      ...context().manifest,
+      generatedBy: { package: "create-authenik8-app", version: "1.9.0" },
+      engine: { package: "authenik8-core", version: "0.1.2" },
+    });
+    const plan = createUpgradePlan(context({
+      manifest: oldManifest,
+      declaredEngineVersion: "0.1.2",
+      installedEngineVersion: "0.1.2",
+    }));
+    const output = formatUpgradeExplanation(plan);
+
+    expect(output).toContain("upgrade-available");
+    expect(output).toContain("Ordered actions");
+    plan.actions.forEach((action, index) => {
+      expect(output).toContain(`${index + 1}. `);
+      expect(output).toContain(`${action.kind}: ${action.title}`);
+      expect(output).toContain(`     ${action.detail}`);
+      if (action.command) expect(output).toContain(`     Run: ${action.command}`);
+      if (action.references?.length) {
+        expect(output).toContain(`     Review: ${action.references.join(", ")}`);
+      }
+    });
+    expect(output).toContain("authenik8.json is updated last");
+  });
+
+  it("names the blockers before any safe upgrade path", () => {
+    const newerManifest = projectManifestSchema.parse({
+      ...context().manifest,
+      generatedBy: { package: "create-authenik8-app", version: "3.0.0" },
+      engine: { package: "authenik8-core", version: "3.0.0" },
+    });
+    const plan = createUpgradePlan(context({
+      manifest: newerManifest,
+      declaredEngineVersion: "2.0.7",
+      installedEngineVersion: "2.0.7",
+    }));
+    const output = formatUpgradeExplanation(plan);
+
+    expect(output).toContain("blocker below must be resolved");
+    plan.actions.forEach((action) => {
+      expect(output).toContain(`${action.kind}: ${action.title}`);
+    });
   });
 });

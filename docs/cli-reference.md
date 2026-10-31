@@ -102,6 +102,7 @@ Upgrade policy:
 
 ```text
 create-authenik8-app upgrade [directory] [--check] [--json]
+create-authenik8-app upgrade [directory] --explain
 create-authenik8-app upgrade [directory] --acknowledge [--json]
 ```
 

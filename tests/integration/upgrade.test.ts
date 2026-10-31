@@ -27,6 +27,7 @@ describe("generated project upgrade plans", () => {
         json: true,
         check: true,
         acknowledge: false,
+        explain: false,
         help: false,
       });
 
@@ -60,6 +61,7 @@ describe("generated project upgrade plans", () => {
         json: true,
         check: true,
         acknowledge: false,
+        explain: false,
         help: false,
       });
 

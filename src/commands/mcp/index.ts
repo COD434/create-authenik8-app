@@ -96,7 +96,7 @@ export async function handleRequest(request: JsonRpcRequest): Promise<unknown> {
       }
       if (params?.name === "authenik8_upgrade_plan") {
         const directory = String(params.arguments?.directory ?? ".");
-        const plan = await runUpgrade({ directory, json: true, check: false, acknowledge: false, help: false });
+        const plan = await runUpgrade({ directory, json: true, check: false, acknowledge: false, explain: false, help: false });
         return { content: [{ type: "text", text: JSON.stringify(plan, null, 2) }] };
       }
       if (params?.name === "authenik8_list_diagnostics") {
