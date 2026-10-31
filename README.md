@@ -66,6 +66,8 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Authenik8 compared with Passport.js](docs/authenik8-vs-passport.md)
 - [Project notes](docs/notes.md)
 - [Roadmap](docs/roadmap.md)
+- [AI-age roadmap](docs/ai-age-roadmap.md)
+- [Authenik8 MCP server](docs/mcp.md)
 
 ## Contributing and support
 

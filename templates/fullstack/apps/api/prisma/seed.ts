@@ -37,6 +37,19 @@ async function main() {
   }
 
   console.log(`Seeded administrator ${email}`);
+  if (process.env.SEED_DEMO === "true") {
+    for (let i = 1; i <= 3; i++) {
+      await prisma.project.create({
+        data: {
+          name: `Demo project ${i}`,
+          description: "Seeded demo data.",
+          status: ProjectStatus.ACTIVE,
+          ownerId: admin.id,
+        },
+      });
+    }
+    console.log("Seeded demo projects");
+  }
 }
 
 main()

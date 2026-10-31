@@ -51,4 +51,11 @@ describe("resolveRootCommand", () => {
       args: ["./app", "--no-open"],
     });
   });
+
+  it("routes the MCP command without exposing it to the generator", () => {
+    expect(resolveRootCommand(["mcp"])).toEqual({
+      name: "mcp",
+      args: [],
+    });
+  });
 });

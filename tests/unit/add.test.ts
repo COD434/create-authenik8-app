@@ -126,7 +126,13 @@ describe("add command", () => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-add-symlink-"));
     const external = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-add-external-"));
     try {
-      await fs.ensureSymlink(external, path.join(directory, ".github"), "dir");
+      // Directory junctions mirror a symlinked escape path and are creatable
+      // without Windows symlink privilege, keeping the security test runnable.
+      await fs.ensureSymlink(
+        external,
+        path.join(directory, ".github"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
       await expect(applyPlannedChanges(directory, [{
         relativePath: ".github/workflows/authenik8.yml",
         before: null,

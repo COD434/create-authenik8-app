@@ -38,7 +38,8 @@ export type GenerateProjectOptions = {
   oauthProviders?: string[];
   packageManager?: "npm" | "pnpm" | "bun";
   templateLineEndings?: "lf" | "crlf";
-  frontend?: "react" | "lovable";
+  frontend?: "react" | "lovable" | "next";
+  demo?: boolean;
 };
 
 const __filename = fileURLToPath(import.meta.url);
@@ -98,6 +99,7 @@ export async function generateProjectFixture(
     ...(options.template === "fullstack"
       ? { frontend: options.frontend ?? "react" }
       : {}),
+    ...(options.demo ? { demo: true } : {}),
   };
 
   let fixtureTemplateRoot = templateRoot;

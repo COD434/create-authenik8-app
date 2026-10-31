@@ -48,7 +48,7 @@ npm run export:lovable-client
 ## Runtime architecture
 
 ```text
-React frontend (apps/web or a Lovable frontend)
+React frontend (apps/web or a Lovable or Next.js frontend)
         │  Standard HTTPS
         ▼
 Authenik8 Express API (apps/api)
@@ -120,6 +120,14 @@ secrets through `VITE_*` variables.
 Run `npm run doctor:lovable` and `npm run openapi:check` before release
 review. A `*.lovable.app` preview is for visual work only; test the complete
 session lifecycle on a same-site custom domain.
+
+## Next.js mode
+
+If this project was generated with `--frontend next`, `apps/web` is a Next.js
+App Router starter instead of the Vite React reference. It keeps the
+`@authenik8/web` workspace name and port 5173, and it calls the same API
+through the typed `@authenik8/api-client` with the CSRF bootstrap. Do not call
+`/api/auth/*` with raw `fetch`, and never persist tokens in browser storage.
 
 ## Change discipline
 

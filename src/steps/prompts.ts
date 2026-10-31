@@ -55,6 +55,10 @@ export async function runPrompts(
           value: "react",
         },
         {
+          name: "Build the frontend with Next.js (App Router starter)",
+          value: "next",
+        },
+        {
           name: "Build the frontend with Lovable (includes the tested React reference)",
           value: "lovable",
         },

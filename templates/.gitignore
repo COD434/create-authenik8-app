@@ -3,3 +3,5 @@ dist
 *.js
 *.map
 *.d.ts
+# The Next.js starter requires its committed environment declarations.
+!nextjs-web/next-env.d.ts

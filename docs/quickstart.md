@@ -56,6 +56,7 @@ Express presets use an in-process Redis-compatible store locally. Docker is not 
 - Run [project diagnostics](project-diagnostics.md) after configuring the generated application.
 - Open the opt-in [local security dashboard](local-security-dashboard.md) to review posture, drift, capabilities, and upgrades.
 - Use the plan-first [operational maintenance](operational-maintenance.md) runbooks for readiness, OAuth verification, signing-key rotation, and targeted session revocation.
+- AI editors (Cursor, Claude, Copilot, Windsurf, and agents) are supported out of the box via generated instruction files (`.cursorrules`, `CLAUDE.md`, `AGENTS.md`, `.windsurfrules`, `.github/copilot-instructions.md`).
 
 Generation runs the static Doctor checks before reporting success. When dependency installation is skipped, the missing engine is reported as an expected warning and the rest of the generated auth boundary is still validated. Run the complete Doctor command after installing dependencies and configuring any external services.
 

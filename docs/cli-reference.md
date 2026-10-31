@@ -7,13 +7,14 @@
 | `--package-manager npm\|pnpm\|bun` | Select the installer for an Express preset |
 | `--yes`, `--non-interactive` | Generate without prompts; requires `--preset` and applicable choices |
 | `--preset base\|auth\|auth-oauth\|fullstack` | Select the deterministic preset |
-| `--frontend react\|lovable` | Keep the React reference only, or add the complete Lovable pack; fullstack only |
+| `--frontend react\|lovable\|next` | Keep the React reference only, add the complete Lovable pack, or swap in the Next.js App Router starter; fullstack only |
 | `--prisma`, `--no-prisma` | Choose Prisma for the base preset |
 | `--database sqlite\|postgresql` | Select the database for a Prisma-backed Express preset |
 | `--oauth google,github`, `--no-oauth` | Select providers or explicitly disable them for fullstack |
 | `--git`, `--no-git` | Choose Git initialization; non-interactive mode defaults off |
 | `--runtime node\|bun` | Select the runtime for `--production-ready` Express output |
 | `--no-install` | Generate files without installing dependencies |
+| `--demo` | Seed additional demo projects into a fullstack project's database on first seed |
 | `--resume` | Continue an interrupted generation |
 | `--production-ready` | Add PM2 configuration to an Express preset |
 | `--version` | Print the installed CLI version |
@@ -60,6 +61,18 @@ safe `authenik8.json` metadata, creates a version-aware upgrade plan, and binds
 only to `127.0.0.1`. It is not added to generated application startup. See the
 [local security dashboard guide](local-security-dashboard.md) for its data and
 failure boundaries.
+
+MCP server for AI agents (read-only):
+
+```text
+create-authenik8-app mcp
+```
+
+The MCP server runs over standard input/output and exposes offline Doctor
+diagnostics, diagnostic explanations, the project manifest, and an upgrade
+plan. It never reads `.env` values or secrets. See the
+[MCP server documentation](mcp.md) for the exposed tools and client
+configuration.
 
 Operational maintenance:
 

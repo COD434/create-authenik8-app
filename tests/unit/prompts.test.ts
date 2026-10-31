@@ -141,7 +141,7 @@ describe('prompts.ts', () => {
     expect(preset.choices[1].name).toContain('bring your own identity source');
     expect(frontend.when({ authMode: 'fullstack' })).toBe(true);
     expect(frontend.default).toBe('react');
-    expect(frontend.choices.map((choice: any) => choice.value)).toEqual(['react', 'lovable']);
+    expect(frontend.choices.map((choice: any) => choice.value)).toEqual(['react', 'next', 'lovable']);
   });
 
   it('keeps password auth while making fullstack OAuth opt-in', async () => {

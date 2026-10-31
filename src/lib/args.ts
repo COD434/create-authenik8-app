@@ -23,6 +23,7 @@ const cliArgumentsSchema = z.strictObject({
   version: z.boolean(),
   resume: z.boolean(),
   skipInstall: z.boolean(),
+  demo: z.boolean(),
   productionReady: z.boolean(),
   packageManager: packageManagerSchema.optional(),
   nonInteractive: z.boolean(),
@@ -94,6 +95,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
     version: false,
     resume: false,
     skipInstall: false,
+    demo: false,
     productionReady: false,
     nonInteractive: false,
   };
@@ -116,6 +118,10 @@ export function parseCliArguments(argv: string[]): CliArguments {
     }
     if (argument === "--resume") {
       parsed.resume = true;
+      continue;
+    }
+    if (argument === "--demo") {
+      parsed.demo = true;
       continue;
     }
     if (argument === "--no-install" || argument === "--noInstall") {
@@ -187,7 +193,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
         value,
         frontendModeSchema,
         "--frontend",
-        "react or lovable",
+        "react, lovable, or next",
       );
       if (!inline) index += 1;
       continue;

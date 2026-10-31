@@ -94,13 +94,14 @@ Usage:
   create-authenik8-app add <recipe> [directory] [--dry-run]
   create-authenik8-app upgrade [directory] [--check|--acknowledge] [--json]
   create-authenik8-app studio [directory] [--port <number>] [--no-open]
+  create-authenik8-app mcp
 
 Options:
   --package-manager <npm|pnpm|bun>  Select the installer for Express presets
   --non-interactive, --yes          Generate without prompts (requires --preset)
   --preset <base|auth|auth-oauth|fullstack>
                                     Select a preset non-interactively
-  --frontend <react|lovable>         Frontend path for the fullstack preset
+  --frontend <react|lovable|next>    Frontend path for the fullstack preset
   --prisma, --no-prisma             Choose Prisma for the base preset
   --database <sqlite|postgresql>    Select a database where applicable
   --oauth <google|github|google,github>
@@ -109,6 +110,7 @@ Options:
   --runtime <node|bun>              Runtime for --production-ready Express apps
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
+  --demo                            Seed additional demo data in fullstack projects
   --production-ready                Configure PM2 for Express API presets
   -v, --version                     Print the CLI version
   -h, --help                        Show this help message
@@ -223,6 +225,7 @@ initState({
   step: "start",
   projectName,
   installDeps: !skipInstall,
+  demo: cliArguments.demo,
   productionReady: isProduction,
   ...(cliArguments.packageManager ? { packageManager: cliArguments.packageManager } : {}),
 }, stateFile);

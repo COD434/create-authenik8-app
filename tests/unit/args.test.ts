@@ -48,6 +48,28 @@ describe("CLI argument parsing", () => {
     });
   });
 
+  it("parses the demo seed flag and the Next.js frontend mode", () => {
+    expect(parseCliArguments([
+      "demo-app",
+      "--yes",
+      "--preset=fullstack",
+      "--frontend",
+      "next",
+      "--demo",
+      "--no-oauth",
+      "--no-git",
+      "--no-install",
+    ])).toMatchObject({
+      projectName: "demo-app",
+      nonInteractive: true,
+      preset: "fullstack",
+      frontend: "next",
+      demo: true,
+      oauthProviders: [],
+      skipInstall: true,
+    });
+  });
+
   it.each([
     [["demo-app", "--unknown"], "Unknown option"],
     [["demo-app", "--package-manager"], "requires npm, pnpm, or bun"],
@@ -59,7 +81,7 @@ describe("CLI argument parsing", () => {
     [["demo-app", "--yes", "--preset", "unknown"], "--preset must be"],
     [["demo-app", "--yes", "--resume", "--preset", "base"], "cannot be combined"],
     [["demo-app", "--yes", "--preset", "base", "--preset", "auth"], "only be provided once"],
-    [["demo-app", "--yes", "--frontend", "custom"], "--frontend must be react or lovable"],
+    [["demo-app", "--yes", "--frontend", "custom"], "--frontend must be react, lovable, or next"],
     [["demo-app", "--frontend", "lovable"], "require --non-interactive"],
   ])("rejects invalid arguments %#", (argv, message) => {
     expect(() => parseCliArguments(argv)).toThrow(message);

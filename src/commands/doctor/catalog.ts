@@ -268,6 +268,16 @@ const definitions = [
     verify: "npx create-authenik8-app@latest doctor --production --check A8-PROD-005",
     prerequisites: ["A8-DB-003"],
   },
+  {
+    id: "A8-PROJECT-004",
+    legacyId: "project.ai-editor-support",
+    title: "AI editor support",
+    summary: "Checks that AI editor instruction files are present in the generated project.",
+    impact: "Missing instruction files leave AI-generated changes unaware of the server-side Authenik8 security boundary.",
+    remediation: "Regenerate the project or add AGENTS.md plus the .cursorrules, CLAUDE.md, .windsurfrules, and .github/copilot-instructions.md instruction files.",
+    verify: "npx create-authenik8-app@latest doctor --check A8-PROJECT-004",
+    prerequisites: ["A8-PROJECT-001"],
+  },
 ] as const satisfies readonly DiagnosticDefinition[];
 
 const byLegacyId = new Map<string, DiagnosticDefinition>(definitions.map((definition) => [

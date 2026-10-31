@@ -62,6 +62,7 @@ import {
   studioHelp,
 } from "../commands/studio/output.js";
 import { resolveRootCommand } from "../lib/rootCommand.js";
+import { runMcpServer } from "../commands/mcp/index.js";
 import {
   LovableDoctorUsageError,
   lovableDoctorHelp,
@@ -243,6 +244,11 @@ async function main(): Promise<void> {
         process.exitCode = 1;
       }
     }
+    return;
+  }
+
+  if (route.name === "mcp") {
+    await runMcpServer();
     return;
   }
 

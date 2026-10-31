@@ -213,6 +213,17 @@ export async function createProject(
         readme.replace(/\n?<!-- LOVABLE_START -->[\s\S]*?<!-- LOVABLE_END -->\n?/u, "\n"),
       );
     }
+    if (state.authMode === "fullstack" && state.frontend === "next") {
+      await fs.remove(path.join(stageDir, "apps", "web"));
+      await fs.copy(path.join(templateRoot, "nextjs-web"), path.join(stageDir, "apps", "web"));
+      // next@15 pins postcss 8.4.31 exactly, which npm cannot resolve upward
+      // on its own; keep the generated workspace on the patched PostCSS 8.5
+      // line so the fresh-project audit gate passes.
+      generatedPkg.overrides = {
+        ...(generatedPkg.overrides ?? {}),
+        postcss: "8.5.32",
+      };
+    }
     await fs.writeJson(generatedPkgPath, generatedPkg, { spaces: 2 });
 
     const packagedGitignore = path.join(stageDir, "gitignore.template");
@@ -224,10 +235,17 @@ export async function createProject(
 
     if (state.authMode === "fullstack") {
       await fs.copy(path.join(templatePath, ".env.example"), path.join(stageDir, ".env"));
+      if (state.demo) {
+        await fs.appendFile(path.join(stageDir, ".env"), "\nSEED_DEMO=true\n");
+      }
       const providers = state.oauthProviders === undefined
         ? [...oauthProviders]
         : supportedOAuthProviders(state.oauthProviders);
       await configureOAuthEnvironmentFiles(stageDir, providers);
+      // This canonical providers file is the Doctor OAuth route source for
+      // every fullstack frontend mode, including the Next.js starter that has
+      // no Vite-style src tree.
+      await fs.ensureDir(path.join(stageDir, "apps", "web", "src", "auth"));
       await fs.writeFile(
         path.join(stageDir, "apps/web/src/auth/providers.ts"),
         `export type OAuthProvider = "google" | "github";\n\nexport const enabledOAuthProviders: readonly OAuthProvider[] = ${JSON.stringify(providers)};\n`,
@@ -240,6 +258,14 @@ export async function createProject(
       path.join(templateRoot, "AGENT_IDENTITY.md"),
       path.join(stageDir, "AGENT_IDENTITY.md"),
     );
+    const aiGuidePath = path.join(templateRoot, "AI_CODING_GUIDE.md");
+    if (await fs.pathExists(aiGuidePath)) {
+      await fs.copy(aiGuidePath, path.join(stageDir, ".cursorrules"));
+      await fs.copy(aiGuidePath, path.join(stageDir, "CLAUDE.md"));
+      await fs.copy(aiGuidePath, path.join(stageDir, ".windsurfrules"));
+      await fs.ensureDir(path.join(stageDir, ".github"));
+      await fs.copy(aiGuidePath, path.join(stageDir, ".github", "copilot-instructions.md"));
+    }
     if (state.authMode === "auth-oauth") {
       await writeProviderSpecificOAuthFiles(stageDir, resolveOAuthProviders(state));
     }

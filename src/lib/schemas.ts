@@ -34,7 +34,7 @@ export const stepNameSchema = z.enum([
 ]);
 
 export const authModeSchema = z.enum(["base", "auth", "auth-oauth", "fullstack"]);
-export const frontendModeSchema = z.enum(["react", "lovable"]);
+export const frontendModeSchema = z.enum(["react", "lovable", "next"]);
 export const databaseSchema = z.enum(["sqlite", "postgresql"]);
 export const runtimeSchema = z.enum(["node", "bun"]);
 export const oauthProviderSchema = z.enum(["google", "github"]);
@@ -154,6 +154,7 @@ export const cliStateSchema = z.strictObject({
   packageManager: packageManagerSchema.optional(),
   oauthProviders: oauthProvidersSchema.optional(),
   authMethods: z.array(authMethodSchema).max(3).optional(),
+  demo: z.boolean().optional(),
 });
 
 export const configuredCliStateSchema = cliStateSchema.extend({

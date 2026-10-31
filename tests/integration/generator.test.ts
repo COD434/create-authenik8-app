@@ -7,6 +7,7 @@ import { configurePrisma } from "../../src/steps/configurePrisma.js";
 import { createProject } from "../../src/steps/createProject.js";
 
 import {
+  collectProjectTree,
   generateProjectFixture,
   installGeneratedAppStubs,
   readProjectFiles,
@@ -871,6 +872,138 @@ describe("generator happy paths", () => {
       expect(result.code, result.stderr).toBe(0);
       expect(result.stderr).toBe("");
       expect(result.stdout).toContain(scenario.expectedOutput);
+    } finally {
+      await project.cleanup();
+    }
+  });
+});
+
+describe("AI editor scaffolding and frontend modes", () => {
+  it("keeps the rich fullstack AGENTS.md contract and ships the AI editor files", async () => {
+    const project = await generateProjectFixture({
+      template: "fullstack",
+      database: "postgresql",
+    });
+
+    try {
+      const files = await readProjectFiles(project.targetDir, [
+        ".cursorrules",
+        "CLAUDE.md",
+        "AGENTS.md",
+        ".windsurfrules",
+        ".github/copilot-instructions.md",
+      ]);
+
+      expect(files["AGENTS.md"]).toContain("Security invariants");
+      expect(files["AGENTS.md"]).toContain("never weaken these");
+      expect(files["AGENTS.md"]).toContain("authenik8-core");
+      expect(files["AGENTS.md"]).not.toContain("Non-negotiable rules");
+      for (const file of [
+        ".cursorrules",
+        "CLAUDE.md",
+        ".windsurfrules",
+        ".github/copilot-instructions.md",
+      ] as const) {
+        expect(files[file]).toContain("Non-negotiable rules");
+        expect(files[file]).toContain("Do not disable CSRF");
+        expect(files[file]).not.toContain("SECURITY_INNER_SECRET");
+      }
+    } finally {
+      await project.cleanup();
+    }
+  });
+
+  it("seeds demo data only when the demo flag is enabled", async () => {
+    for (const demo of [true, false]) {
+      const project = await generateProjectFixture({
+        template: "fullstack",
+        database: "postgresql",
+        demo,
+      });
+
+      try {
+        const env = await fs.readFile(path.join(project.targetDir, ".env"), "utf8");
+        expect(demo ? env.includes("SEED_DEMO=true") : env.includes("SEED_DEMO")).toBe(demo);
+      } finally {
+        await project.cleanup();
+      }
+    }
+  });
+
+  it("swaps the web workspace for the Next.js starter and keeps workspace scripts wired", async () => {
+    const project = await generateProjectFixture({
+      template: "fullstack",
+      database: "postgresql",
+      frontend: "next",
+    });
+
+    try {
+      const pkg = await fs.readJson(`${project.targetDir}/package.json`);
+      const webPkg = await fs.readJson(`${project.targetDir}/apps/web/package.json`);
+      const files = await readProjectFiles(project.targetDir, [
+        "apps/web/app/login/page.tsx",
+        "apps/web/next.config.ts",
+        "apps/web/lib/authenik8.ts",
+        "apps/web/src/auth/providers.ts",
+      ]);
+
+      expect(pkg.scripts.test).toContain("@authenik8/api");
+      expect(pkg.scripts.test).toContain("@authenik8/web");
+      expect(pkg.overrides.postcss).toBe("8.5.32");
+      expect(pkg.scripts.dev).toBe("node scripts/run-local.mjs dev");
+      expect(pkg.scripts["doctor:lovable"]).toBeUndefined();
+      expect(pkg.scripts["dev:lovable"]).toBeUndefined();
+      expect(webPkg.name).toBe("@authenik8/web");
+      expect(webPkg.dependencies["@authenik8/api-client"]).toBe("0.1.0");
+      expect(webPkg.scripts.test).toBeDefined();
+      expect(webPkg.devDependencies.vite).toBeUndefined();
+      expect(webPkg.devDependencies.vitest).toBeUndefined();
+      expect(files["apps/web/app/login/page.tsx"]).toContain("getAuthenik8Client");
+      expect(files["apps/web/app/login/page.tsx"]).toContain("client.auth.login");
+      expect(files["apps/web/app/login/page.tsx"]).not.toContain("api/auth/login");
+      expect(files["apps/web/app/login/page.tsx"]).not.toMatch(/localStorage|sessionStorage/);
+      expect(files["apps/web/lib/authenik8.ts"]).toContain("createAuthenik8Client");
+      expect(files["apps/web/lib/authenik8.ts"]).not.toMatch(/localStorage|sessionStorage/);
+      expect(files["apps/web/next.config.ts"]).toContain("rewrites");
+      expect(files["apps/web/src/auth/providers.ts"]).toContain("enabledOAuthProviders");
+      const webTree = await collectProjectTree(path.join(project.targetDir, "apps/web"));
+      expect(webTree).toContain("next.config.ts");
+      expect(webTree).toContain(".env.local.example");
+      expect(webTree).toContain("package.json");
+      expect(webTree).not.toContain("vite.config.ts");
+      expect(webTree).not.toContain("src/main.tsx");
+      const rootTree = await collectProjectTree(project.targetDir);
+      expect(rootTree).not.toContain("integrations/lovable/");
+      expect(rootTree).not.toContain("scripts/doctor-lovable.mjs");
+      expect(rootTree).not.toContain("scripts/export-lovable-client.mjs");
+      expect(rootTree).not.toContain(".agents/");
+      expect(rootTree).toContain(".cursorrules");
+      expect(rootTree).toContain("CLAUDE.md");
+      expect(rootTree).toContain("AGENTS.md");
+      expect(rootTree).toContain(".windsurfrules");
+      expect(rootTree).toContain(".github/copilot-instructions.md");
+    } finally {
+      await project.cleanup();
+    }
+  });
+
+  it("keeps the React reference (not the Next starter) for the default frontend", async () => {
+    const project = await generateProjectFixture({
+      template: "fullstack",
+      database: "postgresql",
+    });
+
+    try {
+      const webTree = await collectProjectTree(path.join(project.targetDir, "apps/web"));
+      expect(webTree).toContain("vite.config.ts");
+      expect(webTree).not.toContain("next.config.ts");
+      const rootPkg = await fs.readJson(`${project.targetDir}/package.json`);
+      expect(rootPkg.overrides?.postcss).toBeUndefined();
+      const login = await fs.readFile(
+        path.join(project.targetDir, "apps/web/src/pages/auth/LoginPage.tsx"),
+        "utf8",
+      );
+      expect(login).toContain('from "@astryxdesign/core');
     } finally {
       await project.cleanup();
     }

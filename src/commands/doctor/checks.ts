@@ -107,6 +107,44 @@ async function requiredFilesCheck(context: DoctorContext): Promise<DoctorCheck> 
     );
 }
 
+async function aiEditorSupportCheck(context: DoctorContext): Promise<DoctorCheck> {
+  const files = [
+    ".cursorrules",
+    "CLAUDE.md",
+    "AGENTS.md",
+    ".windsurfrules",
+    path.join(".github", "copilot-instructions.md"),
+  ];
+  const present = await Promise.all(files.map((file) =>
+    fs.pathExists(path.join(context.rootDir, file)),
+  ));
+  const count = present.filter(Boolean).length;
+  if (count === files.length) {
+    return check(
+      "project.ai-editor-support",
+      "AI editor support",
+      "pass",
+      "AI editor instruction files are present",
+    );
+  }
+  if (count > 0) {
+    return check(
+      "project.ai-editor-support",
+      "AI editor support",
+      "warn",
+      `${count}/${files.length} AI editor instruction files are present`,
+      "Regenerate the project or add the remaining AI editor instruction files (.cursorrules, CLAUDE.md, .windsurfrules, and .github/copilot-instructions.md).",
+    );
+  }
+  return check(
+    "project.ai-editor-support",
+    "AI editor support",
+    "warn",
+    "AI editor instruction files are missing",
+    "Regenerate the project or add .cursorrules, CLAUDE.md, AGENTS.md, .windsurfrules, and .github/copilot-instructions.md.",
+  );
+}
+
 async function environmentPermissionsCheck(
   context: DoctorContext,
 ): Promise<DoctorCheck> {
@@ -521,6 +559,7 @@ export async function runStaticChecks(
     ? check("runtime.node", "Node.js runtime", "pass", `Node.js ${nodeVersion} is supported`)
     : check("runtime.node", "Node.js runtime", "fail", `Node.js ${nodeVersion} is unsupported`, "Use Node.js 20.19+, 22.12+, or 24+."));
   checks.push(await requiredFilesCheck(context));
+  checks.push(await aiEditorSupportCheck(context));
   checks.push(await projectManifestCheck(context));
   checks.push(scriptsCheck(context));
   const coreDependency = await coreDependencyCheck(context, allowMissingCore);

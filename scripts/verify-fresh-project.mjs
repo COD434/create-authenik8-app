@@ -12,11 +12,18 @@ import { writeProjectManifest } from "../dist/src/lib/projectManifest.js";
 
 const preset = process.argv[2];
 const lovable = process.argv.includes("--lovable");
+const next = process.argv.includes("--next");
 if (preset !== "auth-oauth" && preset !== "fullstack") {
-  throw new Error("Usage: node scripts/verify-fresh-project.mjs <auth-oauth|fullstack> [--lovable]");
+  throw new Error("Usage: node scripts/verify-fresh-project.mjs <auth-oauth|fullstack> [--lovable|--next]");
 }
 if (lovable && preset !== "fullstack") {
   throw new Error("--lovable only applies to the fullstack preset");
+}
+if (next && preset !== "fullstack") {
+  throw new Error("--next only applies to the fullstack preset");
+}
+if (lovable && next) {
+  throw new Error("--lovable and --next cannot be combined");
 }
 
 const repoRoot = path.resolve(import.meta.dirname, "..");
@@ -37,12 +44,20 @@ const state = {
   runtime: "node",
   packageManager: "npm",
   oauthProviders: ["google", "github"],
-  ...(lovable ? { frontend: "lovable" } : {}),
+  ...(lovable ? { frontend: "lovable" } : next ? { frontend: "next" } : {}),
 };
+
+// Windows spawns through cmd.exe, which splits an unquoted command at its
+// first space (for example "C:\Program Files\nodejs\node.exe"). Quote the
+// executable when a shell is in play.
+function shellCommand(command) {
+  if (process.platform !== "win32" || !command.includes(" ")) return command;
+  return `"${command}"`;
+}
 
 function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(shellCommand(command), args, {
       cwd,
       env: createFreshProjectEnv(),
       stdio: "inherit",
@@ -119,7 +134,7 @@ function availablePort() {
 
 function runUntilOutput(command, args, cwd, expectedOutput, environment) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const child = spawn(shellCommand(command), args, {
       cwd,
 
       env: createFreshProjectEnv(environment),
