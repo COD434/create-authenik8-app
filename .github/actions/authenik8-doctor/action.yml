@@ -1,0 +1,81 @@
+name: "Authenik8 Doctor"
+description: >-
+  Run the read-only create-authenik8-app Doctor gate on a generated project,
+  publish findings and a deterministic badge, and (optionally) comment them on
+  the pull request. The action never mutates project files. Run `npm ci`
+  before this action so the project's installed identity engine is present.
+branding:
+  icon: "shield"
+  color: "green"
+
+inputs:
+  directory:
+    description: "Path to the generated Authenik8 project (must contain authenik8.json)."
+    required: false
+    default: "."
+  mode:
+    description: "Doctor mode: default, deep, or production."
+    required: false
+    default: "default"
+  offline:
+    description: "Run with --offline (validates .env.example in memory; no services probed)."
+    required: false
+    default: "false"
+  comment:
+    description: "Comment the findings on the pull request; requires pull-requests: write."
+    required: false
+    default: "true"
+
+outputs:
+  exit_code:
+    description: "Doctor process exit code; propagated as the action result."
+    value: ${{ steps.doctor.outputs.exit_code }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: doctor
+      continue-on-error: true
+      shell: bash
+      run: |
+        flags="--ci --json"
+        case "${{ inputs.mode }}" in
+          default) : ;;
+          deep) flags="$flags --deep" ;;
+          production) flags="$flags --production" ;;
+          *) echo "Unsupported doctor mode: ${{ inputs.mode }}" >&2; exit 2 ;;
+        esac
+        if [ "${{ inputs.offline }}" = "true" ]; then
+          flags="$flags --offline"
+        fi
+        set -o pipefail
+        cd "${{ inputs.directory }}"
+        npx -y create-authenik8-app@latest doctor $flags | tee "${RUNNER_TEMP:-/tmp}/authenik8-doctor.json"
+        echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+    - id: summary
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.directory }}
+      run: |
+        node "$GITHUB_ACTION_PATH/summarize.mjs" \
+          "${RUNNER_TEMP:-/tmp}/authenik8-doctor.json" \
+          "${{ steps.doctor.outputs.exit_code }}" \
+          > "${RUNNER_TEMP:-/tmp}/authenik8-doctor-summary.md" \
+          || echo "Authenik8 Doctor summary could not be rendered." > "${RUNNER_TEMP:-/tmp}/authenik8-doctor-summary.md"
+        if [ -f "${GITHUB_STEP_SUMMARY:-}" ]; then
+          cat "${RUNNER_TEMP:-/tmp}/authenik8-doctor-summary.md" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [ "${{ inputs.comment }}" = "true" ] && [ -n "${{ github.event.pull_request.number }}" ]; then
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --edit-last --create-if-none \
+            --body-file "${RUNNER_TEMP:-/tmp}/authenik8-doctor-summary.md" \
+            || echo "::warning::Could not post the Authenik8 Doctor comment; grant pull-requests: write or set comment: 'false'."
+        fi
+
+    - id: gate
+      if: always()
+      shell: bash
+      run: |
+        echo "Authenik8 Doctor exit code: ${{ steps.doctor.outputs.exit_code }}"
+        exit "${{ steps.doctor.outputs.exit_code }}"

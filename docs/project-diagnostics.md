@@ -106,6 +106,50 @@ PEM material, and sensitive fields.
 `--skip-services` remains available for older automation, but new CI should use
 `--offline`.
 
+### GitHub Actions gate
+
+A composite action ships with this repository so generated projects can gate
+pull requests on the same diagnostics:
+
+```yaml
+name: Authenik8 Doctor
+on: [pull_request]
+permissions:
+  contents: read
+  pull-requests: write   # only required for the PR comment
+jobs:
+  doctor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@<pin your version>
+      - uses: actions/setup-node@<pin your version>
+        with:
+          node-version: 24
+      - run: npm ci
+      - uses: COD434/create-authenik8-app/.github/actions/authenik8-doctor@<pin your ref>
+        with:
+          mode: production     # default | deep | production
+          offline: true        # use --offline when CI runs no services
+```
+
+Prerequisites and behavior:
+
+- The project dependencies must be installed before the action runs; the
+  Doctor loads the generated project's own `authenik8-core` engine.
+- The action is read-only. It writes nothing into the project; its findings
+  and the deterministic badge render only from Doctor's schema-versioned JSON
+  report.
+- Findings publish as the job step summary and, on pull requests, as a PR
+  comment (edited in place across pushes). The comment needs
+  `pull-requests: write` and the preinstalled GitHub CLI; without them the
+  action still publishes the summary and the exit code.
+- The composite uses only `bash`, `node`, and `npx` internally — no
+  third-party actions to pin.
+- The gate propagates Doctor's exit code, so a failing diagnostic fails the
+  job. The summary renderer is covered by the repository's unit tests; the
+  composite shell steps themselves have not been executed on a GitHub runner
+  from this working environment.
+
 ## Exit codes
 
 | Exit code | Meaning |
