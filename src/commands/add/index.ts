@@ -17,6 +17,7 @@ export function parseAddArguments(
   let help = false;
   let resourceName: string | undefined;
   let fields: string | undefined;
+  let withTests = false;
 
   let index = 0;
   while (index < args.length) {
@@ -38,6 +39,9 @@ export function parseAddArguments(
       if (argument === "--name") resourceName = value;
       else fields = value;
       index += 2;
+    } else if (argument === "--with-tests") {
+      withTests = true;
+      index += 1;
     } else if (argument.startsWith("-")) {
       throw new AddUsageError(`Unknown add option: ${argument}`);
     } else {
@@ -54,9 +58,9 @@ export function parseAddArguments(
   if (
     recipe
     && recipe.category !== "resource"
-    && (resourceName !== undefined || fields !== undefined)
+    && (resourceName !== undefined || fields !== undefined || withTests)
   ) {
-    throw new AddUsageError("--name and --fields only apply to the resource recipe.");
+    throw new AddUsageError("--name, --fields, and --with-tests only apply to the resource recipe.");
   }
 
   if (recipe?.category === "resource") {
@@ -69,6 +73,7 @@ export function parseAddArguments(
         recipeName: recipe.id,
         resourceName,
         ...(fields !== undefined ? { fields } : {}),
+        withTests,
         directory: path.resolve(cwd, extras[0] ?? "."),
         dryRun,
         list,
@@ -88,6 +93,7 @@ export function parseAddArguments(
       recipeName: recipe.id,
       resourceName: nameArg,
       ...(fields !== undefined ? { fields } : {}),
+      withTests,
       directory: path.resolve(cwd, directoryArg ?? "."),
       dryRun,
       list,
@@ -103,6 +109,7 @@ export function parseAddArguments(
     ...(positional[0] ? { recipeName: positional[0] } : {}),
     ...(resourceName !== undefined ? { resourceName } : {}),
     ...(fields !== undefined ? { fields } : {}),
+    ...(withTests ? { withTests } : {}),
     directory: path.resolve(cwd, positional[1] ?? "."),
     dryRun,
     list,
@@ -121,7 +128,11 @@ export async function runAdd(options: AddOptions): Promise<AddResult> {
 
   const context = await createAddContext(options.directory);
   const request = recipe.category === "resource"
-    ? { name: options.resourceName ?? "", fields: options.fields ?? "" }
+    ? {
+        name: options.resourceName ?? "",
+        fields: options.fields ?? "",
+        withTests: Boolean(options.withTests),
+      }
     : undefined;
   const changes = await recipe.plan(context, request);
   if (changes.length === 0) {

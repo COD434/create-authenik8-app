@@ -18,6 +18,7 @@ export type ResourceField = {
 export type ResourceRequest = {
   name: string;
   fields: readonly ResourceField[];
+  withTests: boolean;
 };
 
 const reservedFieldNames = new Set(["id", "ownerId", "owner", "createdAt", "updatedAt"]);
@@ -597,11 +598,45 @@ function renderClientGroup(name: string): string {
   ].join("\n");
 }
 
+function renderPolicyTest(name: string): string {
+  const lower = camelName(name);
+  return [
+    'import { describe, expect, it } from "vitest";',
+    `import { canRead${name}, canWrite${name}, ${lower}ListScope } from "../src/modules/${lower}s/${lower}.policy.js";`,
+    "",
+    `describe("${name} ownership policy", () => {`,
+    '  const owner = { userId: "user-1", role: "USER" as const };',
+    '  const stranger = { userId: "user-2", role: "USER" as const };',
+    '  const admin = { userId: "admin-1", role: "ADMIN" as const };',
+    `  const ${lower} = { ownerId: "user-1" };`,
+    "",
+    '  it("allows the owner to read and write", () => {',
+    `    expect(canRead${name}(owner, ${lower})).toBe(true);`,
+    `    expect(canWrite${name}(owner, ${lower})).toBe(true);`,
+    "  });",
+    "",
+    '  it("rejects another normal user", () => {',
+    `    expect(canRead${name}(stranger, ${lower})).toBe(false);`,
+    `    expect(canWrite${name}(stranger, ${lower})).toBe(false);`,
+    `    expect(${lower}ListScope(stranger)).toEqual({ ownerId: "user-2" });`,
+    "  });",
+    "",
+    '  it("allows an administrator through the explicit policy", () => {',
+    `    expect(canRead${name}(admin, ${lower})).toBe(true);`,
+    `    expect(canWrite${name}(admin, ${lower})).toBe(true);`,
+    `    expect(${lower}ListScope(admin)).toEqual({});`,
+    "  });",
+    "});",
+    "",
+  ].join("\n");
+}
+
 /**
  * Plans the full API-side scaffold for one scalar-field CRUD resource on a
  * generated fullstack project: module files, Prisma model plus owner relation,
  * shared contracts, OpenAPI source additions, and typed-client additions.
- * The React reference app and generated tests are intentionally deferred.
+ * The React reference app and route-level integration tests are deliberately
+ * deferred; a pure policy test ships with --with-tests.
  */
 export async function planResource(
   context: AddContext,
@@ -759,6 +794,7 @@ export async function planResource(
     [`${modulePrefix}.service.ts`, renderService(name)],
     [`${modulePrefix}.controller.ts`, renderController(name)],
     [`${modulePrefix}.routes.ts`, renderRoutes(name)],
+    ...(request.withTests ? [[`apps/api/tests/${lower}.policy.test.ts`, renderPolicyTest(name)] as [string, string]] : []),
   ];
   const moduleDir = path.join(context.rootDir, "apps", "api", "src", "modules", plural);
   if (await fs.pathExists(moduleDir)) {

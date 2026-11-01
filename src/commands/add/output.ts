@@ -18,6 +18,8 @@ Options:
                       string, number, boolean, date, and enum(VALUES); a
                       trailing ? marks the field nullable
                       (example: "amount:number,dueAt:date?,status:enum(DRAFT,ACTIVE)")
+  --with-tests        For the resource recipe, also generate a pure policy
+                      test that mirrors the included projects policy tests
   --name <Name>       Explicit resource name for the resource recipe; passing
                       the name positionally after the recipe name also works
   --list              List built-in recipes and compatible presets

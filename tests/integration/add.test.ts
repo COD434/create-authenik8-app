@@ -311,6 +311,7 @@ describe("resource scaffolding recipe", () => {
         recipeName: "resource",
         resourceName: "Invoice",
         fields: "amount:number,dueAt:date?,paid:boolean,note:string,status:enum(DRAFT,ACTIVE)",
+        withTests: true,
         directory: project.targetDir,
         list: false,
         help: false,
@@ -329,6 +330,7 @@ describe("resource scaffolding recipe", () => {
         "apps/api/src/modules/invoices/invoice.service.ts",
         "apps/api/src/modules/invoices/invoice.controller.ts",
         "apps/api/src/modules/invoices/invoice.routes.ts",
+        "apps/api/tests/invoice.policy.test.ts",
       ]));
       expect(preview.changes.every((change) => change.sensitive !== true)).toBe(true);
 
@@ -400,6 +402,14 @@ describe("resource scaffolding recipe", () => {
       );
       expect(app).toContain('import { invoiceRoutes } from "./modules/invoices/invoice.routes.js";');
       expect(app).toContain('app.use("/api/invoices", invoiceRoutes);');
+
+      const policyTest = await fs.readFile(
+        path.join(project.targetDir, "apps/api/tests/invoice.policy.test.ts"),
+        "utf8",
+      );
+      expect(policyTest).toContain('import { canReadInvoice, canWriteInvoice, invoiceListScope } from "../src/modules/invoices/invoice.policy.js";');
+      expect(policyTest).toContain('describe("Invoice ownership policy"');
+      expect(policyTest).toContain("expect(invoiceListScope(admin)).toEqual({});");
 
       const rerun = await runAdd({ ...baseOptions, dryRun: false });
       expect(rerun.status).toBe("unchanged");

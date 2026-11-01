@@ -46,6 +46,7 @@ export const addRecipes: readonly AddRecipe[] = Object.freeze([
       planResource(context, {
         name: request?.name ?? "",
         fields: parseResourceFields(request?.fields ?? ""),
+        withTests: Boolean(request?.withTests),
       }),
   } satisfies AddRecipe),
 ]);

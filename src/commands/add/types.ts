@@ -9,6 +9,7 @@ export type AddRecipeCategory = "oauth" | "ci" | "resource";
 export type RecipeRequest = {
   readonly name?: string;
   readonly fields?: string;
+  readonly withTests?: boolean;
 };
 
 export type PlannedFileChange = {
@@ -38,6 +39,7 @@ export type AddOptions = {
   directory: string;
   resourceName?: string;
   fields?: string;
+  withTests?: boolean;
   dryRun: boolean;
   list: boolean;
   help: boolean;
