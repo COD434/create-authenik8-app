@@ -210,4 +210,23 @@ describe("resource recipe parsing", () => {
     expect(() => parseResourceFields(Array.from({ length: 13 }, (_, index) => `f${index}:number`).join(",")))
       .toThrow(AddResourceError);
   });
+
+  it("parses enum fields with values, optional markers, and paren-aware splitting", () => {
+    expect(parseResourceFields("status:enum(DRAFT,ACTIVE,ARCHIVED)")).toEqual([
+      { name: "status", type: "enum", optional: false, values: ["DRAFT", "ACTIVE", "ARCHIVED"] },
+    ]);
+    expect(parseResourceFields("amount:number,status:enum(DRAFT,ACTIVE)?")[1]).toEqual({
+      name: "status",
+      type: "enum",
+      optional: true,
+      values: ["DRAFT", "ACTIVE"],
+    });
+    expect(parseResourceFields("status:enum(DRAFT,ACTIVE),amount:number"))
+      .toHaveLength(2);
+    expect(() => parseResourceFields("status:enum(DRAFT,active)")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("status:enum(DRAFT,DRAFT)")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("status:enum()")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("status:enum(DRAFT,ACTIVE")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("status:enum(DRAFT) )")).toThrow(AddResourceError);
+  });
 });

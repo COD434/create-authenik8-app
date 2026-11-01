@@ -310,7 +310,7 @@ describe("resource scaffolding recipe", () => {
       const baseOptions = {
         recipeName: "resource",
         resourceName: "Invoice",
-        fields: "amount:number,dueAt:date?,paid:boolean,note:string",
+        fields: "amount:number,dueAt:date?,paid:boolean,note:string,status:enum(DRAFT,ACTIVE)",
         directory: project.targetDir,
         list: false,
         help: false,
@@ -355,17 +355,23 @@ describe("resource scaffolding recipe", () => {
         "utf8",
       );
       expect(schema).toContain("model Invoice {");
+      expect(schema).toContain("enum InvoiceStatus {");
+      expect(schema).toContain("  DRAFT\n  ACTIVE");
       expect(schema).toMatch(/projects[ \t]+Project\[\][\r\n]+[ \t]*invoices[ \t]+Invoice\[\]/);
       expect(schema).toContain("  dueAt     DateTime?");
       expect(schema).toContain("  note      String");
+      expect(schema).toContain("  status    InvoiceStatus");
 
       const contracts = await fs.readFile(
         path.join(project.targetDir, "packages/contracts/src/index.ts"),
         "utf8",
       );
       expect(contracts).toContain("export const invoiceCreateSchema = z.strictObject({");
+      expect(contracts).toContain("export const invoiceStatusSchema = z.enum([\"DRAFT\", \"ACTIVE\"]);");
       expect(contracts).toContain("  dueAt: z.coerce.date().nullish(),");
       expect(contracts).toContain("  amount: z.coerce.number().finite(),");
+      expect(contracts).toContain("  status: invoiceStatusSchema,");
+      expect(contracts).toContain("export type InvoiceStatus = z.infer<typeof invoiceStatusSchema>;");
       expect(contracts).toContain("export type Invoice = {");
 
       const openApi = await fs.readFile(
@@ -377,6 +383,8 @@ describe("resource scaffolding recipe", () => {
       expect(openApi).toContain("  invoiceCreateSchema,");
       expect(openApi).toContain('tags: ["invoices"],');
       expect(openApi).toContain("InvoiceUpdateInput: inputSchemaWithExample(invoiceUpdateSchema, {");
+      expect(openApi).toContain('{ type: "string", enum: ["DRAFT", "ACTIVE"] }');
+      expect(openApi).toContain("status: \"DRAFT\",");
 
       const client = await fs.readFile(
         path.join(project.targetDir, "packages/api-client/src/index.ts"),

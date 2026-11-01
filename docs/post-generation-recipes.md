@@ -29,7 +29,7 @@ npx create-authenik8-app@latest add resource Invoice --fields "amount:number,due
 npx create-authenik8-app@latest add resource Invoice --fields "amount:number,dueAt:date?"
 ```
 
-The name can also be passed explicitly with `--name`, and a project directory can follow the name. Supported field types are `string`, `number`, `boolean`, and `date`; a trailing `?` marks the column nullable and the contract input optional. Field and resource names are validated as TypeScript identifiers before any code is generated, and enum-typed fields, generated tests, and React screens are not part of the scaffold yet.
+The name can also be passed explicitly with `--name`, and a project directory can follow the name. Supported field types are `string`, `number`, `boolean`, `date`, and `enum(VALUES)` with SCREAMING_SNAKE values (example: `status:enum(DRAFT,ACTIVE)`, rendered as a Prisma enum type, a shared Zod enum schema, and an OpenAPI enum property). A trailing `?` marks the column nullable and the contract input optional. Field names and enum values are validated as strict identifiers before any code is generated, and generated tests and React screens are not part of the scaffold yet.
 
 Every instance is owned: read/write access is `ADMIN` or the owning user, list is scoped by owner, and identifiers are parsed with the shared contract schemas before use. The scaffold touches generated stock files only at anchored insertion points and refuses to guess when a file does not match the stock shape.
 

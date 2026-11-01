@@ -15,8 +15,9 @@ Usage:
 Options:
   --dry-run, --diff   Print the exact proposed diff without writing files
   --fields "<spec>"   Field list for the resource recipe; supported types are
-                      string, number, boolean, and date; a trailing ? marks
-                      the field nullable (example: "amount:number,dueAt:date?")
+                      string, number, boolean, date, and enum(VALUES); a
+                      trailing ? marks the field nullable
+                      (example: "amount:number,dueAt:date?,status:enum(DRAFT,ACTIVE)")
   --name <Name>       Explicit resource name for the resource recipe; passing
                       the name positionally after the recipe name also works
   --list              List built-in recipes and compatible presets
@@ -25,7 +26,7 @@ Options:
 Examples:
   npx create-authenik8-app add oauth-github
   npx create-authenik8-app add oauth-google ./my-app --dry-run
-  npx create-authenik8-app add resource Invoice --fields "amount:number,dueAt:date?" --dry-run
+  npx create-authenik8-app add resource Invoice --fields "amount:number,status:enum(DRAFT,ACTIVE)" --dry-run
 `;
 }
 

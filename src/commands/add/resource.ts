@@ -5,12 +5,14 @@ import type { AddContext, PlannedFileChange } from "./types.js";
 
 export class AddResourceError extends Error {}
 
-export type ResourceFieldType = "string" | "number" | "boolean" | "date";
+export type ResourceFieldType = "string" | "number" | "boolean" | "date" | "enum";
 
 export type ResourceField = {
   name: string;
   type: ResourceFieldType;
   optional: boolean;
+  /** SCREAMING_SNAKE values, set only for enum fields. */
+  values?: readonly string[];
 };
 
 export type ResourceRequest = {
@@ -39,10 +41,60 @@ export function parseResourceName(name: string): string {
 }
 
 /**
- * Parses a comma-separated field list such as "amount:number,dueAt:date?".
- * Supported types: string, number, boolean, date. A trailing ? marks the
- * column nullable and the contract input optional. Field names become
- * TypeScript identifiers and are validated strictly.
+ * Splits a field spec on top-level commas only; commas inside enum(...) must
+ * not split fields, and unbalanced parentheses are refused.
+ */
+function splitTopLevel(spec: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (const character of spec) {
+    if (character === "(") {
+      depth += 1;
+      current += character;
+    } else if (character === ")") {
+      depth -= 1;
+      if (depth < 0) {
+        throw new AddResourceError(`Unbalanced ")" in --fields: "${spec}".`);
+      }
+      current += character;
+    } else if (character === "," && depth === 0) {
+      parts.push(current);
+      current = "";
+    } else {
+      current += character;
+    }
+  }
+  if (depth !== 0) {
+    throw new AddResourceError(`Unbalanced "(" in --fields: "${spec}".`);
+  }
+  parts.push(current);
+  return parts;
+}
+
+const enumValuePattern = /^[A-Z][A-Z0-9_]{0,29}$/;
+
+function parseEnumValues(typeSpec: string): string[] {
+  const inner = typeSpec.slice("enum(".length, -1);
+  const values = inner.split(",").map((value) => value.trim());
+  if (values.some((value) => !enumValuePattern.test(value))) {
+    throw new AddResourceError(
+      `Enum values in "${typeSpec}" must be SCREAMING_SNAKE identifiers (example: enum(DRAFT,ACTIVE)).`,
+    );
+  }
+  if (new Set(values).size !== values.length) {
+    throw new AddResourceError(`Duplicate enum values in "${typeSpec}".`);
+  }
+  return values;
+}
+
+const scalarFieldTypes = new Set(["string", "number", "boolean", "date"]);
+
+/**
+ * Parses a comma-separated field list such as "amount:number,status:enum(DRAFT,ACTIVE)".
+ * Supported types: string, number, boolean, date, and enum(values). A trailing
+ * ? marks the column nullable and the contract input optional. Field names and
+ * enum values are validated strictly before any code is generated.
  */
 export function parseResourceFields(spec: string): ResourceField[] {
   if (!spec || !spec.trim()) {
@@ -51,20 +103,39 @@ export function parseResourceFields(spec: string): ResourceField[] {
     );
   }
   const fields: ResourceField[] = [];
-  for (const part of spec.split(",")) {
+  for (const part of splitTopLevel(spec)) {
     const entry = part.trim();
     if (!entry) {
       throw new AddResourceError(`Empty --fields entry in "${spec}".`);
     }
-    const match = /^([a-z][a-zA-Z0-9]{0,39}):(string|number|boolean|date)(\?)?$/.exec(entry);
-    if (!match) {
+    const colon = entry.indexOf(":");
+    const name = colon === -1 ? "" : entry.slice(0, colon);
+    if (!/^[a-z][a-zA-Z0-9]{0,39}$/.test(name)) {
       throw new AddResourceError(
-        `Invalid field spec "${entry}". Use "<camelCaseName>:string|number|boolean|date" with an optional trailing ? for nullability.`,
+        `Invalid field spec "${entry}". Use "<camelCaseName>:string|number|boolean|date|enum(VALUES)" with an optional trailing ? for nullability.`,
       );
     }
-    const name = match[1]!;
-    const type = match[2]! as ResourceFieldType;
-    const optional = Boolean(match[3]);
+    let typeSpec = entry.slice(colon + 1).trim();
+    let optional = false;
+    if (typeSpec.endsWith("?")) {
+      optional = true;
+      typeSpec = typeSpec.slice(0, -1).trim();
+    }
+    let field: ResourceField;
+    if (typeSpec.startsWith("enum(")) {
+      if (!typeSpec.endsWith(")")) {
+        throw new AddResourceError(
+          `Enum field "${name}" must close its value list: ${name}:enum(VALUE,VALUE).`,
+        );
+      }
+      field = { name, type: "enum", optional, values: parseEnumValues(typeSpec) };
+    } else if (scalarFieldTypes.has(typeSpec)) {
+      field = { name, type: typeSpec as ResourceFieldType, optional };
+    } else {
+      throw new AddResourceError(
+        `Invalid field spec "${entry}". Use "<camelCaseName>:string|number|boolean|date|enum(VALUES)" with an optional trailing ? for nullability.`,
+      );
+    }
     if (reservedFieldNames.has(name)) {
       throw new AddResourceError(
         `Field name "${name}" is reserved by the generated owner/timestamp shape.`,
@@ -73,7 +144,7 @@ export function parseResourceFields(spec: string): ResourceField[] {
     if (fields.some((field) => field.name === name)) {
       throw new AddResourceError(`Duplicate field name "${name}".`);
     }
-    fields.push({ name, type, optional });
+    fields.push(field);
   }
   if (fields.length > maximumFields) {
     throw new AddResourceError(`At most ${maximumFields} fields are supported per resource.`);
@@ -94,30 +165,45 @@ function requireAnchor(source: string, relativePath: string, pattern: RegExp, la
   }
 }
 
-function prismaColumn(field: ResourceField): string {
+function pascalName(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+/** Prisma enum type and contract type name for an enum field, e.g. InvoiceStatus. */
+export function enumTypeName(resourceName: string, field: ResourceField): string {
+  return `${resourceName}${pascalName(field.name)}`;
+}
+
+function prismaColumn(resource: string, field: ResourceField): string {
   const column = field.type === "string"
     ? "String"
     : field.type === "number"
       ? "Float"
       : field.type === "boolean"
         ? "Boolean"
-        : "DateTime";
+        : field.type === "enum"
+          ? enumTypeName(resource, field)
+          : "DateTime";
   return `${field.name.padEnd(10)}${column}${field.optional ? "?" : ""}`;
 }
 
-function zodSchemaExpression(field: ResourceField): string {
+function zodSchemaExpression(field: ResourceField, lower: string): string {
   const base = field.type === "string"
     ? `z.string().trim().min(1, "${field.name} is required").max(2000)`
     : field.type === "number"
       ? "z.coerce.number().finite()"
       : field.type === "boolean"
         ? "z.boolean()"
-        : "z.coerce.date()";
+        : field.type === "enum"
+          ? `${lower}${pascalName(field.name)}Schema`
+          : "z.coerce.date()";
   return field.optional ? `${base}.nullish()` : base;
 }
 
-function contractFieldType(field: ResourceField): string {
-  return field.type === "date" ? "string" : field.type;
+function contractFieldType(resource: string, field: ResourceField): string {
+  if (field.type === "date") return "string";
+  if (field.type === "enum") return enumTypeName(resource, field);
+  return field.type;
 }
 
 function openApiPropertyFor(field: ResourceField): string {
@@ -127,7 +213,9 @@ function openApiPropertyFor(field: ResourceField): string {
       ? '{ type: "number" }'
       : field.type === "boolean"
         ? '{ type: "boolean" }'
-        : '{ type: "string", format: "date-time" }';
+        : field.type === "enum"
+          ? `{ type: "string", enum: [${field.values!.map((value) => JSON.stringify(value)).join(", ")}] }`
+          : '{ type: "string", format: "date-time" }';
   return field.optional ? `${base.slice(0, -1)}, nullable: true }` : base;
 }
 
@@ -135,6 +223,7 @@ function openApiExampleValue(field: ResourceField): string {
   if (field.type === "number") return "1";
   if (field.type === "boolean") return "true";
   if (field.type === "date") return '"2026-01-01T00:00:00.000Z"';
+  if (field.type === "enum") return JSON.stringify(field.values![0]);
   return `"${field.name} example"`;
 }
 
@@ -144,14 +233,20 @@ function exampleRecord(fields: readonly ResourceField[]): string {
 
 function renderContractsBlock(name: string, fields: readonly ResourceField[]): string {
   const lower = camelName(name);
-  const createLines = fields.map((field) => `  ${field.name}: ${zodSchemaExpression(field)},`);
+  const enumLines = fields.filter((field) => field.type === "enum").flatMap((field) => [
+    `export const ${lower}${pascalName(field.name)}Schema = z.enum([${field.values!.map((value) => JSON.stringify(value)).join(", ")}]);`,
+    `export type ${enumTypeName(name, field)} = z.infer<typeof ${lower}${pascalName(field.name)}Schema>;`,
+    "",
+  ]);
+  const createLines = fields.map((field) => `  ${field.name}: ${zodSchemaExpression(field, lower)},`);
   const typeLines = fields.map((field) =>
     field.optional
-      ? `  ${field.name}?: ${contractFieldType(field)} | null;`
-      : `  ${field.name}: ${contractFieldType(field)};`,
+      ? `  ${field.name}?: ${contractFieldType(name, field)} | null;`
+      : `  ${field.name}: ${contractFieldType(name, field)};`,
   );
   return [
     `// --- ${name} resource (added by create-authenik8-app add resource) ---`,
+    ...enumLines,
     `export const ${lower}CreateSchema = z.strictObject({`,
     ...createLines,
     "});",
@@ -179,7 +274,7 @@ function renderPrismaModel(name: string, fields: readonly ResourceField[]): stri
   return [
     `model ${name} {`,
     "  id        String   @id @default(uuid())",
-    ...fields.map((field) => `  ${prismaColumn(field)}`),
+    ...fields.map((field) => `  ${prismaColumn(name, field)}`),
     "  ownerId   String",
     "  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)",
     "  createdAt DateTime @default(now())",
@@ -188,6 +283,16 @@ function renderPrismaModel(name: string, fields: readonly ResourceField[]): stri
     "  @@index([ownerId, updatedAt])",
     "}",
   ].join("\n");
+}
+
+function renderPrismaEnumBlocks(name: string, fields: readonly ResourceField[]): string[] {
+  return fields.filter((field) => field.type === "enum").map((field) =>
+    [
+      `enum ${enumTypeName(name, field)} {`,
+      ...field.values!.map((value) => `  ${value}`),
+      "}",
+    ].join("\n"),
+  );
 }
 
 function renderPolicy(name: string): string {
@@ -618,11 +723,17 @@ export async function planResource(
   })();
   addChange(appRelative, appSource, appAfter);
 
-  const hasModel = new RegExp(`^model ${name} \\{`, "m").test(schema);
+  const enumFields = fields.filter((field) => field.type === "enum");
   const hasRelation = new RegExp(`^[ \t]*${plural}[ \t]+${name}\\[\\]`, "m").test(schema);
-  if (hasModel !== hasRelation) {
+  const hasModel = new RegExp(`^model ${name} \\{`, "m").test(schema);
+  const markers = [
+    hasRelation,
+    hasModel,
+    ...enumFields.map((field) => new RegExp(`^enum ${enumTypeName(name, field)} \\{`, "m").test(schema)),
+  ];
+  if (markers.some(Boolean) !== markers.every(Boolean)) {
     throw new AddResourceError(
-      `${schemaRelative} contains a partial ${name} scaffold (a model without the projects relation or vice versa); refusing to guess.`,
+      `${schemaRelative} contains a partial ${name} scaffold (relation, model, and enum types must all be present or all absent); refusing to guess.`,
     );
   }
   if (!hasModel) {
@@ -635,7 +746,8 @@ export async function planResource(
         `${schemaRelative} relation anchor could not be rewritten; refusing to guess.`,
       );
     }
-    addChange(schemaRelative, schema, appendUnlessPresent(withRelation, `model ${name} {`, renderPrismaModel(name, fields)));
+    const payload = [renderPrismaModel(name, fields), ...renderPrismaEnumBlocks(name, fields)].join("\n\n");
+    addChange(schemaRelative, schema, appendUnlessPresent(withRelation, `model ${name} {`, payload));
   } else {
     addChange(schemaRelative, schema, schema);
   }
