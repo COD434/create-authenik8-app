@@ -47,6 +47,7 @@ export const addRecipes: readonly AddRecipe[] = Object.freeze([
         name: request?.name ?? "",
         fields: parseResourceFields(request?.fields ?? ""),
         withTests: Boolean(request?.withTests),
+        withCrudUi: Boolean(request?.withCrudUi),
       }),
   } satisfies AddRecipe),
 ]);

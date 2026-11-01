@@ -160,6 +160,7 @@ describe("resource recipe parsing", () => {
         resourceName: "Invoice",
         fields: "amount:number,dueAt:date?",
         withTests: false,
+        withCrudUi: false,
         directory: path.resolve("/tmp/work"),
         dryRun: false,
         list: false,
@@ -171,6 +172,7 @@ describe("resource recipe parsing", () => {
         resourceName: "Invoice",
         fields: "amount:number",
         withTests: false,
+        withCrudUi: false,
         directory: path.resolve("/tmp/work/project"),
         dryRun: false,
         list: false,
@@ -178,6 +180,10 @@ describe("resource recipe parsing", () => {
       });
     expect(parseAddArguments(["resource", "Invoice", "--with-tests"], "/tmp/work").withTests)
       .toBe(true);
+    expect(parseAddArguments(["resource", "Invoice", "--with-crud-ui"], "/tmp/work").withCrudUi)
+      .toBe(true);
+    expect(parseAddArguments(["resource", "Invoice", "--with-tests", "--with-crud-ui", "proj"], "/tmp/work"))
+      .toMatchObject({ withTests: true, withCrudUi: true });
   });
 
   it("supports a third positional directory for resource scaffolds and bundles flags", () => {
@@ -192,8 +198,9 @@ describe("resource recipe parsing", () => {
     expect(() => parseAddArguments(["resource", "--fields", "amount:number"])).toThrow(AddUsageError);
     expect(() => parseAddArguments(["resource", "Invoice", "one", "two"])).toThrow(AddUsageError);
     expect(() => parseAddArguments(["oauth-github", "--name", "Invoice", "--fields", "amount:number"]))
-      .toThrow("--name, --fields, and --with-tests only apply to the resource recipe.");
+      .toThrow("--name, --fields, --with-tests, and --with-crud-ui only apply to the resource recipe.");
     expect(() => parseAddArguments(["oauth-github", "--with-tests"])).toThrow(AddUsageError);
+    expect(() => parseAddArguments(["oauth-github", "--with-crud-ui"])).toThrow(AddUsageError);
   });
 
   it("validates resource names and field specs strictly", () => {

@@ -310,8 +310,9 @@ describe("resource scaffolding recipe", () => {
       const baseOptions = {
         recipeName: "resource",
         resourceName: "Invoice",
-        fields: "amount:number,dueAt:date?,paid:boolean,note:string,status:enum(DRAFT,ACTIVE)",
+        fields: "amount:number,dueAt:date?,paid:boolean,note:string,status:enum(DRAFT,ACTIVE),verified:boolean?,priority:enum(LOW,HIGH)?",
         withTests: true,
+        withCrudUi: true,
         directory: project.targetDir,
         list: false,
         help: false,
@@ -331,6 +332,9 @@ describe("resource scaffolding recipe", () => {
         "apps/api/src/modules/invoices/invoice.controller.ts",
         "apps/api/src/modules/invoices/invoice.routes.ts",
         "apps/api/tests/invoice.policy.test.ts",
+        "apps/web/src/features/invoices/InvoicePages.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/AppShell.tsx",
       ]));
       expect(preview.changes.every((change) => change.sensitive !== true)).toBe(true);
 
@@ -363,6 +367,9 @@ describe("resource scaffolding recipe", () => {
       expect(schema).toContain("  dueAt     DateTime?");
       expect(schema).toContain("  note      String");
       expect(schema).toContain("  status    InvoiceStatus");
+      expect(schema).toContain("  verified  Boolean?");
+      expect(schema).toContain("  priority  InvoicePriority?");
+      expect(schema).toContain("enum InvoicePriority {");
 
       const contracts = await fs.readFile(
         path.join(project.targetDir, "packages/contracts/src/index.ts"),
@@ -370,6 +377,9 @@ describe("resource scaffolding recipe", () => {
       );
       expect(contracts).toContain("export const invoiceCreateSchema = z.strictObject({");
       expect(contracts).toContain("export const invoiceStatusSchema = z.enum([\"DRAFT\", \"ACTIVE\"]);");
+      expect(contracts).toContain("export const invoicePrioritySchema = z.enum([\"LOW\", \"HIGH\"]);");
+      expect(contracts).toContain("verified: z.boolean().nullish(),");
+      expect(contracts).toContain("priority: invoicePrioritySchema.nullish(),");
       expect(contracts).toContain("  dueAt: z.coerce.date().nullish(),");
       expect(contracts).toContain("  amount: z.coerce.number().finite(),");
       expect(contracts).toContain("  status: invoiceStatusSchema,");
@@ -410,6 +420,56 @@ describe("resource scaffolding recipe", () => {
       expect(policyTest).toContain('import { canReadInvoice, canWriteInvoice, invoiceListScope } from "../src/modules/invoices/invoice.policy.js";');
       expect(policyTest).toContain('describe("Invoice ownership policy"');
       expect(policyTest).toContain("expect(invoiceListScope(admin)).toEqual({});");
+
+      const pages = await fs.readFile(
+        path.join(project.targetDir, "apps/web/src/features/invoices/InvoicePages.tsx"),
+        "utf8",
+      );
+      expect(pages).toContain('import { invoiceApi } from "../../lib/authenik8";');
+      expect(pages).toContain('import type { InvoiceStatus, InvoicePriority } from "@authenik8/contracts";');
+      expect(pages).toContain('import { Badge, Button, EmptyState, Input, Spinner } from "@authenik8/ui";');
+      expect(pages).toContain("export function InvoicesPage() {");
+      expect(pages).toContain("export function InvoiceFormPage() {");
+      expect(pages).toContain("export function InvoiceDetailPage() {");
+      expect(pages).toContain('to="/invoices/new"');
+      expect(pages).toContain('<option value="DRAFT">Draft</option><option value="ACTIVE">Active</option>');
+      expect(pages).toContain("<option value=\"\">Not set</option><option value=\"LOW\">Low</option><option value=\"HIGH\">High</option>");
+      expect(pages).toContain("<option value=\"\">Not set</option><option value=\"true\">Yes</option><option value=\"false\">No</option>");
+      expect(pages).toContain("<input id=\"paid\" type=\"checkbox\" checked={form.paid} onChange={(event) => setForm({ ...form, paid: event.target.checked })} />");
+      expect(pages).toContain("value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InvoiceStatus })}");
+      expect(pages).toContain("value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value as InvoicePriority })}");
+      expect(pages).toContain('type="number" step="any"');
+      expect(pages).toContain('type="date"');
+      expect(pages).toContain("amount: Number(form.amount),");
+      expect(pages).toContain("dueAt: form.dueAt === \"\" ? undefined : new Date(form.dueAt),");
+      expect(pages).toContain("paid: form.paid,");
+      expect(pages).toContain("note: form.note,");
+      expect(pages).toContain("verified: form.verified === \"\" ? undefined : form.verified === \"true\",");
+      expect(pages).toContain("priority: form.priority === \"\" ? undefined : (form.priority as InvoicePriority),");
+      expect(pages).toContain("amount: String(amount),");
+      expect(pages).toContain("dueAt: dueAt?.slice(0, 10) ?? \"\",");
+      expect(pages).toContain("verified: verified === null || verified === undefined ? \"\" : String(verified),");
+      expect(pages).toContain("priority: priority ?? \"\",");
+      expect(pages).toContain("mutationFn: () => edit ? invoiceApi.update(id!, payload) : invoiceApi.create(payload),");
+      expect(pages).toContain('const formatDate = (value: string) => new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });');
+
+      const webApp = await fs.readFile(
+        path.join(project.targetDir, "apps/web/src/App.tsx"),
+        "utf8",
+      );
+      expect(webApp).toContain('import { InvoicesPage, InvoiceDetailPage, InvoiceFormPage } from "./features/invoices/InvoicePages";');
+      expect(webApp).toContain('<Route path="invoices" element={<InvoicesPage />} />');
+      expect(webApp).toContain('<Route path="invoices/new" element={<InvoiceFormPage />} />');
+      expect(webApp).toContain('<Route path="invoices/:id" element={<InvoiceDetailPage />} />');
+      expect(webApp).toContain('<Route path="invoices/:id/edit" element={<InvoiceFormPage />} />');
+
+      const shell = await fs.readFile(
+        path.join(project.targetDir, "apps/web/src/components/AppShell.tsx"),
+        "utf8",
+      );
+      expect(shell).toContain("  Table,");
+      expect(shell).toContain('  { to: "/invoices", label: "Invoices", icon: Table },');
+      expect(shell).toContain('  if (pathname.startsWith("/invoices")) return "Invoices";');
 
       const rerun = await runAdd({ ...baseOptions, dryRun: false });
       expect(rerun.status).toBe("unchanged");

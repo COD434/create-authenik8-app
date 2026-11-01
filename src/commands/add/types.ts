@@ -10,6 +10,7 @@ export type RecipeRequest = {
   readonly name?: string;
   readonly fields?: string;
   readonly withTests?: boolean;
+  readonly withCrudUi?: boolean;
 };
 
 export type PlannedFileChange = {
@@ -40,6 +41,7 @@ export type AddOptions = {
   resourceName?: string;
   fields?: string;
   withTests?: boolean;
+  withCrudUi?: boolean;
   dryRun: boolean;
   list: boolean;
   help: boolean;

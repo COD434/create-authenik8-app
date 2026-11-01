@@ -18,6 +18,7 @@ export function parseAddArguments(
   let resourceName: string | undefined;
   let fields: string | undefined;
   let withTests = false;
+  let withCrudUi = false;
 
   let index = 0;
   while (index < args.length) {
@@ -42,6 +43,9 @@ export function parseAddArguments(
     } else if (argument === "--with-tests") {
       withTests = true;
       index += 1;
+    } else if (argument === "--with-crud-ui") {
+      withCrudUi = true;
+      index += 1;
     } else if (argument.startsWith("-")) {
       throw new AddUsageError(`Unknown add option: ${argument}`);
     } else {
@@ -58,9 +62,9 @@ export function parseAddArguments(
   if (
     recipe
     && recipe.category !== "resource"
-    && (resourceName !== undefined || fields !== undefined || withTests)
+    && (resourceName !== undefined || fields !== undefined || withTests || withCrudUi)
   ) {
-    throw new AddUsageError("--name, --fields, and --with-tests only apply to the resource recipe.");
+    throw new AddUsageError("--name, --fields, --with-tests, and --with-crud-ui only apply to the resource recipe.");
   }
 
   if (recipe?.category === "resource") {
@@ -74,6 +78,7 @@ export function parseAddArguments(
         resourceName,
         ...(fields !== undefined ? { fields } : {}),
         withTests,
+        withCrudUi,
         directory: path.resolve(cwd, extras[0] ?? "."),
         dryRun,
         list,
@@ -94,6 +99,7 @@ export function parseAddArguments(
       resourceName: nameArg,
       ...(fields !== undefined ? { fields } : {}),
       withTests,
+      withCrudUi,
       directory: path.resolve(cwd, directoryArg ?? "."),
       dryRun,
       list,
@@ -110,6 +116,7 @@ export function parseAddArguments(
     ...(resourceName !== undefined ? { resourceName } : {}),
     ...(fields !== undefined ? { fields } : {}),
     ...(withTests ? { withTests } : {}),
+    ...(withCrudUi ? { withCrudUi } : {}),
     directory: path.resolve(cwd, positional[1] ?? "."),
     dryRun,
     list,
@@ -132,6 +139,7 @@ export async function runAdd(options: AddOptions): Promise<AddResult> {
         name: options.resourceName ?? "",
         fields: options.fields ?? "",
         withTests: Boolean(options.withTests),
+        withCrudUi: Boolean(options.withCrudUi),
       }
     : undefined;
   const changes = await recipe.plan(context, request);

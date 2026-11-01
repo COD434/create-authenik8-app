@@ -20,6 +20,9 @@ Options:
                       (example: "amount:number,dueAt:date?,status:enum(DRAFT,ACTIVE)")
   --with-tests        For the resource recipe, also generate a pure policy
                       test that mirrors the included projects policy tests
+  --with-crud-ui      For the resource recipe, also generate React CRUD pages
+                      (list, form, and detail views) and wire routes and
+                      navigation into the reference app
   --name <Name>       Explicit resource name for the resource recipe; passing
                       the name positionally after the recipe name also works
   --list              List built-in recipes and compatible presets

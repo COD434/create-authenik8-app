@@ -19,6 +19,7 @@ export type ResourceRequest = {
   name: string;
   fields: readonly ResourceField[];
   withTests: boolean;
+  withCrudUi: boolean;
 };
 
 const reservedFieldNames = new Set(["id", "ownerId", "owner", "createdAt", "updatedAt"]);
@@ -632,11 +633,275 @@ function renderPolicyTest(name: string): string {
 }
 
 /**
+ * Deterministic human label for a camelCase field or SCREAMING_SNAKE enum
+ * value: "dueAt" -> "Due at", "IN_PROGRESS" -> "In progress". Mirrors the
+ * label casing used across the included reference app.
+ */
+function humanizeLabel(value: string): string {
+  const words = value
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .map((word) => word.toLowerCase());
+  if (words.length === 0) return value;
+  const first = words[0]!;
+  return [first.charAt(0).toUpperCase() + first.slice(1), ...words.slice(1)].join(" ");
+}
+
+/**
+ * JSX expression rendering one field value for a record variable (used in
+ * list cells and detail meta). Optional fields degrade to "-".
+ */
+function renderFieldValue(field: ResourceField, record: string): string {
+  const value = `${record}.${field.name}`;
+  switch (field.type) {
+    case "string":
+      return field.optional ? `{${value} ?? "-"}` : `{${value}}`;
+    case "number":
+      return field.optional ? `{${value} ?? "-"}` : `{${value}}`;
+    case "boolean":
+      return field.optional
+        ? `{${value} ? "Yes" : ${value} === false ? "No" : "-"}`
+        : `{${value} ? "Yes" : "No"}`;
+    case "date":
+      return field.optional
+        ? `{${value} ? formatDate(${value}) : "-"}`
+        : `{formatDate(${value})}`;
+    case "enum":
+      return field.optional
+        ? `{${value} ? <Badge>{${value}}</Badge> : "-"}`
+        : `<Badge>{${value}}</Badge>`;
+  }
+}
+
+function renderFormField(name: string, field: ResourceField, id: string): string {
+  const label = humanizeLabel(field.name);
+  const change = (assignment: string) => `onChange={(event) => setForm({ ...form, ${assignment} })}`;
+  switch (field.type) {
+    case "string":
+      return `        <Field label="${label}" htmlFor="${id}"><Input id="${id}" value={form.${field.name}} ${change(`${field.name}: event.target.value`)}${field.optional ? "" : " required"} maxLength={2000} /></Field>`;
+    case "number":
+      return `        <Field label="${label}" htmlFor="${id}"><input id="${id}" className="input" type="number" step="any" value={form.${field.name}} ${change(`${field.name}: event.target.value`)}${field.optional ? "" : " required"} /></Field>`;
+    case "date":
+      return `        <Field label="${label}" htmlFor="${id}"><input id="${id}" className="input" type="date" value={form.${field.name}} ${change(`${field.name}: event.target.value`)}${field.optional ? "" : " required"} /></Field>`;
+    case "boolean": {
+      if (!field.optional) {
+        return `        <Field label="${label}" htmlFor="${id}"><input id="${id}" type="checkbox" checked={form.${field.name}} ${change(`${field.name}: event.target.checked`)} /></Field>`;
+      }
+      return `        <Field label="${label}" htmlFor="${id}"><select id="${id}" className="input" value={form.${field.name}} ${change(`${field.name}: event.target.value`)}><option value="">Not set</option><option value="true">Yes</option><option value="false">No</option></select></Field>`;
+    }
+    case "enum": {
+      const options = field.values!.map((value) => `<option value="${value}">${humanizeLabel(value)}</option>`).join("");
+      const leading = field.optional ? `<option value="">Not set</option>` : "";
+      return `        <Field label="${label}" htmlFor="${id}"><select id="${id}" className="input" value={form.${field.name}} ${change(`${field.name}: event.target.value as ${enumTypeName(name, field)}`)}>${leading}${options}</select></Field>`;
+    }
+  }
+}
+
+function renderFormState(
+  name: string,
+  fields: readonly ResourceField[],
+): { typeLines: string[]; initLines: string[]; digestLines: string[]; payloadLines: string[] } {
+  const typeLines = fields.map((field) => {
+    if (field.type === "boolean") return `    ${field.name}: ${field.optional ? "string" : "boolean"};`;
+    if (field.type === "enum" && !field.optional) return `    ${field.name}: ${enumTypeName(name, field)};`;
+    return `    ${field.name}: string;`;
+  });
+  const initLines = fields.map((field) => {
+    if (field.type === "boolean" && !field.optional) return `    ${field.name}: false,`;
+    if (field.type === "enum" && !field.optional) return `    ${field.name}: "${field.values![0]}",`;
+    return `    ${field.name}: "",`;
+  });
+  const payloadLines = fields.map((field) => {
+    const formValue = `form.${field.name}`;
+    if (field.type === "string") {
+      return `    ${field.name}: form.${field.name}${field.optional ? " || undefined" : ""},`;
+    }
+    if (field.type === "number") {
+      return field.optional
+        ? `    ${field.name}: ${formValue} === "" ? undefined : Number(${formValue}),`
+        : `    ${field.name}: Number(${formValue}),`;
+    }
+    if (field.type === "boolean") {
+      return field.optional
+        ? `    ${field.name}: ${formValue} === "" ? undefined : ${formValue} === "true",`
+        : `    ${field.name}: ${formValue},`;
+    }
+    if (field.type === "date") {
+      return field.optional
+        ? `    ${field.name}: ${formValue} === "" ? undefined : new Date(${formValue}),`
+        : `    ${field.name}: new Date(${formValue}),`;
+    }
+    if (field.optional) {
+      return `    ${field.name}: ${formValue} === "" ? undefined : (${formValue} as ${enumTypeName(name, field)}),`;
+    }
+    return `    ${field.name}: ${formValue},`;
+  });
+  const digestSetLines = fields.map((field) => {
+    if (field.type === "number") {
+      return field.optional
+        ? `      ${field.name}: ${field.name} === null || ${field.name} === undefined ? "" : String(${field.name}),`
+        : `      ${field.name}: String(${field.name}),`;
+    }
+    if (field.type === "boolean") {
+      return !field.optional
+        ? `      ${field.name},`
+        : `      ${field.name}: ${field.name} === null || ${field.name} === undefined ? "" : String(${field.name}),`;
+    }
+    if (field.type === "date") {
+      return field.optional
+        ? `      ${field.name}: ${field.name}?.slice(0, 10) ?? "",`
+        : `      ${field.name}: ${field.name}.slice(0, 10),`;
+    }
+    if (field.optional) return `      ${field.name}: ${field.name} ?? "",`;
+    return `      ${field.name},`;
+  });
+  return { typeLines, initLines, digestLines: digestSetLines, payloadLines };
+}
+
+/**
+ * Renders the web feature file for a scaffolded resource: list, create/edit
+ * form, and detail pages mirroring the included projects screens, driven by
+ * the typed client generated for the resource.
+ */
+function renderCrudUiPages(name: string, fields: readonly ResourceField[]): string {
+  const lower = camelName(name);
+  const plural = `${lower}s`;
+  const pluralCap = pascalName(plural);
+  const stringFields = fields.filter((field) => field.type === "string");
+  const enumFields = fields.filter((field) => field.type === "enum");
+  const titleField = stringFields.find((field) => !field.optional) ?? stringFields[0];
+  const subtitleField = stringFields.filter((field) => field !== titleField)[0];
+  const listFields = fields.filter((field) => field !== titleField && field !== subtitleField);
+
+  const uiImports = [...new Set([...(enumFields.length ? ["Badge"] : []), "Button", "EmptyState", ...(titleField ? ["Input"] : []), "Spinner"])]
+    .sort()
+    .join(", ");
+  const typeImport = enumFields.length
+    ? `import type { ${enumFields.map((field) => enumTypeName(name, field)).join(", ")} } from "@authenik8/contracts";`
+    : null;
+
+  const primaryCell = titleField
+    ? `<td><Link className="table-link" to={\`/${plural}/\${${lower}.id}\`}>{${lower}.${titleField.name}}</Link>${subtitleField ? `<small className="table-subtitle">{${lower}.${subtitleField.name} || "Not provided"}</small>` : ""}</td>`
+    : `<td><Link className="table-link" to={\`/${plural}/\${${lower}.id}\`}>{${lower}.id}</Link></td>`;
+  const editAria = titleField
+    ? "aria-label={`Edit ${" + lower + "." + titleField.name + "}`}"
+    : `aria-label="Edit ${lower}"`;
+  const headerTitle = titleField ? `{${lower}.${titleField.name}}` : `{${lower}.id}`;
+
+  const state = renderFormState(name, fields);
+
+  const detailMain = subtitleField
+    ? `        <div className="detail-main"><p className="detail-label">${humanizeLabel(subtitleField.name)}</p><p>{${lower}.${subtitleField.name} || "Not provided."}</p></div>\n`
+    : "";
+  const metaDivs = listFields
+    .map((field) => `<div><dt>${humanizeLabel(field.name)}</dt><dd>${renderFieldValue(field, lower)}</dd></div>`)
+    .join("");
+
+  return [
+    'import { useEffect, useState, type FormEvent } from "react";',
+    'import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";',
+    'import { ArrowLeft, Edit3, Plus, Save, Table, Trash2 } from "lucide-react";',
+    'import { Link, useNavigate, useParams } from "react-router";',
+    `import { ${uiImports} } from "@authenik8/ui";`,
+    `import { ${lower}Api } from "../../lib/authenik8";`,
+    ...(typeImport ? [typeImport] : []),
+    'import { ErrorNotice, Field, PageHeader } from "../../components/Page";',
+    "",
+    `export function ${pluralCap}Page() {`,
+    `  const query = useQuery({ queryKey: ["${plural}"], queryFn: ${lower}Api.list });`,
+    "  return (",
+    "    <>",
+    `      <PageHeader title="${pluralCap}" description="Owned ${plural} in this workspace." action={<Link className="button button-primary" to="/${plural}/new"><Plus size={17} /> New ${lower}</Link>} />`,
+    "      <section className=\"panel\">",
+    `        {query.isPending ? <div className="panel-loading"><Spinner /></div> : query.error ? <ErrorNotice error={query.error} /> : query.data!.${plural}.length === 0 ? (`,
+    `          <EmptyState icon={<Table />} title="No ${plural} found" action={<Link className="button button-primary" to="/${plural}/new">Create ${lower}</Link>}>${pluralCap} you create will appear here.</EmptyState>`,
+    `        ) : <div className="table-wrap"><table><thead><tr><th>${titleField ? humanizeLabel(titleField.name) : "ID"}</th>${listFields.map((field) => `<th>${humanizeLabel(field.name)}</th>`).join("")}<th>Created</th><th>Updated</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>`,
+    `          {query.data!.${plural}.map((${lower}) => <tr key={${lower}.id}>${primaryCell}${listFields.map((field) => `<td>${renderFieldValue(field, lower)}</td>`).join("")}<td>{formatDate(${lower}.createdAt)}</td><td>{formatDate(${lower}.updatedAt)}</td><td><Link className="icon-link" to={\`/${plural}/\${${lower}.id}/edit\`} ${editAria} title="Edit ${lower}"><Edit3 size={17} /></Link></td></tr>)}`,
+    "        </tbody></table></div>}",
+    "      </section>",
+    "    </>",
+    "  );",
+    "}",
+    "",
+    `export function ${name}FormPage() {`,
+    "  const { id } = useParams();",
+    "  const edit = Boolean(id);",
+    "  const navigate = useNavigate();",
+    "  const client = useQueryClient();",
+    `  const ${lower} = useQuery({ queryKey: ["${lower}", id], queryFn: () => ${lower}Api.get(id!), enabled: edit });`,
+    `  const [form, setForm] = useState<{`,
+    state.typeLines.join("\n"),
+    "  }>({",
+    state.initLines.join("\n"),
+    "  });",
+    "  useEffect(() => {",
+    `    if (!${lower}.data) return;`,
+    `    const { ${fields.map((field) => field.name).join(", ")} } = ${lower}.data.${lower};`,
+    "    setForm({",
+    state.digestLines.join("\n"),
+    "    });",
+    `  }, [${lower}.data]);`,
+    "  const payload = {",
+    state.payloadLines.join("\n"),
+    "  };",
+    "  const mutation = useMutation({",
+    `    mutationFn: () => edit ? ${lower}Api.update(id!, payload) : ${lower}Api.create(payload),`,
+    "    onSuccess: async ({" + ` ${lower}: saved ` + "}) => {",
+    `      await client.invalidateQueries({ queryKey: ["${plural}"] });`,
+    "      navigate(`/" + plural + "/${saved.id}`);",
+    "    },",
+    "  });",
+    "  function submit(event: FormEvent) { event.preventDefault(); mutation.mutate(); }",
+    `  if (edit && ${lower}.isPending) return <div className="screen-loader"><Spinner /></div>;`,
+    "  return (",
+    "    <>",
+    `      <PageHeader title={edit ? "Edit ${lower}" : "Create ${lower}"} description="Define the ${lower} details." />`,
+    '      <form className="form-panel" onSubmit={submit}>',
+    "        {mutation.error && <ErrorNotice error={mutation.error} />}",
+    ...fields.map((field) => renderFormField(name, field, field.name)),
+    `        <div className="form-actions"><Button type="button" variant="secondary" onClick={() => navigate(-1)}>Cancel</Button><Button type="submit" disabled={mutation.isPending}><Save size={17} /> {mutation.isPending ? "Saving..." : "Save ${lower}"}</Button></div>`,
+    "      </form>",
+    "    </>",
+    "  );",
+    "}",
+    "",
+    `export function ${name}DetailPage() {`,
+    "  const { id } = useParams();",
+    "  const navigate = useNavigate();",
+    "  const client = useQueryClient();",
+    `  const query = useQuery({ queryKey: ["${lower}", id], queryFn: () => ${lower}Api.get(id!) });`,
+    `  const remove = useMutation({ mutationFn: () => ${lower}Api.remove(id!), onSuccess: async () => { await client.invalidateQueries({ queryKey: ["${plural}"] }); navigate("/${plural}"); } });`,
+    "  if (query.isPending) return <div className=\"screen-loader\"><Spinner /></div>;",
+    "  if (query.error) return <ErrorNotice error={query.error} />;",
+    `  const ${lower} = query.data!.${lower};`,
+    "  return (",
+    "    <>",
+    `      <Link className="back-link" to="/${plural}"><ArrowLeft size={15} /> ${pluralCap}</Link>`,
+    '      <PageHeader title=' + headerTitle
+    + " description={`Created ${formatDate(" + lower + ".createdAt)}`}"
+    + ' action={<div className="action-row"><Link className="button button-secondary" to={`/' + plural + '/${' + lower + '.id}/edit`}><Edit3 size={17} /> Edit</Link>'
+    + '<Button variant="danger" onClick={() => { if (window.confirm("Delete this ' + lower + ' permanently?")) remove.mutate(); }}><Trash2 size={17} /> Delete</Button></div>} />',
+    "      {remove.error && <ErrorNotice error={remove.error} />}",
+    "      <section className=\"detail-grid\">",
+    `${detailMain}        <dl className="detail-meta">${metaDivs}<div><dt>Last updated</dt><dd>{formatDate(${lower}.updatedAt)}</dd></div><div><dt>Owner ID</dt><dd><code>{${lower}.ownerId}</code></dd></div></dl>`,
+    "      </section>",
+    "    </>",
+    "  );",
+    "}",
+    "",
+    'const formatDate = (value: string) => new Date(value).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });',
+    "",
+  ].join("\n");
+}
+
+/**
  * Plans the full API-side scaffold for one scalar-field CRUD resource on a
  * generated fullstack project: module files, Prisma model plus owner relation,
  * shared contracts, OpenAPI source additions, and typed-client additions.
- * The React reference app and route-level integration tests are deliberately
- * deferred; a pure policy test ships with --with-tests.
+ * A pure policy test ships with --with-tests, and the React CRUD pages wired
+ * into the reference app ship with --with-crud-ui. Route-level integration
+ * tests are deliberately deferred.
  */
 export async function planResource(
   context: AddContext,
@@ -809,6 +1074,90 @@ export async function planResource(
   } else {
     for (const [relativePath, content] of moduleFiles) {
       addChange(relativePath, null, content);
+    }
+  }
+
+  if (request.withCrudUi) {
+    const pagesRelative = `apps/web/src/features/${plural}/${name}Pages.tsx`;
+    const pagesContent = renderCrudUiPages(name, fields);
+    const pagesPath = path.join(context.rootDir, pagesRelative);
+    if (await fs.pathExists(pagesPath)) {
+      const existingPages = await fs.readFile(pagesPath, "utf8");
+      if (existingPages !== pagesContent) {
+        throw new AddResourceError(
+          `${pagesRelative} already exists with different content; refusing to guess whether it is this resource.`,
+        );
+      }
+    } else {
+      addChange(pagesRelative, null, pagesContent);
+    }
+
+    const webAppRelative = "apps/web/src/App.tsx";
+    const webApp = await requireFile(webAppRelative);
+    if (!webApp.includes(`./features/${plural}/${name}Pages`)) {
+      requireAnchor(
+        webApp,
+        webAppRelative,
+        /^import \{ ProjectsPage, ProjectDetailPage, ProjectFormPage \} from "\.\/features\/projects\/ProjectPages";$/m,
+        "projects pages import anchor",
+      );
+      requireAnchor(
+        webApp,
+        webAppRelative,
+        /^ {10}<Route path="projects\/:id\/edit" element=\{<ProjectFormPage \/>\} \/>$/m,
+        "project routes anchor",
+      );
+      addChange(
+        webAppRelative,
+        webApp,
+        webApp
+          .replace(
+            /^import \{ ProjectsPage, ProjectDetailPage, ProjectFormPage \} from "\.\/features\/projects\/ProjectPages";$/m,
+            `import { ProjectsPage, ProjectDetailPage, ProjectFormPage } from "./features/projects/ProjectPages";\nimport { ${pascalName(plural)}Page, ${name}DetailPage, ${name}FormPage } from "./features/${plural}/${name}Pages";`,
+          )
+          .replace(
+            /^ {10}<Route path="projects\/:id\/edit" element=\{<ProjectFormPage \/>\} \/>$/m,
+            `          <Route path="projects/:id/edit" element={<ProjectFormPage />} />\n          <Route path="${plural}" element={<${pascalName(plural)}Page />} />\n          <Route path="${plural}/new" element={<${name}FormPage />} />\n          <Route path="${plural}/:id" element={<${name}DetailPage />} />\n          <Route path="${plural}/:id/edit" element={<${name}FormPage />} />`,
+          ),
+      );
+    }
+
+    const shellRelative = "apps/web/src/components/AppShell.tsx";
+    const shell = await requireFile(shellRelative);
+    if (!shell.includes(`to: "/${plural}"`)) {
+      requireAnchor(
+        shell,
+        shellRelative,
+        /^ {2}ShieldCheck,$/m,
+        "AppShell icon import anchor",
+      );
+      requireAnchor(
+        shell,
+        shellRelative,
+        /^ {2}\{ to: "\/projects", label: "Projects", icon: FolderKanban \},$/m,
+        "AppShell projects nav entry anchor",
+      );
+      requireAnchor(
+        shell,
+        shellRelative,
+        /^ {2}if \(pathname\.startsWith\("\/projects"\)\) return "Projects";$/m,
+        "AppShell projects breadcrumb anchor",
+      );
+      const sectionLabel = humanizeLabel(plural);
+      addChange(
+        shellRelative,
+        shell,
+        shell
+          .replace(/^ {2}ShieldCheck,$/m, "  ShieldCheck,\n  Table,")
+          .replace(
+            /^ {2}\{ to: "\/projects", label: "Projects", icon: FolderKanban \},$/m,
+            `  { to: "/projects", label: "Projects", icon: FolderKanban },\n  { to: "/${plural}", label: "${sectionLabel}", icon: Table },`,
+          )
+          .replace(
+            /^ {2}if \(pathname\.startsWith\("\/projects"\)\) return "Projects";$/m,
+            `  if (pathname.startsWith("/projects")) return "Projects";\n  if (pathname.startsWith("/${plural}")) return "${sectionLabel}";`,
+          ),
+      );
     }
   }
 
