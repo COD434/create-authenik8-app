@@ -4,6 +4,8 @@ import { runStaticChecks } from "../doctor/checks.js";
 import { createDoctorContext } from "../doctor/context.js";
 import { diagnosticDefinition, diagnosticDefinitions, stableDiagnosticId } from "../doctor/catalog.js";
 import { runUpgrade } from "../upgrade/index.js";
+import { createAddContext } from "../add/context.js";
+import { parseResourceFields, planResource } from "../add/resource.js";
 
 type JsonRpcRequest = {
   jsonrpc: "2.0";
@@ -72,6 +74,26 @@ export async function handleRequest(request: JsonRpcRequest): Promise<unknown> {
             description: "List all Authenik8 diagnostic definitions.",
             inputSchema: { type: "object", properties: {} },
           },
+          {
+            name: "authenik8_plan_resource_scaffold",
+            description:
+              "Plan a fullstack Authenik8 resource scaffold (Prisma model, Zod contracts, API module, OpenAPI, typed client, optional policy test, optional React CRUD pages) WITHOUT writing files. Apply the printed plan afterwards with the 'authenik8 add resource' CLI command.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                directory: { type: "string" },
+                name: { type: "string", description: "PascalCase resource name, e.g. Invoice" },
+                fields: {
+                  type: "string",
+                  description:
+                    'Comma-separated field spec, e.g. "amount:number,dueAt:date?,status:enum(DRAFT,ACTIVE)"; trailing ? marks a field nullable',
+                },
+                withTests: { type: "boolean", description: "Also plan a pure ownership-policy test" },
+                withCrudUi: { type: "boolean", description: "Also plan the wired React CRUD pages" },
+              },
+              required: ["directory", "name", "fields"],
+            },
+          },
         ],
       };
     case "tools/call": {
@@ -107,6 +129,34 @@ export async function handleRequest(request: JsonRpcRequest): Promise<unknown> {
         const manifestPath = path.join(directory, "authenik8.json");
         const content = await fs.readFile(manifestPath, "utf8");
         return { content: [{ type: "text", text: content }] };
+      }
+      if (params?.name === "authenik8_plan_resource_scaffold") {
+        const directory = String(params.arguments?.directory ?? ".");
+        const name = String(params.arguments?.name ?? "");
+        const fields = parseResourceFields(String(params.arguments?.fields ?? ""));
+        const withTests = params.arguments?.withTests === true;
+        const withCrudUi = params.arguments?.withCrudUi === true;
+        const context = await createAddContext(directory);
+        const changes = await planResource(context, { name, fields, withTests, withCrudUi });
+        const result = {
+          planningOnly: true,
+          applied: false,
+          preset: context.manifest.preset,
+          changeCount: changes.length,
+          changes: changes.map((change) => ({
+            relativePath: change.relativePath,
+            operation: change.before === null ? "create" : "edit",
+          })),
+          applyFirst: 'npx create-authenik8-app add resource <name> --fields "<spec>" --dry-run',
+          followUp: [
+            "npm run build:packages",
+            "npm run db:generate",
+            "npm run db:migrate",
+            "npm run openapi:generate",
+            "npm run openapi:check",
+          ],
+        };
+        return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
       }
       throw new Error(`Unknown tool: ${params?.name ?? ""}`);
     }

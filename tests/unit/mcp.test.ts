@@ -18,8 +18,8 @@ async function makeFixtureProject(manifestSource: string): Promise<string> {
 const manifestFixture = `{
   "schemaVersion": 1,
   "projectName": "generated-app",
-  "generatorVersion": "0.0.0",
-  "identityEngine": { "package": "authenik8-core", "version": "2.0.7" },
+  "generatedBy": { "package": "create-authenik8-app", "version": "0.0.0" },
+  "engine": { "package": "authenik8-core", "version": "2.0.7" },
   "preset": "base",
   "packageManager": "npm",
   "runtime": "node",
@@ -52,6 +52,7 @@ describe("Authenik8 MCP server", () => {
       "authenik8_doctor_offline",
       "authenik8_explain_diagnostic",
       "authenik8_list_diagnostics",
+      "authenik8_plan_resource_scaffold",
       "authenik8_project_manifest",
       "authenik8_upgrade_plan",
     ]);
@@ -157,6 +158,35 @@ describe("Authenik8 MCP server", () => {
       method: "tools/call",
       params: { name: "authenik8_doctor_offline", arguments: { directory } },
     })).rejects.toThrow();
+  });
+
+  it("rejects invalid resource field specs before touching the filesystem", async () => {
+    await expect(handleRequest({
+      jsonrpc: "2.0",
+      id: 11,
+      method: "tools/call",
+      params: {
+        name: "authenik8_plan_resource_scaffold",
+        arguments: { directory: "C:\\definitely-missing", name: "Invoice", fields: "amount:blob" },
+      },
+    })).rejects.toThrow("Invalid field spec");
+  });
+
+  it("refuses resource scaffold planning for non-fullstack presets", async () => {
+    const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-mcp-")));
+    tempRoots.push(directory);
+    await fs.writeFile(path.join(directory, "package.json"), "{ \"name\": \"fixture\" }");
+    await fs.writeFile(path.join(directory, "authenik8.json"), manifestFixture);
+
+    await expect(handleRequest({
+      jsonrpc: "2.0",
+      id: 12,
+      method: "tools/call",
+      params: {
+        name: "authenik8_plan_resource_scaffold",
+        arguments: { directory, name: "Invoice", fields: "amount:number" },
+      },
+    })).rejects.toThrow("Resource scaffolding currently supports fullstack projects only.");
   });
 
   it("keeps the new catalog entry explainable through the shared catalog", () => {

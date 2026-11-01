@@ -7,6 +7,7 @@ import { runAdd } from "../../src/commands/add/index.js";
 import { AddRecipeError } from "../../src/commands/add/plan.js";
 import { AddResourceError } from "../../src/commands/add/resource.js";
 import { githubCiWorkflowPath } from "../../src/commands/add/ci.js";
+import { handleRequest } from "../../src/commands/mcp/index.js";
 import { runDoctor } from "../../src/commands/doctor/index.js";
 import {
   generateProjectFixture,
@@ -473,6 +474,70 @@ describe("resource scaffolding recipe", () => {
 
       const rerun = await runAdd({ ...baseOptions, dryRun: false });
       expect(rerun.status).toBe("unchanged");
+
+      const mcpPlanResponse = await handleRequest({
+        jsonrpc: "2.0",
+        id: "mcp-1",
+        method: "tools/call",
+        params: {
+          name: "authenik8_plan_resource_scaffold",
+          arguments: {
+            directory: project.targetDir,
+            name: "Memo",
+            fields: "title:string,body:string?",
+            withTests: true,
+            withCrudUi: true,
+          },
+        },
+      }) as { content: Array<{ text: string }> };
+      const mcpPlan = JSON.parse(mcpPlanResponse.content[0]!.text) as {
+        planningOnly: boolean;
+        applied: boolean;
+        preset: string;
+        changeCount: number;
+        changes: Array<{ relativePath: string; operation: string }>;
+        followUp: string[];
+      };
+      expect(mcpPlan.planningOnly).toBe(true);
+      expect(mcpPlan.applied).toBe(false);
+      expect(mcpPlan.preset).toBe("fullstack");
+      expect(mcpPlan.changeCount).toBe(14);
+      const memoPaths = [
+        "apps/api/src/modules/memos/memo.policy.ts",
+        "apps/api/tests/memo.policy.test.ts",
+        "apps/web/src/features/memos/MemoPages.tsx",
+        "apps/web/src/App.tsx",
+        "apps/web/src/components/AppShell.tsx",
+      ];
+      for (const memoPath of memoPaths) {
+        expect(mcpPlan.changes.some((change) => change.relativePath === memoPath)).toBe(true);
+      }
+      expect(mcpPlan.changes.filter((change) => change.operation === "create")).toHaveLength(7);
+      expect(mcpPlan.followUp).toContain("npm run openapi:generate");
+      for (const memoPath of [
+        path.join(project.targetDir, "apps/api/src/modules/memos/memo.policy.ts"),
+        path.join(project.targetDir, "apps/web/src/features/memos/MemoPages.tsx"),
+      ]) {
+        expect(fs.existsSync(memoPath)).toBe(false);
+      }
+
+      const mcpNoopResponse = await handleRequest({
+        jsonrpc: "2.0",
+        id: "mcp-2",
+        method: "tools/call",
+        params: {
+          name: "authenik8_plan_resource_scaffold",
+          arguments: {
+            directory: project.targetDir,
+            name: "Invoice",
+            fields: "amount:number,dueAt:date?,paid:boolean,note:string,status:enum(DRAFT,ACTIVE),verified:boolean?,priority:enum(LOW,HIGH)?",
+            withTests: true,
+            withCrudUi: true,
+          },
+        },
+      }) as { content: Array<{ text: string }> };
+      const mcpNoop = JSON.parse(mcpNoopResponse.content[0]!.text) as { changeCount: number };
+      expect(mcpNoop.changeCount).toBe(0);
     } finally {
       await project.cleanup();
     }
