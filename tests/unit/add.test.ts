@@ -11,6 +11,11 @@ import { formatFileDiff } from "../../src/commands/add/diff.js";
 import { addRecipes, findAddRecipe } from "../../src/commands/add/registry.js";
 import { applyPlannedChanges } from "../../src/commands/add/apply.js";
 import { renderGithubCiWorkflow } from "../../src/commands/add/ci.js";
+import {
+  AddResourceError,
+  parseResourceFields,
+  parseResourceName,
+} from "../../src/commands/add/resource.js";
 
 describe("add command", () => {
   it("parses a recipe, directory, and both preview spellings", () => {
@@ -36,6 +41,7 @@ describe("add command", () => {
       "oauth-google",
       "oauth-github",
       "ci-github",
+      "resource",
     ]);
     expect(new Set(addRecipes.map((recipe) => recipe.id)).size).toBe(addRecipes.length);
     expect(findAddRecipe("github")?.id).toBe("oauth-github");
@@ -143,5 +149,65 @@ describe("add command", () => {
       await fs.remove(directory);
       await fs.remove(external);
     }
+  });
+});
+
+describe("resource recipe parsing", () => {
+  it("maps the resource name positionally and honors --name with an explicit directory", () => {
+    expect(parseAddArguments(["resource", "Invoice", "--fields", "amount:number,dueAt:date?"], "/tmp/work"))
+      .toEqual({
+        recipeName: "resource",
+        resourceName: "Invoice",
+        fields: "amount:number,dueAt:date?",
+        directory: path.resolve("/tmp/work"),
+        dryRun: false,
+        list: false,
+        help: false,
+      });
+    expect(parseAddArguments(["resource", "--name", "Invoice", "--fields", "amount:number", "project"], "/tmp/work"))
+      .toEqual({
+        recipeName: "resource",
+        resourceName: "Invoice",
+        fields: "amount:number",
+        directory: path.resolve("/tmp/work/project"),
+        dryRun: false,
+        list: false,
+        help: false,
+      });
+  });
+
+  it("supports a third positional directory for resource scaffolds and bundles flags", () => {
+    expect(parseAddArguments(["resource", "Invoice", "project", "--dry-run"], "/tmp/work").directory)
+      .toBe(path.resolve("/tmp/work/project"));
+    expect(parseAddArguments(["resource", "Invoice", "project", "--diff", "--fields", "paid:boolean"]).dryRun)
+      .toBe(true);
+  });
+
+  it("rejects misplaced value flags, missing names, and value-flag abuse on other recipes", () => {
+    expect(() => parseAddArguments(["resource", "--fields"])).toThrow(AddUsageError);
+    expect(() => parseAddArguments(["resource", "--fields", "amount:number"])).toThrow(AddUsageError);
+    expect(() => parseAddArguments(["resource", "Invoice", "one", "two"])).toThrow(AddUsageError);
+    expect(() => parseAddArguments(["oauth-github", "--name", "Invoice", "--fields", "amount:number"]))
+      .toThrow("--name and --fields only apply to the resource recipe.");
+  });
+
+  it("validates resource names and field specs strictly", () => {
+    expect(() => parseResourceName("invoice")).toThrow(AddResourceError);
+    expect(() => parseResourceName("Invoice-Ledger")).toThrow(AddResourceError);
+    expect(parseResourceName(" Invoice ")).toBe("Invoice");
+    expect(parseResourceFields("amount:number,dueAt:date?,paid:boolean,note:string?")).toEqual([
+      { name: "amount", type: "number", optional: false },
+      { name: "dueAt", type: "date", optional: true },
+      { name: "paid", type: "boolean", optional: false },
+      { name: "note", type: "string", optional: true },
+    ]);
+    expect(() => parseResourceFields("amount:enum")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("ownerId:string")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("amount:number,amount:string")).toThrow(AddResourceError);
+    expect(() => parseResourceFields("")).toThrow(AddResourceError);
+    expect(parseResourceFields(Array.from({ length: 12 }, (_, index) => `f${index}:number`).join(",")))
+      .toHaveLength(12);
+    expect(() => parseResourceFields(Array.from({ length: 13 }, (_, index) => `f${index}:number`).join(",")))
+      .toThrow(AddResourceError);
   });
 });

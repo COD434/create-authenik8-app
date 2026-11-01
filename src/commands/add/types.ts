@@ -2,7 +2,14 @@ import type { AuthMode } from "../../lib/types.js";
 import type { OAuthProvider } from "../../lib/oauth.js";
 import type { ProjectManifest } from "../../lib/projectManifest.js";
 
-export type AddRecipeId = `oauth-${OAuthProvider}` | "ci-github";
+export type AddRecipeId = `oauth-${OAuthProvider}` | "ci-github" | "resource";
+
+export type AddRecipeCategory = "oauth" | "ci" | "resource";
+
+export type RecipeRequest = {
+  readonly name?: string;
+  readonly fields?: string;
+};
 
 export type PlannedFileChange = {
   relativePath: string;
@@ -21,14 +28,16 @@ export type AddRecipe = {
   aliases: readonly string[];
   description: string;
   provider?: OAuthProvider;
-  category: "oauth" | "ci";
+  category: AddRecipeCategory;
   supportedPresets: readonly AuthMode[];
-  plan(context: AddContext): Promise<PlannedFileChange[]>;
+  plan(context: AddContext, request?: RecipeRequest): Promise<PlannedFileChange[]>;
 };
 
 export type AddOptions = {
   recipeName?: string;
   directory: string;
+  resourceName?: string;
+  fields?: string;
   dryRun: boolean;
   list: boolean;
   help: boolean;

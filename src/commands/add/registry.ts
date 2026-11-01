@@ -1,6 +1,7 @@
 import type { AddRecipe } from "./types.js";
 import { planOAuthProvider } from "./plan.js";
 import { planGithubCi } from "./ci.js";
+import { parseResourceFields, planResource } from "./resource.js";
 
 const googleRecipe = Object.freeze({
     id: "oauth-google",
@@ -35,6 +36,18 @@ export const addRecipes: readonly AddRecipe[] = Object.freeze([
   googleRecipe,
   githubRecipe,
   githubCiRecipe,
+  Object.freeze({
+    id: "resource",
+    aliases: Object.freeze(["resource"]),
+    description: "Scaffold a CRUD API resource (Prisma model, contracts, module, OpenAPI, client)",
+    category: "resource",
+    supportedPresets: Object.freeze(["fullstack"]),
+    plan: (context, request) =>
+      planResource(context, {
+        name: request?.name ?? "",
+        fields: parseResourceFields(request?.fields ?? ""),
+      }),
+  } satisfies AddRecipe),
 ]);
 
 export function findAddRecipe(name: string): AddRecipe | undefined {

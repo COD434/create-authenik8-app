@@ -95,6 +95,7 @@ Post-generation recipes:
 
 ```text
 create-authenik8-app add <recipe> [directory] [--dry-run]
+create-authenik8-app add resource <Name> --fields "name:type,..." [directory] [--dry-run]
 create-authenik8-app add --list
 ```
 

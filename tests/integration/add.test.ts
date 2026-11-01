@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { formatAddDiff } from "../../src/commands/add/diff.js";
 import { runAdd } from "../../src/commands/add/index.js";
 import { AddRecipeError } from "../../src/commands/add/plan.js";
+import { AddResourceError } from "../../src/commands/add/resource.js";
 import { githubCiWorkflowPath } from "../../src/commands/add/ci.js";
 import { runDoctor } from "../../src/commands/doctor/index.js";
 import {
@@ -277,6 +278,123 @@ describe("built-in add recipes", () => {
         help: false,
       })).rejects.toBeInstanceOf(AddRecipeError);
       expect(await fs.readFile(workflowPath, "utf8")).toContain("# local policy");
+    } finally {
+      await project.cleanup();
+    }
+  });
+});
+
+describe("resource scaffolding recipe", () => {
+  it("refuses non-fullstack projects, applies the full scaffold, and no-ops on re-run", async () => {
+    const expressProject = await generateProjectFixture({
+      template: "auth-oauth",
+      oauthProviders: ["google"],
+      usePrisma: true,
+    });
+    try {
+      await expect(runAdd({
+        recipeName: "resource",
+        resourceName: "Invoice",
+        fields: "amount:number",
+        directory: expressProject.targetDir,
+        dryRun: false,
+        list: false,
+        help: false,
+      })).rejects.toBeInstanceOf(AddResourceError);
+    } finally {
+      await expressProject.cleanup();
+    }
+
+    const project = await generateProjectFixture({ template: "fullstack" });
+    try {
+      const baseOptions = {
+        recipeName: "resource",
+        resourceName: "Invoice",
+        fields: "amount:number,dueAt:date?,paid:boolean,note:string",
+        directory: project.targetDir,
+        list: false,
+        help: false,
+      } as const;
+
+      const preview = await runAdd({ ...baseOptions, dryRun: true });
+      expect(preview.status).toBe("preview");
+      expect(preview.changes.map((change) => change.relativePath)).toEqual(expect.arrayContaining([
+        "apps/api/prisma/schema.prisma",
+        "apps/api/src/app.ts",
+        "packages/contracts/src/index.ts",
+        "apps/api/src/openapi.ts",
+        "packages/api-client/src/index.ts",
+        "apps/api/src/modules/invoices/invoice.policy.ts",
+        "apps/api/src/modules/invoices/invoice.repository.ts",
+        "apps/api/src/modules/invoices/invoice.service.ts",
+        "apps/api/src/modules/invoices/invoice.controller.ts",
+        "apps/api/src/modules/invoices/invoice.routes.ts",
+      ]));
+      expect(preview.changes.every((change) => change.sensitive !== true)).toBe(true);
+
+      const applied = await runAdd({ ...baseOptions, dryRun: false });
+      expect(applied.status).toBe("applied");
+
+      const routes = await fs.readFile(
+        path.join(project.targetDir, "apps/api/src/modules/invoices/invoice.routes.ts"),
+        "utf8",
+      );
+      expect(routes).toContain('invoiceRoutes.use(authenticate);');
+      expect(routes).toContain('invoiceRoutes.delete("/:id", requireAllowedOrigin, requireCsrf, deleteInvoiceController);');
+
+      const service = await fs.readFile(
+        path.join(project.targetDir, "apps/api/src/modules/invoices/invoice.service.ts"),
+        "utf8",
+      );
+      expect(service).toContain("throw new AppError(404, \"INVOICE_NOT_FOUND\", \"Invoice not found\");");
+      expect(service).toContain("invoiceCreateSchema.parse(body);");
+      expect(service).toContain("canWriteInvoice(actor, invoice)");
+
+      const schema = await fs.readFile(
+        path.join(project.targetDir, "apps/api/prisma/schema.prisma"),
+        "utf8",
+      );
+      expect(schema).toContain("model Invoice {");
+      expect(schema).toMatch(/projects[ \t]+Project\[\][\r\n]+[ \t]*invoices[ \t]+Invoice\[\]/);
+      expect(schema).toContain("  dueAt     DateTime?");
+      expect(schema).toContain("  note      String");
+
+      const contracts = await fs.readFile(
+        path.join(project.targetDir, "packages/contracts/src/index.ts"),
+        "utf8",
+      );
+      expect(contracts).toContain("export const invoiceCreateSchema = z.strictObject({");
+      expect(contracts).toContain("  dueAt: z.coerce.date().nullish(),");
+      expect(contracts).toContain("  amount: z.coerce.number().finite(),");
+      expect(contracts).toContain("export type Invoice = {");
+
+      const openApi = await fs.readFile(
+        path.join(project.targetDir, "apps/api/src/openapi.ts"),
+        "utf8",
+      );
+      expect(openApi).toContain('"/api/invoices": {');
+      expect(openApi).toContain('"/api/invoices/{id}": {');
+      expect(openApi).toContain("  invoiceCreateSchema,");
+      expect(openApi).toContain('tags: ["invoices"],');
+      expect(openApi).toContain("InvoiceUpdateInput: inputSchemaWithExample(invoiceUpdateSchema, {");
+
+      const client = await fs.readFile(
+        path.join(project.targetDir, "packages/api-client/src/index.ts"),
+        "utf8",
+      );
+      expect(client).toContain("const invoices = {");
+      expect(client).toContain("export const invoiceApi = defaultClient.invoices;");
+      expect(client).toContain("  Invoice,");
+
+      const app = await fs.readFile(
+        path.join(project.targetDir, "apps/api/src/app.ts"),
+        "utf8",
+      );
+      expect(app).toContain('import { invoiceRoutes } from "./modules/invoices/invoice.routes.js";');
+      expect(app).toContain('app.use("/api/invoices", invoiceRoutes);');
+
+      const rerun = await runAdd({ ...baseOptions, dryRun: false });
+      expect(rerun.status).toBe("unchanged");
     } finally {
       await project.cleanup();
     }

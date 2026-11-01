@@ -9,16 +9,23 @@ Apply a built-in, auditable auth recipe to a generated project
 
 Usage:
   create-authenik8-app add <recipe> [directory] [options]
+  create-authenik8-app add resource <Name> --fields "name:type,..." [directory]
   create-authenik8-app add --list
 
 Options:
   --dry-run, --diff   Print the exact proposed diff without writing files
+  --fields "<spec>"   Field list for the resource recipe; supported types are
+                      string, number, boolean, and date; a trailing ? marks
+                      the field nullable (example: "amount:number,dueAt:date?")
+  --name <Name>       Explicit resource name for the resource recipe; passing
+                      the name positionally after the recipe name also works
   --list              List built-in recipes and compatible presets
   -h, --help          Show this help message
 
 Examples:
   npx create-authenik8-app add oauth-github
   npx create-authenik8-app add oauth-google ./my-app --dry-run
+  npx create-authenik8-app add resource Invoice --fields "amount:number,dueAt:date?" --dry-run
 `;
 }
 
@@ -56,6 +63,15 @@ export function formatAddResult(result: AddResult): string {
       const prefix = result.recipe.provider.toUpperCase();
       lines.push(
         `Next: set ${prefix}_CLIENT_ID and ${prefix}_CLIENT_SECRET, then run create-authenik8-app doctor.`,
+      );
+    } else if (result.recipe.category === "resource") {
+      lines.push(
+        "Next: review the module and Prisma model, then run in order:",
+        "  npm run build:packages",
+        "  npm run db:generate",
+        "  npm run db:migrate",
+        "  npm run openapi:generate",
+        "  npm run openapi:check",
       );
     } else {
       lines.push("Next: commit the workflow and let its Authenik8 checks run on a pull request.");

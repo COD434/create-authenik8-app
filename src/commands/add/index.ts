@@ -15,24 +15,94 @@ export function parseAddArguments(
   let dryRun = false;
   let list = false;
   let help = false;
+  let resourceName: string | undefined;
+  let fields: string | undefined;
 
-  for (const argument of args) {
-    if (argument === "--dry-run" || argument === "--diff") dryRun = true;
-    else if (argument === "--list") list = true;
-    else if (argument === "--help" || argument === "-h") help = true;
-    else if (argument.startsWith("-")) throw new AddUsageError(`Unknown add option: ${argument}`);
-    else positional.push(argument);
+  let index = 0;
+  while (index < args.length) {
+    const argument = args[index]!;
+    if (argument === "--dry-run" || argument === "--diff") {
+      dryRun = true;
+      index += 1;
+    } else if (argument === "--list") {
+      list = true;
+      index += 1;
+    } else if (argument === "--help" || argument === "-h") {
+      help = true;
+      index += 1;
+    } else if (argument === "--name" || argument === "--fields") {
+      const value = args[index + 1];
+      if (value === undefined || value.startsWith("-")) {
+        throw new AddUsageError(`${argument} requires a value.`);
+      }
+      if (argument === "--name") resourceName = value;
+      else fields = value;
+      index += 2;
+    } else if (argument.startsWith("-")) {
+      throw new AddUsageError(`Unknown add option: ${argument}`);
+    } else {
+      positional.push(argument);
+      index += 1;
+    }
+  }
+
+  if (!list && !help && !positional[0]) {
+    throw new AddUsageError("Add requires a recipe name. Use --list to see available recipes.");
+  }
+
+  const recipe = positional[0] ? findAddRecipe(positional[0]) : undefined;
+  if (
+    recipe
+    && recipe.category !== "resource"
+    && (resourceName !== undefined || fields !== undefined)
+  ) {
+    throw new AddUsageError("--name and --fields only apply to the resource recipe.");
+  }
+
+  if (recipe?.category === "resource") {
+    const extras = positional.slice(1);
+    if (resourceName !== undefined) {
+      if (extras.length > 1) {
+        throw new AddUsageError("Add accepts at most one project directory.");
+      }
+      return {
+        recipeName: recipe.id,
+        resourceName,
+        ...(fields !== undefined ? { fields } : {}),
+        directory: path.resolve(cwd, extras[0] ?? "."),
+        dryRun,
+        list,
+        help,
+      };
+    }
+    const [nameArg, directoryArg, extra] = extras;
+    if (extra) {
+      throw new AddUsageError("Add accepts one resource name and one project directory.");
+    }
+    if (!nameArg) {
+      throw new AddUsageError(
+        'Resource recipes need a PascalCase resource name: add resource Invoice --fields "amount:number".',
+      );
+    }
+    return {
+      recipeName: recipe.id,
+      resourceName: nameArg,
+      ...(fields !== undefined ? { fields } : {}),
+      directory: path.resolve(cwd, directoryArg ?? "."),
+      dryRun,
+      list,
+      help,
+    };
   }
 
   if (positional.length > 2) {
     throw new AddUsageError("Add accepts one recipe and at most one project directory.");
   }
-  if (!list && !help && !positional[0]) {
-    throw new AddUsageError("Add requires a recipe name. Use --list to see available recipes.");
-  }
 
   return {
     ...(positional[0] ? { recipeName: positional[0] } : {}),
+    ...(resourceName !== undefined ? { resourceName } : {}),
+    ...(fields !== undefined ? { fields } : {}),
     directory: path.resolve(cwd, positional[1] ?? "."),
     dryRun,
     list,
@@ -50,7 +120,10 @@ export async function runAdd(options: AddOptions): Promise<AddResult> {
   }
 
   const context = await createAddContext(options.directory);
-  const changes = await recipe.plan(context);
+  const request = recipe.category === "resource"
+    ? { name: options.resourceName ?? "", fields: options.fields ?? "" }
+    : undefined;
+  const changes = await recipe.plan(context, request);
   if (changes.length === 0) {
     return { recipe, rootDir: context.rootDir, changes, status: "unchanged" };
   }
@@ -59,7 +132,7 @@ export async function runAdd(options: AddOptions): Promise<AddResult> {
   }
 
   await applyPlannedChanges(context.rootDir, changes, async () => {
-    const verified = await recipe.plan(await createAddContext(context.rootDir));
+    const verified = await recipe.plan(await createAddContext(context.rootDir), request);
     if (verified.length > 0) {
       throw new Error(
         `Post-apply verification found ${verified.length} unapplied recipe change(s).`,
