@@ -63,8 +63,12 @@ describe("generated Lovable integration contract", () => {
     expect(pkg.scripts["doctor:lovable"]).toBe("node scripts/doctor-lovable.mjs");
     expect(pkg.scripts["export:lovable-client"]).toContain("export-lovable-client.mjs");
     expect(pkg.scripts["dev:lovable"]).toBe("node scripts/run-local.mjs lovable");
-    expect(pkg.scripts["dev:lovable:watch"]).toContain("@authenik8/api");
-    expect(pkg.scripts["dev:lovable:watch"]).not.toContain("@authenik8/web");
+    expect(pkg.scripts["dev:lovable:watch"]).toBe("node scripts/run-local.mjs watch");
+    const runLocalSource = await fs.readFile(
+      path.join(generated.targetDir, "scripts/run-local.mjs"),
+      "utf8",
+    );
+    expect(runLocalSource).toContain('manifestFrontendMode() !== "lovable"');
     expect(await fs.pathExists(path.join(generated.targetDir, "scripts/doctor-lovable.mjs"))).toBe(true);
     expect(await fs.pathExists(path.join(
       generated.targetDir,

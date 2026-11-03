@@ -569,10 +569,10 @@ describe("generator happy paths", () => {
 
       expect(pkg.workspaces).toEqual(["apps/*", "packages/*"]);
       expect(pkg.scripts.dev).toBe("node scripts/run-local.mjs dev");
-      expect(pkg.scripts["dev:watch"]).toContain("concurrently");
-      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/contracts");
-      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/api-client");
-      expect(pkg.scripts["dev:watch"]).toContain("@authenik8/ui");
+      expect(pkg.scripts["dev:watch"]).toBe("node scripts/run-local.mjs watch");
+      expect(files["scripts/run-local.mjs"]).toContain("@authenik8/contracts");
+      expect(files["scripts/run-local.mjs"]).toContain("@authenik8/api-client");
+      expect(files["scripts/run-local.mjs"]).toContain("@authenik8/ui");
       expect(pkg.scripts.setup).toBe("node scripts/run-local.mjs setup");
       expect(pkg.scripts["db:migrate"]).toBe("node scripts/run-local.mjs migrate");
       expect(pkg.scripts["db:seed"]).toBe("node scripts/run-local.mjs seed");
