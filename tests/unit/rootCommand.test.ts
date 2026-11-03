@@ -58,4 +58,11 @@ describe("resolveRootCommand", () => {
       args: [],
     });
   });
+
+  it("routes migration reports with provider and directory arguments", () => {
+    expect(resolveRootCommand(["migrate", "supabase", "./app", "--json"])).toEqual({
+      name: "migrate",
+      args: ["supabase", "./app", "--json"],
+    });
+  });
 });

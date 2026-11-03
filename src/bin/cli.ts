@@ -65,6 +65,14 @@ import {
 import { resolveRootCommand } from "../lib/rootCommand.js";
 import { runMcpServer } from "../commands/mcp/index.js";
 import {
+  MigrateProjectError,
+  MigrateUsageError,
+  formatMigrationReport,
+  migrationHelp,
+  parseMigrateArguments,
+  runMigrate,
+} from "../commands/migrate/index.js";
+import {
   LovableDoctorUsageError,
   lovableDoctorHelp,
   parseLovableDoctorArguments,
@@ -247,6 +255,35 @@ async function main(): Promise<void> {
       } else {
         const detail = error instanceof Error ? error.message : String(error);
         write(process.stderr, `Error: Studio could not start: ${detail}`);
+        process.exitCode = 1;
+      }
+    }
+    return;
+  }
+
+  if (route.name === "migrate") {
+    try {
+      const options = parseMigrateArguments(route.args);
+      if (options.help) write(process.stdout, migrationHelp());
+      else {
+        write(
+          process.stdout,
+          formatMigrationReport(
+            await runMigrate(options),
+            options.json === true,
+          ),
+        );
+      }
+    } catch (error) {
+      if (error instanceof MigrateUsageError) {
+        write(process.stderr, `Error: ${error.message}\n${migrationHelp()}`);
+        process.exitCode = 2;
+      } else if (error instanceof MigrateProjectError) {
+        write(process.stderr, `Error: ${error.message}`);
+        process.exitCode = 1;
+      } else {
+        const detail = error instanceof Error ? error.message : String(error);
+        write(process.stderr, `Error: Migration report could not complete: ${detail}`);
         process.exitCode = 1;
       }
     }

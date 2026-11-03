@@ -39,6 +39,7 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Operational auth maintenance](docs/operational-maintenance.md)
 - [Post-generation recipes](docs/post-generation-recipes.md)
 - [Upgrade planning and CI policy](docs/upgrades-and-ci.md)
+- [Migration readiness (Supabase, Clerk, Auth0)](docs/migrations.md)
 - [CLI reference](docs/cli-reference.md)
 
 ### Choose an application shape

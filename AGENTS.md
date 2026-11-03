@@ -81,6 +81,7 @@ doctor frontend
 upgrade
 ops
 studio
+migrate
 ```
 
 Relevant source:
