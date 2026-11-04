@@ -58,6 +58,94 @@ function safeError(error: unknown): string {
     .slice(0, 500);
 }
 
+const LOCAL_API_PROBE_TIMEOUT_MS = 5_000;
+
+function causeChainIncludes(error: unknown, predicate: (cause: Error) => boolean): boolean {
+  let current: unknown = error;
+  for (let depth = 0; current && depth < 10; depth += 1) {
+    if (!(current instanceof Error)) return false;
+    if (predicate(current)) return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+function requestConnectionRefused(error: unknown): boolean {
+  return causeChainIncludes(
+    error,
+    (cause) => (cause as NodeJS.ErrnoException).code === "ECONNREFUSED",
+  );
+}
+
+function requestTimedOut(error: unknown): boolean {
+  return causeChainIncludes(error, (cause) => {
+    const named = cause as { name?: string; code?: string };
+    return named.name === "TimeoutError"
+      || named.name === "AbortError"
+      || named.code === "ABORT_ERR"
+      || named.code === "UND_ERR_CONNECT_TIMEOUT";
+  });
+}
+
+export async function verifyLocalApiResponsiveness(
+  context: DoctorContext,
+  timeoutMs: number = LOCAL_API_PROBE_TIMEOUT_MS,
+): Promise<DoctorCheck> {
+  const portText = context.env.PORT?.trim() || "3000";
+  const port = Number(portText);
+  if (!Number.isInteger(port) || port < 1 || port > 65_535) {
+    return check(
+      "A8-DEV-001",
+      "Local API responsiveness",
+      "skip",
+      `PORT (${portText}) is not a valid local port`,
+    );
+  }
+
+  const url = `http://127.0.0.1:${port}/api/health/live`;
+  const startedAt = Date.now();
+  try {
+    // Loopback-only GET against the unauthenticated health endpoint: enough
+    // to prove the listener responds without any credential material.
+    const response = await fetch(url, {
+      method: "GET",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    return check(
+      "A8-DEV-001",
+      "Local API responsiveness",
+      "pass",
+      `Local API answered ${url} (HTTP ${response.status}) in ${Date.now() - startedAt}ms`,
+    );
+  } catch (error) {
+    const detail = safeError(error);
+    if (requestConnectionRefused(error)) {
+      return check(
+        "A8-DEV-001",
+        "Local API responsiveness",
+        "skip",
+        `No service answered on 127.0.0.1:${port}; start the development stack with npm run dev and rerun`,
+      );
+    }
+    if (requestTimedOut(error)) {
+      return check(
+        "A8-DEV-001",
+        "Local API responsiveness",
+        "fail",
+        `Local API accepted a connection on 127.0.0.1:${port} but did not send response headers within ${timeoutMs / 1000}s`,
+        "Stop this project's node processes and restart the development stack with npm run dev. If repeated restarts still accept connections without answering, this project predates the direct watcher orchestration in scripts/run-local.mjs: copy that file from a freshly generated fullstack project or regenerate with the current create-authenik8-app version, then rerun this check.",
+      );
+    }
+    return check(
+      "A8-DEV-001",
+      "Local API responsiveness",
+      "fail",
+      `Local API request to 127.0.0.1:${port} failed after ${Date.now() - startedAt}ms: ${detail}`,
+      "Restart the development stack (npm run dev) and rerun this check.",
+    );
+  }
+}
+
 function moduleConstructor(value: unknown, packageName: string): RedisConstructor {
   if (typeof value === "function") return value as RedisConstructor;
   if (
@@ -340,6 +428,9 @@ async function cleanupRedis(redis: RedisLike, namespace: string): Promise<void> 
 export async function runDeepChecks(
   context: DoctorContext,
 ): Promise<DoctorCheck[]> {
+  const devChecks = context.preset === "fullstack"
+    ? [await verifyLocalApiResponsiveness(context)]
+    : [];
   const namespace = `authenik8:doctor:${randomUUID()}`;
   let redis: RedisLike;
   try {
@@ -360,6 +451,7 @@ export async function runDeepChecks(
         "skip",
         "Core runtime checks require the Redis capability prerequisite",
       ),
+      ...devChecks,
     ];
   }
 
@@ -381,6 +473,7 @@ export async function runDeepChecks(
           "skip",
           "Core runtime checks require the Redis capability prerequisite",
         ),
+        ...devChecks,
       ];
     }
 
@@ -409,7 +502,7 @@ export async function runDeepChecks(
         "Restore the exact supported authenik8-core installation and rerun Doctor.",
       ));
     }
-    return checks;
+    return [...checks, ...devChecks];
   } finally {
     await cleanupRedis(redis, namespace);
   }

@@ -34,6 +34,15 @@ cookies, and embedded PostgreSQL:
 npx create-authenik8-app@latest doctor --production
 ```
 
+Fullstack deep runs also probe the configured local API port once, loopback
+only: `A8-DEV-001` verifies that whatever is listening on `PORT` actually
+answers an HTTP health request. A listener that accepts connections but never
+responds makes every local request hang forever — the signature behind the
+"page loads infinitely" defect class fixed in `create-authenik8-app` 2.5.x's
+`scripts/run-local.mjs` watcher orchestration. Nothing listening on the port
+skips the check, because Doctor may run while the development stack is
+stopped.
+
 Doctor never applies development migrations or rotates signing keys.
 
 ## Stable diagnostics

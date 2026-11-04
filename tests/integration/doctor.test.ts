@@ -442,6 +442,8 @@ describe("generated project doctor", () => {
         .toMatchObject({ status: "pass" });
       expect(report.checks.find((check) => check.id === "A8-CORE-002"))
         .toMatchObject({ status: "pass" });
+      expect(report.checks.some((check) => check.id === "A8-DEV-001"))
+        .toBe(false);
       expect(report.summary.failed).toBe(0);
     } finally {
       await project.cleanup();
@@ -477,6 +479,9 @@ describe("generated project doctor", () => {
         expect(report.checks.find((check) => check.id === id))
           .toMatchObject({ status: "fail" });
       }
+      const localApi = report.checks.find((check) => check.id === "A8-DEV-001");
+      expect(localApi).toBeDefined();
+      expect(localApi?.message).toContain("127.0.0.1:");
     } finally {
       await project.cleanup();
     }

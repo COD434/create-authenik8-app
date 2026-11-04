@@ -6,7 +6,7 @@ import {
 } from "./catalog.js";
 import { runProductionChecks, runStaticChecks } from "./checks.js";
 import { createDoctorContext } from "./context.js";
-import { runDeepChecks } from "./deep.js";
+import { runDeepChecks, verifyLocalApiResponsiveness } from "./deep.js";
 import { runDoctorFixes } from "./fixes.js";
 import { probeRedis, redisEndpointFromEnv } from "./services.js";
 import type {
@@ -118,7 +118,11 @@ export function parseDoctorArguments(
     throw new DoctorUsageError("--fix cannot be combined with --check.");
   }
 
-  if (checkId === "A8-REDIS-002" || checkId === "A8-CORE-002") deep = true;
+  if (
+    checkId === "A8-REDIS-002"
+    || checkId === "A8-CORE-002"
+    || checkId === "A8-DEV-001"
+  ) deep = true;
   if (checkId?.startsWith("A8-PROD-")) production = true;
   if (production) deep = true;
   if (offline && (deep || production)) {
@@ -254,8 +258,10 @@ async function runDoctorBase(
     : undefined;
   const shouldRunRedisService = !requestedChecks
     || requestedChecks.has("A8-REDIS-002");
+  const shouldRunLocalApiService = !requestedChecks
+    || requestedChecks.has("A8-DEV-001");
 
-  if (!shouldRunRedisService) {
+  if (!shouldRunRedisService && !shouldRunLocalApiService) {
     // A targeted diagnostic must not open unrelated service connections.
   } else if (options.offline) {
     checks.push(serviceCheck(
@@ -272,20 +278,31 @@ async function runDoctorBase(
         .map((item) => item.id),
     );
     if (failedPrerequisites.size > 0) {
-      checks.push(
-        serviceCheck(
-          "skip",
-          `Deep Redis checks skipped because prerequisites failed: ${[...failedPrerequisites].join(", ")}`,
-        ),
-        {
-          id: "A8-CORE-002",
-          label: "Identity engine runtime",
-          status: "skip",
-          message: "Deep core checks require valid dependency, signing, and Redis prerequisites",
-        },
-      );
+      if (shouldRunRedisService) {
+        checks.push(
+          serviceCheck(
+            "skip",
+            `Deep Redis checks skipped because prerequisites failed: ${[...failedPrerequisites].join(", ")}`,
+          ),
+          {
+            id: "A8-CORE-002",
+            label: "Identity engine runtime",
+            status: "skip",
+            message: "Deep core checks require valid dependency, signing, and Redis prerequisites",
+          },
+        );
+      }
+      // The local API probe is independent of the Redis prerequisites.
+      if (shouldRunLocalApiService) {
+        checks.push(await verifyLocalApiResponsiveness(context));
+      }
     } else {
-      checks.push(...await runDeepChecks(context));
+      if (shouldRunRedisService) {
+        checks.push(...await runDeepChecks(context));
+      }
+      if (shouldRunLocalApiService && !shouldRunRedisService) {
+        checks.push(await verifyLocalApiResponsiveness(context));
+      }
     }
   } else if (options.skipServices) {
     checks.push(serviceCheck("warn", "Live service checks were skipped"));

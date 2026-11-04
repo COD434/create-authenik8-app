@@ -179,6 +179,16 @@ const definitions = [
     prerequisites: ["A8-CORE-001", "A8-JWK-006", "A8-REDIS-002"],
   },
   {
+    id: "A8-DEV-001",
+    legacyId: "service.local-api",
+    title: "Local API responsiveness",
+    summary: "Checks that a service listening on the configured local API port actually answers HTTP health requests.",
+    impact: "A listener that accepts connections without responding makes every local request hang indefinitely, which presents as a page or call that never finishes loading.",
+    remediation: "Stop this project's node processes and restart the development stack with npm run dev. If repeated restarts still accept connections without answering, this project predates the direct watcher orchestration in scripts/run-local.mjs: copy that file from a freshly generated fullstack project or regenerate with the current create-authenik8-app version, then rerun this check.",
+    verify: "npx create-authenik8-app@latest doctor --deep --check A8-DEV-001",
+    prerequisites: ["A8-RUNTIME-002"],
+  },
+  {
     id: "A8-DB-003",
     legacyId: "environment.database",
     title: "Database configuration",
