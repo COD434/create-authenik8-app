@@ -69,6 +69,7 @@ Choose the fullstack application for a connected React and Express project, or s
 - [Roadmap](docs/roadmap.md)
 - [AI-age roadmap](docs/ai-age-roadmap.md)
 - [Authenik8 MCP server](docs/mcp.md)
+- [Ecosystem blueprint (agent, design, models, studio)](docs/ecosystem/stage-2-comparison-and-blueprint.md)
 
 ## Contributing and support
 
