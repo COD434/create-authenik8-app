@@ -114,7 +114,8 @@ create-authenik8-app migrate <supabase|clerk|auth0> [directory] [--json]
 ```
 
 Scans an existing project for third-party auth usage and maps each detected
-call site to its Authenik8 replacement. It writes nothing and never reads
+call site to its Authenik8 replacement; matching lines print their proposed
+replacement inline where one exists. It writes nothing and never reads
 `.env` values. See the [migration readiness guide](migrations.md).
 
 The focused guides explain [non-interactive generation](non-interactive-generation.md), [Doctor](project-diagnostics.md), [Studio](local-security-dashboard.md), [operational maintenance](operational-maintenance.md), [recipes](post-generation-recipes.md), and [upgrade policy](upgrades-and-ci.md).

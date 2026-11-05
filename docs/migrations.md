@@ -41,6 +41,13 @@ walk stops after 2,000 code files.
 
 - `readiness`: `detected` (strong evidence), `likely` (soft evidence only), or
   `not-detected`.
+- An evidence list with stable `file:line` locations. Where a concrete
+  replacement exists, each matched line carries its own remap inline
+  (`remapTo`/`remapNotes` in JSON, a `→` line in text output): for example a
+  `supabase.auth.signInWithPassword` line maps to `POST /api/auth/login`,
+  while a `supabase.auth.mfa.*` line correctly has no proposed replacement.
+  `remappedSites` counts how many of the matched lines have a direct
+  replacement proposed.
 - A mapping table per provider primitive, for example
   `supabase.auth.signInWithPassword → POST /api/auth/login`,
   `getToken() → POST /api/auth/refresh`,
@@ -56,7 +63,7 @@ walk stops after 2,000 code files.
 
 ## Deliberately out of scope
 
-This is slice one of the migration workstream: analysis and mapping only.
-It does **not** yet import schemas or users from the provider's database, and
-it does not rewrite call sites (no codemods). Any future import step will
-remain a separate, explicit, confirmable command.
+This remains analysis and mapping only. It does **not** yet import schemas or
+users from the provider's database, and it does not rewrite call sites (no
+codemods; `remapTo` is a proposal in the report, never a file edit). Any
+future import step will remain a separate, explicit, confirmable command.

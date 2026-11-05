@@ -256,6 +256,18 @@ const SUPABASE_MAPPINGS: readonly MappingEntry[] = [
     notes:
       "Scaffold one with the resource recipe: npx create-authenik8-app add resource <Name> --fields \"<spec>\", then move the table into Prisma migrations.",
   },
+  {
+    from: "createClient(...) client construction",
+    to: "createAuthenik8Client({ baseUrl }) from @authenik8/api-client",
+    notes:
+      "All provider traffic then flows over the generated Authenik8 REST API; no direct database client ships to the browser.",
+  },
+  {
+    from: ".rpc(\"fn\") call",
+    to: "Your own Express endpoint (optionally an operation on a scaffolded resource module)",
+    notes:
+      "Postgres functions become endpoints you own; authorization is enforced by middleware instead of database grants.",
+  },
 ];
 
 const CLERK_MAPPINGS: readonly MappingEntry[] = [
@@ -325,6 +337,87 @@ const PROVIDER_MAPPINGS: Record<MigrationProvider, readonly MappingEntry[]> = {
   auth0: AUTH0_MAPPINGS,
 };
 
+type RemapRule = {
+  mappingFrom: string;
+  when?: RegExp;
+};
+
+const SUPABASE_REMAPS: Record<string, readonly RemapRule[]> = {
+  "supabase-auth-call": [
+    { mappingFrom: "supabase.auth.signUp", when: /\bsupabase\.auth\.signUp\b/ },
+    {
+      mappingFrom: "supabase.auth.signInWithPassword",
+      when: /\bsupabase\.auth\.signInWithPassword\b/,
+    },
+    {
+      mappingFrom: "supabase.auth.signInWithOtp / signInWithOAuth",
+      when: /\bsupabase\.auth\.signInWith(?:Otp|OAuth)\b/,
+    },
+    {
+      mappingFrom: "supabase.auth.getUser / getSession",
+      when: /\bsupabase\.auth\.(?:getUser|getSession)\b/,
+    },
+    { mappingFrom: "supabase.auth.signOut", when: /\bsupabase\.auth\.signOut\b/ },
+    {
+      mappingFrom: "supabase.auth.onAuthStateChange",
+      when: /\bsupabase\.auth\.onAuthStateChange\b/,
+    },
+    {
+      mappingFrom: "supabase.auth.resetPasswordForEmail",
+      when: /\bsupabase\.auth\.resetPasswordForEmail\b/,
+    },
+    { mappingFrom: "supabase.auth.updateUser", when: /\bsupabase\.auth\.updateUser\b/ },
+    {
+      mappingFrom: "supabase.auth.admin.* (service-role server code)",
+      when: /\bsupabase\.auth\.admin\b/,
+    },
+  ],
+  "supabase-create-client": [
+    { mappingFrom: "createClient(...) client construction" },
+  ],
+  "supabase-table-query": [
+    { mappingFrom: ".from(\"table\") row queries guarded by RLS policies" },
+  ],
+  "supabase-rpc-call": [{ mappingFrom: ".rpc(\"fn\") call" }],
+  "supabase-rls-sql": [
+    { mappingFrom: ".from(\"table\") row queries guarded by RLS policies" },
+  ],
+};
+
+const CLERK_REMAPS: Record<string, readonly RemapRule[]> = {
+  "clerk-component": [{ mappingFrom: "<ClerkProvider> / <SignIn> / <SignUp>" }],
+  "clerk-hook": [{ mappingFrom: "useUser() / useAuth() / useSession()" }],
+  "clerk-server-helper": [
+    {
+      mappingFrom: "Clerk Backend SDK (users.createUser, sessions.revoke)",
+      when: /\bclerkClient\b/,
+    },
+    { mappingFrom: "auth() / currentUser() (server components)" },
+  ],
+};
+
+const AUTH0_REMAPS: Record<string, readonly RemapRule[]> = {
+  "auth0-react": [
+    { mappingFrom: "useAuth0().loginWithRedirect / Auth0 universal login" },
+  ],
+  "auth0-next-handler": [
+    { mappingFrom: "handleAuth() in app/api/auth/[auth0]/route.ts" },
+  ],
+  "auth0-sdk-token": [
+    { mappingFrom: "getAccessTokenSilently()", when: /\bgetAccessTokenSilently\b/ },
+    { mappingFrom: "Auth0 Management API" },
+  ],
+};
+
+const PROVIDER_REMAPS: Record<
+  MigrationProvider,
+  Record<string, readonly RemapRule[]>
+> = {
+  supabase: SUPABASE_REMAPS,
+  clerk: CLERK_REMAPS,
+  auth0: AUTH0_REMAPS,
+};
+
 const PROVIDER_NEXT_STEPS: Record<MigrationProvider, readonly string[]> = {
   supabase: [
     "Generate the Authenik8 app (npx create-authenik8-app@latest <directory> --preset fullstack) next to this project.",
@@ -367,7 +460,25 @@ export type MigrationFinding = {
   id: string;
   tier: EvidenceTier;
   summary: string;
+  remapTo?: string;
+  remapNotes?: string;
 };
+
+function remapForFinding(
+  provider: MigrationProvider,
+  patternId: string,
+  matchedLine: string,
+): MappingEntry | undefined {
+  const rules = PROVIDER_REMAPS[provider][patternId];
+  if (!rules) return undefined;
+  const rule = rules.find((candidate) =>
+    candidate.when ? candidate.when.test(matchedLine) : true,
+  );
+  if (!rule) return undefined;
+  return PROVIDER_MAPPINGS[provider]!.find(
+    (entry) => entry.from === rule.mappingFrom,
+  );
+}
 
 export type MigrationReport = {
   provider: MigrationProvider;
@@ -378,6 +489,7 @@ export type MigrationReport = {
   findingsTotal: number;
   findings: MigrationFinding[];
   findingsTruncated: boolean;
+  remappedSites: number;
   strongEvidenceCount: number;
   softEvidenceCount: number;
   readiness: "detected" | "likely" | "not-detected";
@@ -512,6 +624,7 @@ async function scanDirectory(
         const key = `${absolute}\u0000${index + 1}\u0000${pattern.id}`;
         if (accumulator.seen.has(key)) continue;
         accumulator.seen.add(key);
+        const remap = remapForFinding(provider, pattern.id, line);
         accumulator.findings.push({
           file: path
             .relative(scanRootDir, absolute)
@@ -521,6 +634,14 @@ async function scanDirectory(
           id: pattern.id,
           tier: pattern.tier,
           summary: pattern.summary,
+          ...(remap
+            ? {
+                remapTo: remap.to,
+                ...(remap.notes !== undefined
+                  ? { remapNotes: remap.notes }
+                  : {}),
+              }
+            : {}),
         });
         matchesThisFile += 1;
       }
@@ -574,6 +695,10 @@ export async function runMigrate(options: MigrateOptions): Promise<MigrationRepo
         ? "likely"
         : "not-detected";
 
+  const remappedSites = accumulator.findings.filter(
+    (finding) => finding.remapTo !== undefined,
+  ).length;
+
   return {
     provider: providerValue,
     directory: rootDir,
@@ -583,6 +708,7 @@ export async function runMigrate(options: MigrateOptions): Promise<MigrationRepo
     findingsTotal: accumulator.findings.length,
     findings: accumulator.findings.slice(0, MAX_FINDINGS),
     findingsTruncated: accumulator.findings.length > MAX_FINDINGS,
+    remappedSites,
     strongEvidenceCount,
     softEvidenceCount,
     readiness,
@@ -629,9 +755,14 @@ export function formatMigrationReport(
     const shown = report.findings.slice(0, 30);
     for (const finding of shown) {
       output.push(`  ${finding.file}:${finding.line}  [${finding.tier}] ${finding.summary}`);
+      if (finding.remapTo) output.push(`    → ${finding.remapTo}`);
+      if (finding.remapNotes) output.push(`      ${finding.remapNotes}`);
     }
     const hidden = report.findingsTotal - shown.length;
     if (hidden > 0) output.push(`  (+ ${hidden} more matched line(s))`);
+    output.push(
+      `Direct replacement proposed for ${report.remappedSites} of ${report.findingsTotal} matched line(s); the rest map through the tables below.`,
+    );
     output.push("");
   }
 
