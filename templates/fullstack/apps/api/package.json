@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@authenik8/contracts": "0.1.0",
+    "@authenik8/policies": "0.1.0",
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "authenik8-core": "2.0.7",

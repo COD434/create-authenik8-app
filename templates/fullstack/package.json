@@ -11,7 +11,7 @@
     "node": "^20.19 || ^22.12 || >=24"
   },
   "scripts": {
-    "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
+    "build:packages": "npm run build -w @authenik8/contracts && npm run build -w @authenik8/policies && npm run build -w @authenik8/api-client && npm run build -w @authenik8/ui",
     "dev": "node scripts/run-local.mjs dev",
     "dev:lovable": "node scripts/run-local.mjs lovable",
     "dev:watch": "node scripts/run-local.mjs watch",

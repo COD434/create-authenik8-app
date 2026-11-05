@@ -645,7 +645,7 @@ describe("generator happy paths", () => {
       expect(files["apps/api/src/modules/users/user.service.ts"]).toContain(
         "getAuthenik8().revokeSession(userId, session.coreSessionId)",
       );
-      expect(files["apps/api/src/modules/projects/project.policy.ts"]).toContain("project.ownerId === actor.userId");
+      expect(files["apps/api/src/modules/projects/project.policy.ts"]).toContain('ownerOf("ownerId")');
       expect(files["apps/web/src/auth/AuthProvider.tsx"]).toContain("authApi.restore()");
       expect(files["apps/web/src/auth/providers.ts"]).toContain("readonly OAuthProvider[]");
       expect(files["apps/web/src/auth/providers.ts"]).toContain('["google","github"]');

@@ -8,6 +8,10 @@ export default defineConfig({
         import.meta.dirname,
         "templates/fullstack/packages/contracts/src/index.ts",
       ),
+      "@authenik8/policies": path.resolve(
+        import.meta.dirname,
+        "templates/fullstack/packages/policies/src/index.ts",
+      ),
       "@authenik8/api-client": path.resolve(
         import.meta.dirname,
         "templates/fullstack/packages/api-client/src/index.ts",
