@@ -11,7 +11,7 @@ CLI repo keeps its own contract and boundaries.
 | --- | --- | --- |
 | `@authenik8/models` | Provider-independent BYOK model gateway: discovery, streaming, usage accounting, budgets, retry | M1 — initial OpenRouter adapter |
 | `@authenik8/mcp` | Read-only, identity-aware planning/validation tools over MCP stdio: `get_supported_features`, `plan_authenik8_project`, `validate_project_spec`, `get_project_contract` | M2 — read-only planning surface |
-| `@authenik8/design` | Design systems as versionable data: validated tokens, DESIGN.md brand specs, WCAG contrast checks with stable IDs (`A8-DS-###`) | M3 — data format + consistency checks |
+| `@authenik8/design` | Design systems as versionable data: validated tokens, DESIGN.md brand specs, WCAG contrast checks with stable IDs (`A8-DS-###`) — plus 4 agent skills (`design-audit`, `design-init`, `design-css`, `design-contrast-fix`) wired into OpenCode via the `skills` config | M3 — data format + checks + agent skills |
 | `@authenik8/agent-adapter` | Documented runtime-swap contract over coding agents (OpenCode first): structured runs, timeout/abort kills, opt-in auto-approve | M4 — interface + OpenCode adapter |
 
 Planned: `apps/studio` growth, additional runtimes behind the same

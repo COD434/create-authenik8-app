@@ -49,14 +49,33 @@ if (!result.ok) console.error(formatFindings(result));
 const css = renderTokensCss(bundle.tokens); // → :root { --color-base-ink: ... }
 ```
 
+## Agent skills
+
+`skills/` ships four OpenCode skills that consume this package (each has
+its own `SKILL.md` + scripts importing the built dist; set `A8_DESIGN_DIST`
+to relocate):
+
+| Skill ID | Purpose |
+| --- | --- |
+| `design-audit` | Run `A8-DS-001..004` against a bundle, fix every failure (`scripts/check.mjs`, exit code = pass/fail) |
+| `design-init` | Create a validated `tokens.json` + `DESIGN.md` from brand facts (draft → `scripts/validate.mjs` → write → audit) |
+| `design-css` | Generate CSS custom properties from tokens (`scripts/css.mjs`, `--out`/`--selector`) |
+| `design-contrast-fix` | Probe candidate colors numerically before committing (`scripts/contrast.mjs` per pair) |
+
+Wire them into OpenCode via the config `skills` array, e.g.:
+
+```jsonc
+{ "skills": ["C:/<path>/authenik8/packages/design/skills"] }
+```
+
 ## Boundaries
 
 - Reads only `tokens.json` and `DESIGN.md` inside the declared directory.
-- No writes, no network, no code execution.
+- No writes, no network, no code execution (skill scripts write only
+  where their documented `--out` flag says, and only CSS text).
 - Contrast math is pure WCAG 2.x (tested against canonical values).
 
 ## Not yet (deliberate cuts)
 
-Agent skills (design-system scaffold, page spec against DESIGN.md) consume
-this data and arrive as a follow-up slice; radius/shadow token groups are
-out of scope until a check needs them.
+Radius/shadow token groups are out of scope until a check needs them;
+a page-spec-against-DESIGN.md skill is a candidate follow-up.
