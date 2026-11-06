@@ -136,3 +136,34 @@ body {
   cursor: pointer;
 }
 .composer button:disabled { opacity: 0.45; cursor: default; }
+
+.preview-pane {
+  display: none;
+  width: 46%;
+  min-width: 380px;
+  flex-direction: column;
+  border-left: 1px solid #1d2433;
+  background: #0e1220;
+}
+.preview-pane.open { display: flex; }
+.preview-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  color: var(--muted);
+  font-size: 12.5px;
+  border-bottom: 1px solid #1d2433;
+}
+.preview-actions { display: flex; gap: 14px; align-items: center; }
+.preview-actions a, .preview-actions button {
+  color: var(--text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  text-decoration: none;
+  padding: 0;
+}
+.preview-actions a:hover, .preview-actions button:hover { color: var(--accent); }
+.preview-pane iframe { flex: 1; border: none; background: #fff; }

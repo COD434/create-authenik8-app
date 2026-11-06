@@ -31,8 +31,9 @@ and audit trails instead of a second users table.
 | --- | --- | --- |
 | v0 | Chat vertical: static UI + SSE streaming over `@authenik8/models` against free models, doctrine system prompt | done (`69e05d7`) |
 | v1 | Tool loop: M1 tool-call deltas + sandboxed `write_file`/`read_file`/`list_files` tools (path-scope guard, size caps, failure-as-data) → the chat writes real files | done (`d641261`) |
-| v2 | Quality loop in-chat: `design_audit` tool runs `@authenik8/design` checks (A8-DS-001..004); the model fixes failed checks and re-runs | this slice |
-| v3 | Full generation: drive OpenCode via `@authenik8/agent-adapter` for real project generation, previews in the UI | |
+| v2 | Quality loop in-chat: `design_audit` tool runs `@authenik8/design` checks (A8-DS-001..004); the model fixes failed checks and re-runs | done (`ec789c4`) |
+| v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | this slice |
+| v3b | Full generation: drive OpenCode via `@authenik8/agent-adapter` for real Authenik8 project generation | |
 | v4 | Export/download + one-command run of the built project | |
 
 ## Non-goals

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, type WebStudioDeps } from "../src/server.js";
+import { executeTool } from "../src/tools.js";
 
 const KEY = "sk-or-test-key-must-never-leak";
 
@@ -248,5 +249,60 @@ describe("routing hygiene", () => {
   it("does not serve arbitrary files outside the static map", async () => {
     const traversal = await fetch(`${base}/..%2F..%2Fpackage.json`);
     expect(traversal.status).toBe(404);
+  });
+});
+
+describe("preview route", () => {
+  it("serves sandbox files written by the tools with mapped types and nosniff", async () => {
+    const write = await executeTool(
+      "write_file",
+      JSON.stringify({ path: "index.html", content: "<h1>hello preview</h1>" }),
+      sandbox,
+    );
+    expect(write.ok).toBe(true);
+
+    const home = await fetch(`${base}/preview`);
+    expect(home.status).toBe(200);
+    expect(home.headers.get("content-type")).toContain("text/html");
+    expect(home.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(home.headers.get("cache-control")).toBe("no-store");
+    expect(await home.text()).toContain("hello preview");
+
+    await executeTool(
+      "write_file",
+      JSON.stringify({ path: "assets/style.css", content: "h1 { color: red; }" }),
+      sandbox,
+    );
+    const css = await fetch(`${base}/preview/assets/style.css`);
+    expect(css.status).toBe(200);
+    expect(css.headers.get("content-type")).toContain("text/css");
+
+    await executeTool("write_file", JSON.stringify({ path: "icon.png", content: "not really a png" }), sandbox);
+    const png = await fetch(`${base}/preview/icon.png`);
+    expect(png.headers.get("content-type")).toBe("image/png");
+  });
+
+  it("defaults directories to their index.html", async () => {
+    await executeTool(
+      "write_file",
+      JSON.stringify({ path: "sub/index.html", content: "<p>sub page</p>" }),
+      sandbox,
+    );
+    const res = await fetch(`${base}/preview/sub`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain("sub page");
+  });
+
+  it("refuses traversal, dotfiles, and missing files with 404", async () => {
+    // %2e%2e normalizes away in the URL parser; %252e%252e reaches the guard.
+    expect((await fetch(`${base}/preview/%252e%252e/package.json`)).status).toBe(404);
+    expect((await fetch(`${base}/preview/..%5Cpackage.json`)).status).toBe(404);
+    expect((await fetch(`${base}/preview/.env`)).status).toBe(404);
+    expect((await fetch(`${base}/preview/.git/config`)).status).toBe(404);
+    expect((await fetch(`${base}/preview/nope.html`)).status).toBe(404);
+  });
+
+  it("405s non-GET preview requests", async () => {
+    expect((await fetch(`${base}/preview/`, { method: "POST" })).status).toBe(405);
   });
 });

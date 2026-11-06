@@ -14,6 +14,7 @@
         <span class="brand-name">Studio Web</span>
       </div>
       <button id="new-chat" class="btn-new">+ New chat</button>
+      <button id="preview-btn" class="btn-new">▶ Preview</button>
 
       <label class="field">
         <span>Model <em id="model-note">free tier</em></span>
@@ -44,6 +45,18 @@
         <button id="send" type="submit" disabled>Send</button>
       </form>
     </main>
+
+    <section id="preview-pane" class="preview-pane" aria-hidden="true">
+      <div class="preview-bar">
+        <span>Preview — sandbox project (isolated)</span>
+        <div class="preview-actions">
+          <button id="preview-reload" type="button" title="Reload">↻</button>
+          <a id="preview-open" href="/preview/" target="_blank" rel="noopener" title="Open in a new tab">open ↗</a>
+          <button id="preview-close" type="button" title="Close">✕</button>
+        </div>
+      </div>
+      <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
+    </section>
   </div>
   <script src="/app.js"></script>
 </body>

@@ -64,6 +64,29 @@ async function loadModels() {
 
 keyInput.addEventListener("change", loadModels);
 
+const previewPane = document.getElementById("preview-pane");
+const previewFrame = document.getElementById("preview-frame");
+
+function showPreview() {
+  previewPane.classList.add("open");
+  previewPane.setAttribute("aria-hidden", "false");
+  previewFrame.src = `/preview/?t=${Date.now()}`;
+}
+
+function hidePreview() {
+  previewPane.classList.remove("open");
+  previewPane.setAttribute("aria-hidden", "true");
+  previewFrame.src = "about:blank";
+}
+
+document.getElementById("preview-btn").addEventListener("click", () => {
+  if (previewPane.classList.contains("open")) hidePreview();
+  else showPreview();
+});
+
+document.getElementById("preview-reload").addEventListener("click", showPreview);
+document.getElementById("preview-close").addEventListener("click", hidePreview);
+
 newChatBtn.addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
   messagesEl.innerHTML = "";
