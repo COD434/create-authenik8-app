@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { ChatUsage } from "../src/types.js";
+import type { ChatUsage, ToolCallDelta } from "../src/types.js";
 import { createOpenRouterProvider } from "../src/openrouter.js";
+import { assembleToolCalls } from "../src/tools.js";
 import {
   API_KEY,
   chatPayload,
@@ -173,5 +174,118 @@ describe("openrouter streaming", () => {
     expect(deltas.join("")).toBe("Hello world");
     expect(usage).toMatchObject({ promptTokens: 120, completionTokens: 80, totalTokens: 200 });
     expect(usage?.costUsd).toBeCloseTo(120 * 0.0000025 + 80 * 0.00001, 10);
+  });
+
+  it("yields null toolCalls for text-only chunks", async () => {
+    const { fetchImpl } = mockFetch([
+      () => streamResponse(ssePayload(sseChunks(["hi"]), { withUsage: false })),
+    ]);
+    const provider = createOpenRouterProvider({ apiKey: API_KEY, fetchImpl });
+    const stream = await provider.openChatStream({
+      model: "test/free-model",
+      messages: [{ role: "user", content: "hi" }],
+    });
+    for await (const chunk of stream) {
+      expect(chunk.toolCalls).toBeNull();
+    }
+  });
+});
+
+describe("openrouter tool support", () => {
+  it("sends tools with tool_choice auto and streams tool-call fragments", async () => {
+    const { fetchImpl, calls } = mockFetch([
+      () => jsonResponse(modelsPayload([modelRow()])),
+      () =>
+        streamResponse(
+          ssePayload([
+            {
+              choices: [{
+                delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "write_file", arguments: "{\"pa" } }] },
+                finish_reason: null,
+              }],
+            },
+            {
+              choices: [{
+                delta: { tool_calls: [{ index: 0, function: { arguments: "th\": \"index.html\"}" } }] },
+                finish_reason: null,
+              }],
+            },
+            { choices: [{ delta: {}, finish_reason: "tool_calls" }] },
+          ], { withUsage: true }),
+        ),
+    ]);
+    const provider = createOpenRouterProvider({ apiKey: API_KEY, fetchImpl });
+    await provider.listModels();
+
+    const stream = await provider.openChatStream({
+      model: "test/free-model",
+      messages: [{ role: "user", content: "make a file" }],
+      tools: [{ name: "write_file", description: "Write a file", parameters: { type: "object" } }],
+    });
+
+    const body = JSON.parse(String(calls[1]!.init.body)) as Record<string, unknown>;
+    expect(body.tools).toEqual([
+      { type: "function", function: { name: "write_file", description: "Write a file", parameters: { type: "object" } } },
+    ]);
+    expect(body.tool_choice).toBe("auto");
+
+    const fragments: ToolCallDelta[] = [];
+    let finish: string | null = null;
+    for await (const chunk of stream) {
+      if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
+      if (chunk.finishReason !== null) finish = chunk.finishReason;
+    }
+    expect(finish).toBe("tool_calls");
+    expect(assembleToolCalls(fragments)).toEqual([
+      { id: "call_1", name: "write_file", arguments: '{"path": "index.html"}' },
+    ]);
+  });
+
+  it("maps assistant tool_calls and tool results onto the provider wire format", async () => {
+    const { fetchImpl, calls } = mockFetch([() => jsonResponse(chatPayload())]);
+    const provider = createOpenRouterProvider({ apiKey: API_KEY, fetchImpl });
+    await provider.chatCompletion({
+      model: "test/paid-model",
+      messages: [
+        { role: "assistant", content: "", toolCalls: [{ id: "call_1", name: "write_file", arguments: "{}" }] },
+        { role: "tool", content: "ok", toolCallId: "call_1" },
+      ],
+    });
+    const body = JSON.parse(String(calls[0]!.init.body)) as { messages: unknown[] };
+    expect(body.messages).toEqual([
+      {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ id: "call_1", type: "function", function: { name: "write_file", arguments: "{}" } }],
+      },
+      { role: "tool", tool_call_id: "call_1", content: "ok" },
+    ]);
+  });
+
+  it("parses non-streaming tool calls into ChatResult and drops malformed entries", async () => {
+    const { fetchImpl } = mockFetch([
+      () =>
+        jsonResponse({
+          model: "test/paid-model",
+          choices: [{
+            message: {
+              content: null,
+              tool_calls: [
+                { id: "call_9", type: "function", function: { name: "list_files", arguments: "{}" } },
+                { id: "", function: { name: "no_id", arguments: "{}" } },
+              ],
+            },
+            finish_reason: "tool_calls",
+          }],
+          usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+        }),
+    ]);
+    const provider = createOpenRouterProvider({ apiKey: API_KEY, fetchImpl });
+    const result = await provider.chatCompletion({
+      model: "test/paid-model",
+      messages: [{ role: "user", content: "list" }],
+    });
+    expect(result.content).toBe("");
+    expect(result.toolCalls).toEqual([{ id: "call_9", name: "list_files", arguments: "{}" }]);
   });
 });

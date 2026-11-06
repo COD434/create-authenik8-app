@@ -29,11 +29,46 @@ export type ModelInfo = {
   pricing: ModelPricing | null;
 };
 
-export type ChatRole = "system" | "user" | "assistant";
+export type ChatRole = "system" | "user" | "assistant" | "tool";
 
 export type ChatMessage = {
   role: ChatRole;
   content: string;
+  /** Assistant messages only: tool calls the model requested. */
+  toolCalls?: ToolCall[];
+  /** Tool messages only: the id of the tool call this content answers. */
+  toolCallId?: string;
+};
+
+/**
+ * A tool the model may call. JSON-Schema parameters, OpenAI-compatible wire
+ * format (sent as `tools: [{ type: "function", function: … }]`).
+ */
+export type ToolDefinition = {
+  name: string;
+  description: string;
+  /** JSON Schema object describing the parameters. */
+  parameters: Record<string, unknown>;
+};
+
+/** A complete tool call requested by the model (assembled from stream fragments). */
+export type ToolCall = {
+  id: string;
+  name: string;
+  /** Provider JSON-encoded arguments string; parse before use. */
+  arguments: string;
+};
+
+/**
+ * One streamed fragment of a tool call. Arguments arrive split across
+ * fragments; `id` and `name` appear on the first fragment of each call.
+ * `index` is the provider-assigned position within the request.
+ */
+export type ToolCallDelta = {
+  index: number;
+  id: string | null;
+  name: string | null;
+  argumentsDelta: string;
 };
 
 export type ChatUsage = {
@@ -51,6 +86,8 @@ export type ChatUsage = {
 export type ChatChunk = {
   /** Incremental text content, or null for non-content chunks. */
   delta: string | null;
+  /** Tool-call fragments when this chunk carries them, else null. */
+  toolCalls: ToolCallDelta[] | null;
   /** Provider finish reason on the terminating chunk, else null. */
   finishReason: string | null;
   /** Token usage when the provider reports it (typically the final chunk). */
@@ -60,6 +97,8 @@ export type ChatChunk = {
 export type ChatRequest = {
   model: string;
   messages: readonly ChatMessage[];
+  /** Tools the model may call; sent with `tool_choice: "auto"`. */
+  tools?: readonly ToolDefinition[];
   temperature?: number;
   maxTokens?: number;
   signal?: AbortSignal;
@@ -67,6 +106,8 @@ export type ChatRequest = {
 
 export type ChatResult = {
   content: string;
+  /** Tool calls requested by the model in a non-streaming response. */
+  toolCalls: ToolCall[];
   finishReason: string | null;
   usage: ChatUsage;
   model: string;

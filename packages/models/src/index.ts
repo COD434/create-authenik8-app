@@ -16,6 +16,7 @@ export {
   type RetryPolicy,
 } from "./retry.js";
 export { UsageTracker } from "./usage.js";
+export { assembleToolCalls } from "./tools.js";
 export { createOpenRouterProvider, type OpenRouterOptions } from "./openrouter.js";
 export {
   createModelsGateway,
@@ -33,5 +34,8 @@ export type {
   ModelInfo,
   ModelPricing,
   ProviderAdapter,
+  ToolCall,
+  ToolCallDelta,
+  ToolDefinition,
   UsageTotals,
 } from "./types.js";

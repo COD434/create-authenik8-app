@@ -185,6 +185,7 @@ describe("gateway error accounting and abstraction", () => {
           calls.push("chat");
           return {
             content: "from-fake",
+            toolCalls: [],
             finishReason: "stop",
             model: "fake/model",
             usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2, costUsd: null },
@@ -192,7 +193,7 @@ describe("gateway error accounting and abstraction", () => {
         },
         openChatStream: async () =>
           (async function* () {
-            yield { delta: "hi", finishReason: null, usage: null };
+            yield { delta: "hi", toolCalls: null, finishReason: null, usage: null };
           })(),
       }),
       budget: { maxRequests: 5 },

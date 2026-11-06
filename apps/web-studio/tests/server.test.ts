@@ -13,10 +13,11 @@ const fakeGateway = {
     { id: "free/no-tools", name: "No Tools", contextLength: 8_000, inputModalities: ["text"], supportsTools: false, isFree: true, pricing: null },
   ],
   chatStream: async function* () {
-    yield { delta: "Hello", finishReason: null, usage: null };
-    yield { delta: " world", finishReason: null, usage: null };
+    yield { delta: "Hello", toolCalls: null, finishReason: null, usage: null };
+    yield { delta: " world", toolCalls: null, finishReason: null, usage: null };
     yield {
       delta: null,
+      toolCalls: null,
       finishReason: "stop",
       usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15, costUsd: null },
     };

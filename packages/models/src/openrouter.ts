@@ -10,12 +10,15 @@ import {
 import { parseSseEvents } from "./sse.js";
 import type {
   ChatChunk,
+  ChatMessage,
   ChatRequest,
   ChatResult,
   ChatUsage,
   ModelInfo,
   ModelPricing,
   ProviderAdapter,
+  ToolCall,
+  ToolCallDelta,
 } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://openrouter.ai/api/v1";
@@ -124,7 +127,23 @@ const chatResponseSchema = z.object({
     .array(
       z.object({
         message: z
-          .object({ content: z.string().nullish().catch(undefined) })
+          .object({
+            content: z.string().nullish().catch(undefined),
+            tool_calls: z
+              .array(
+                z.object({
+                  id: z.string().catch(""),
+                  function: z
+                    .object({
+                      name: z.string().catch(""),
+                      arguments: z.string().catch(""),
+                    })
+                    .catch({ name: "", arguments: "" }),
+                }),
+              )
+              .optional()
+              .catch(undefined),
+          })
           .optional()
           .catch(undefined),
         finish_reason: z.string().nullish().catch(undefined),
@@ -141,12 +160,27 @@ const chatResponseSchema = z.object({
     .catch(undefined),
 });
 
+const toolCallDeltaSchema = z.object({
+  index: z.number().int().catch(0),
+  id: z.string().nullish().catch(undefined),
+  function: z
+    .object({
+      name: z.string().nullish().catch(undefined),
+      arguments: z.string().nullish().catch(undefined),
+    })
+    .optional()
+    .catch(undefined),
+});
+
 const chunkSchema = z.object({
   choices: z
     .array(
       z.object({
         delta: z
-          .object({ content: z.string().nullish().catch(undefined) })
+          .object({
+            content: z.string().nullish().catch(undefined),
+            tool_calls: z.array(toolCallDeltaSchema).optional().catch(undefined),
+          })
           .optional()
           .catch(undefined),
         finish_reason: z.string().nullish().catch(undefined),
@@ -184,6 +218,31 @@ function toModelInfo(entry: z.infer<typeof modelEntrySchema>): ModelInfo | null 
 }
 
 // --- adapter ---
+
+/**
+ * Map provider-independent messages onto the OpenAI-compatible wire format.
+ * Tool results become `role: "tool"` entries; assistant messages carrying
+ * tool calls become `tool_calls` entries.
+ */
+function toWireMessages(messages: readonly ChatMessage[]): unknown {
+  return messages.map((message) => {
+    if (message.role === "tool") {
+      return { role: "tool", tool_call_id: message.toolCallId ?? "", content: message.content };
+    }
+    if (message.role === "assistant" && message.toolCalls !== undefined && message.toolCalls.length > 0) {
+      return {
+        role: "assistant",
+        content: message.content,
+        tool_calls: message.toolCalls.map((call) => ({
+          id: call.id,
+          type: "function",
+          function: { name: call.name, arguments: call.arguments },
+        })),
+      };
+    }
+    return { role: message.role, content: message.content };
+  });
+}
 
 export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAdapter {
   if (typeof options.apiKey !== "string" || options.apiKey.trim() === "") {
@@ -296,9 +355,18 @@ export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAd
         headers: buildHeaders(),
         body: JSON.stringify({
           model: request.model,
-          messages: request.messages,
+          messages: toWireMessages(request.messages),
           stream: false,
           usage: { include: true },
+          ...(request.tools !== undefined
+            ? {
+                tools: request.tools.map((tool) => ({
+                  type: "function",
+                  function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+                })),
+                tool_choice: "auto",
+              }
+            : {}),
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
         }),
@@ -316,8 +384,12 @@ export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAd
       }
       const choice = parsed.data.choices[0]!;
       const pricing = await getPricing(request.model);
+      const toolCalls: ToolCall[] = (choice.message?.tool_calls ?? [])
+        .filter((call) => call.id !== "" && call.function.name !== "")
+        .map((call) => ({ id: call.id, name: call.function.name, arguments: call.function.arguments }));
       return {
         content: choice.message?.content ?? "",
+        toolCalls,
         finishReason: choice.finish_reason ?? null,
         usage: usageFrom(parsed.data.usage, pricing),
         model: parsed.data.model ?? request.model,
@@ -330,9 +402,18 @@ export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAd
         headers: buildHeaders(),
         body: JSON.stringify({
           model: request.model,
-          messages: request.messages,
+          messages: toWireMessages(request.messages),
           stream: true,
           usage: { include: true },
+          ...(request.tools !== undefined
+            ? {
+                tools: request.tools.map((tool) => ({
+                  type: "function",
+                  function: { name: tool.name, description: tool.description, parameters: tool.parameters },
+                })),
+                tool_choice: "auto",
+              }
+            : {}),
           ...(request.temperature !== undefined ? { temperature: request.temperature } : {}),
           ...(request.maxTokens !== undefined ? { max_tokens: request.maxTokens } : {}),
         }),
@@ -365,8 +446,15 @@ export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAd
           const usage = parsedChunk.usage
             ? usageFrom(parsedChunk.usage, await getPricing(request.model))
             : null;
+          const toolCallDeltas: ToolCallDelta[] = (choice?.delta?.tool_calls ?? []).map((fragment) => ({
+            index: fragment.index,
+            id: fragment.id ?? null,
+            name: fragment.function?.name ?? null,
+            argumentsDelta: fragment.function?.arguments ?? "",
+          }));
           yield {
             delta: choice?.delta?.content ?? null,
+            toolCalls: toolCallDeltas.length > 0 ? toolCallDeltas : null,
             finishReason: choice?.finish_reason ?? null,
             usage,
           };
