@@ -5,7 +5,8 @@
   "description": "Authenik8 ecosystem workspace: identity-aware AI development foundations.",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "apps/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",

@@ -1,0 +1,43 @@
+# M5 — Studio Web: the Lovable-style builder on Authenik8
+
+## Thesis
+
+> Vibe-code the interface. Keep identity on a backend you own.
+
+Studio Web gives freelancers and web agencies a ChatGPT/Claude/Kimi-style
+chat interface that BUILDS — describing an app in plain language and
+producing a secure Authenik8 project in moments. Lovable's time-to-wow,
+but the generated app ships with rotating JWTs, server-side sessions, RBAC,
+and audit trails instead of a second users table.
+
+## Trust boundary (deliberate)
+
+- **Localhost-only**: the server binds `127.0.0.1`. There is no hosted
+  deployment in this workspace — a hosted platform (accounts, billing,
+  hosted keys) is a separate trust boundary per the ecosystem rules, the
+  same way the CLI repo forbids absorbing it.
+- **BYOK, zero storage**: the user's OpenRouter key is sent per request in
+  a header, held in the browser tab's memory only, and passed through to
+  OpenRouter. The server never persists, logs, or echoes it (the models
+  package's redaction discipline covers errors).
+- **Free models first**: model discovery filters to free-tier, tool-capable
+  models by default, so the builder experience costs nothing up front.
+  The user's key is still required (OpenRouter free tier needs an account).
+- **No telemetry**: no request logging beyond the startup line.
+
+## Slice roadmap
+
+| Slice | Delivers | Status |
+| --- | --- | --- |
+| v0 | Chat vertical: static UI + SSE streaming over `@authenik8/models` against free models, doctrine system prompt | this slice |
+| v1 | Tool loop: `ChatChunk` tool-call deltas in M1 + sandboxed `write_file`/`read_file`/`list_files` tools (path-scope guard) → the chat writes real files | next |
+| v2 | Quality loop in-chat: run `@authenik8/design` checks (A8-DS-###) and doctor diagnostics as tools | |
+| v3 | Full generation: drive OpenCode via `@authenik8/agent-adapter` for real project generation, previews in the UI | |
+| v4 | Export/download + one-command run of the built project | |
+
+## Non-goals
+
+- No hosted accounts, billing, or platform credentials in this workspace.
+- No tokens-in-storage: the UI holds the key in memory only, and Authenik8
+  app-identity rules (sealed cookies, in-memory access tokens) still apply
+  to anything the studio BUILDS.

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Authenik8 Studio Web</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">A8</span>
+        <span class="brand-name">Studio Web</span>
+      </div>
+      <button id="new-chat" class="btn-new">+ New chat</button>
+
+      <label class="field">
+        <span>Model <em id="model-note">free tier</em></span>
+        <select id="model" disabled><option>enter key…</option></select>
+      </label>
+
+      <label class="field">
+        <span>OpenRouter key</span>
+        <input id="key" type="password" autocomplete="off" placeholder="sk-or-…" />
+      </label>
+      <p class="key-note">Held in this tab's memory only. Never stored, logged, or sent anywhere except OpenRouter.</p>
+
+      <div class="sidebar-foot">
+        <span id="usage-line">local · BYOK · no telemetry</span>
+      </div>
+    </aside>
+
+    <main class="chat">
+      <div id="messages" class="messages">
+        <div class="assistant-msg system-intro">
+          Describe the app you want to build. Authenik8 keeps identity, sessions,
+          and authorization on a backend you own — vibe-code the interface.
+        </div>
+      </div>
+      <form id="composer" class="composer">
+        <textarea id="prompt" rows="1" placeholder="Describe what to build…" spellcheck="false"></textarea>
+        <button id="send" type="submit" disabled>Send</button>
+      </form>
+    </main>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>
