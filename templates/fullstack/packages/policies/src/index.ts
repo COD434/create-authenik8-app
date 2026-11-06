@@ -136,7 +136,6 @@ export type DefinePolicyOptions = {
    */
   denyScope?: Record<string, unknown>;
 };
-
 /**
  * Declare a resource policy once; consume it as record checks and list
  * scopes. The list scope is derived from the READ rule so a row an
@@ -156,5 +155,91 @@ export function definePolicy<Actor extends ActorLike, Resource>(
       if (scope.kind === "denied") return denyScope;
       return scope.where;
     },
+  };
+}
+
+// --- Compiled middleware (roadmap item 13: "compiled to middleware") ---
+
+/**
+ * Structural subset of an authenticated Express request, so this package
+ * stays dependency-free. `id` is the API's request id for error bodies.
+ */
+export type PolicyRequest = {
+  user?: { userId: string; role: string } | undefined;
+  id?: unknown;
+  params?: Record<string, string> | undefined;
+};
+
+/** Structural subset of an Express response. */
+export type PolicyResponse = {
+  status(code: number): { json(body: unknown): unknown };
+};
+
+export type DenialVisibility = "masked" | "explicit";
+
+export type RequireAccessOptions<Resource, TRequest> = {
+  /** The rule deciding access. Actor is the structural ActorLike shape. */
+  rule: PolicyRule<ActorLike, Resource>;
+  /** Loads the target record; null means it does not exist. */
+  loadResource: (req: TRequest) => Promise<Resource | null>;
+  /**
+   * `masked` (default): denial is indistinguishable from a missing record
+   * (404) so responses leak no existence information — the convention the
+   * ownership APIs already follow. `explicit`: denial is a 403. Missing
+   * records are always 404.
+   */
+  denialVisibility?: DenialVisibility;
+  /** Error body for missing (and masked-denied) records. */
+  notFound?: { code: string; message: string };
+  /** Error body for explicit denial. */
+  forbidden?: { code: string; message: string };
+};
+
+/**
+ * Compile one rule into Express middleware: authenticate first, then this
+ * decides the resource-level policy. Fail-closed order: unauthenticated
+ * (401) → missing (404) → denied (404 masked / 403 explicit) → next().
+ * Route handlers or services should keep their own checks — this is an
+ * additional boundary, not a replacement.
+ *
+ * TRequest is inferred from `loadResource` (the caller's real request
+ * type), keeping this package dependency-free while the returned
+ * middleware slots into typed express routers.
+ */
+export function requireAccess<Resource, TRequest extends { user?: { userId: string; role: string } | undefined; id?: unknown }>(
+  options: RequireAccessOptions<Resource, TRequest>,
+) {
+  const notFound = options.notFound ?? { code: "NOT_FOUND", message: "Resource not found" };
+  const forbidden = options.forbidden ?? { code: "FORBIDDEN", message: "Access denied" };
+
+  return async function requireAccessMiddleware(
+    req: TRequest,
+    res: PolicyResponse,
+    next: () => void,
+  ): Promise<void> {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({
+        error: { code: "UNAUTHENTICATED", message: "Authentication required" },
+        requestId: req.id,
+      });
+      return;
+    }
+
+    const resource = await options.loadResource(req);
+    if (resource === null) {
+      res.status(404).json({ error: notFound, requestId: req.id });
+      return;
+    }
+    if (!options.rule.allows({ userId: user.userId, role: user.role }, resource)) {
+      const masked = options.denialVisibility !== "explicit";
+      res.status(masked ? 404 : 403).json({
+        error: masked ? notFound : forbidden,
+        requestId: req.id,
+      });
+      return;
+    }
+
+    next();
   };
 }

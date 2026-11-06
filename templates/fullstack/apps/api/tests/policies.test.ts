@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   allOf,
   anyOf,
   definePolicy,
   inRole,
   ownerOf,
+  requireAccess,
+  type PolicyRequest,
+  type PolicyResponse,
   type PolicyRule,
 } from "@authenik8/policies";
 
@@ -125,5 +128,101 @@ describe("definePolicy", () => {
     );
     expect(adminsOnly.listScope(owner)).toEqual({ key: { in: [] } });
     expect(adminsOnly.listScope(admin)).toEqual({});
+  });
+});
+
+describe("requireAccess (compiled middleware)", () => {
+  const makeRes = (): PolicyResponse & { status: ReturnType<typeof vi.fn>; json: ReturnType<typeof vi.fn> } => {
+    const res = {
+      status: vi.fn(),
+      json: vi.fn(),
+    };
+    res.status.mockImplementation(() => res);
+    return res as unknown as PolicyResponse & { status: ReturnType<typeof vi.fn>; json: ReturnType<typeof vi.fn> };
+  };
+  const rule: PolicyRule<Actor, Resource> = anyOf(inRole("ADMIN"), ownerOf("ownerId"));
+  const resource: Resource = { ownerId: "user-1" };
+
+  it("calls next() for an allowed actor without writing a response", async () => {
+    const middleware = requireAccess<Resource>({ rule, loadResource: vi.fn(async () => resource) });
+    const res = makeRes();
+    const next = vi.fn();
+
+    await middleware({ user: { userId: "user-1", role: "USER" }, id: "req-1" }, res, next);
+
+    expect(next).toHaveBeenCalledOnce();
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it("grants administrators through the same compiled middleware", async () => {
+    const middleware = requireAccess<Resource>({ rule, loadResource: vi.fn(async () => resource) });
+    const next = vi.fn();
+
+    await middleware({ user: { userId: "admin-1", role: "ADMIN" } }, makeRes(), next);
+
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it("masks denial and missing records as the identical 404", async () => {
+    const notFound = { code: "PROJECT_NOT_FOUND", message: "Project not found" };
+    const denied = requireAccess<Resource>({
+      rule,
+      loadResource: vi.fn(async () => ({ ownerId: "someone-else" })),
+      notFound,
+    });
+    const missing = requireAccess<Resource>({
+      rule,
+      loadResource: vi.fn(async () => null),
+      notFound,
+    });
+
+    for (const middleware of [denied, missing]) {
+      const res = makeRes();
+      const next = vi.fn();
+      await middleware({ user: { userId: "user-2", role: "USER" }, id: "req-1" }, res, next);
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({ error: notFound, requestId: "req-1" });
+      expect(next).not.toHaveBeenCalled();
+    }
+  });
+
+  it("can expose denial explicitly as 403 while missing records stay 404", async () => {
+    const middleware = requireAccess<Resource>({
+      rule,
+      loadResource: vi.fn(async () => ({ ownerId: "someone-else" })),
+      denialVisibility: "explicit",
+    });
+    const res = makeRes();
+    await middleware({ user: { userId: "user-2", role: "USER" }, id: "req-2" }, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      error: { code: "FORBIDDEN", message: "Access denied" },
+      requestId: "req-2",
+    });
+
+    const missing = requireAccess<Resource>({
+      rule,
+      loadResource: vi.fn(async () => null),
+      denialVisibility: "explicit",
+    });
+    const resForMissing = makeRes();
+    await missing({ user: { userId: "user-2", role: "USER" } }, resForMissing, vi.fn());
+    expect(resForMissing.status).toHaveBeenCalledWith(404);
+  });
+
+  it("fails closed with 401 when no authenticated user is present", async () => {
+    const load = vi.fn(async () => resource);
+    const middleware = requireAccess<Resource>({ rule, loadResource: load });
+    const res = makeRes();
+
+    await middleware({}, res, vi.fn());
+
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({
+      error: { code: "UNAUTHENTICATED", message: "Authentication required" },
+      requestId: undefined,
+    });
+    expect(load).not.toHaveBeenCalled();
   });
 });
