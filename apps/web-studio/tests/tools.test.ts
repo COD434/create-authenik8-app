@@ -16,6 +16,17 @@ afterAll(async () => {
   await rm(sandbox, { recursive: true, force: true }).catch(() => {});
 });
 
+const PASSING_TOKENS = {
+  schemaVersion: 1,
+  name: "Studio Test",
+  color: {
+    groups: { brand: { bg: "#0B1020", fg: "#F5F7FA" } },
+    contrastPairs: [{ foreground: "color.brand.fg", background: "color.brand.bg", kind: "body" }],
+  },
+  typography: { family: "Inter", scale: { body: "16px" } },
+  spacing: { scale: { md: "16px" } },
+};
+
 describe("resolveInsideSandbox", () => {
   it("accepts plain relative paths", () => {
     expect(resolveInsideSandbox(sandbox, "src/index.ts")).toBe(path.resolve(sandbox, "src/index.ts"));
@@ -89,5 +100,59 @@ describe("executeTool", () => {
     const read = await executeTool("read_file", JSON.stringify({ path: "big2.txt" }), sandbox);
     expect(read.result.length).toBeLessThanOrEqual(16_020);
     expect(read.result).toContain("[truncated]");
+  });
+});
+
+describe("design_audit tool", () => {
+  it("passes a valid bundle and reports the A8-DS checks", async () => {
+    await mkdir(path.join(sandbox, "design"), { recursive: true });
+    await writeFile(
+      path.join(sandbox, "design", "tokens.json"),
+      JSON.stringify(PASSING_TOKENS),
+      "utf8",
+    );
+    const outcome = await executeTool("design_audit", "{}", sandbox);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result).toContain("A8-DS-001");
+    expect(outcome.result).toContain("A8-DS-003");
+    expect(outcome.result).toContain("design checks passed");
+  });
+
+  it("fails a low-contrast bundle with remediation the model can act on", async () => {
+    const failing = structuredClone(PASSING_TOKENS);
+    failing.color.groups.brand.fg = "#999999";
+    failing.color.groups.brand.bg = "#FFFFFF";
+    await writeFile(
+      path.join(sandbox, "design", "tokens.json"),
+      JSON.stringify(failing),
+      "utf8",
+    );
+    const outcome = await executeTool("design_audit", "{}", sandbox);
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result).toContain("A8-DS-003");
+    expect(outcome.result).toContain("fix:");
+    expect(outcome.result).toContain("design checks failed");
+  });
+
+  it("reports a missing bundle as an A8-DS-001 failure, not a crash", async () => {
+    await mkdir(path.join(sandbox, "empty-design"), { recursive: true });
+    const outcome = await executeTool(
+      "design_audit",
+      JSON.stringify({ path: "empty-design" }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result).toContain("A8-DS-001");
+    expect(outcome.result).toContain("tokens.json not found");
+  });
+
+  it("refuses design directories outside the sandbox", async () => {
+    const outcome = await executeTool(
+      "design_audit",
+      JSON.stringify({ path: "../../elsewhere" }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result).toContain("escapes the project sandbox");
   });
 });

@@ -12,6 +12,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
+    "@authenik8/design": "0.1.0",
     "@authenik8/models": "0.1.0",
     "zod": "^3.24.0"
   },

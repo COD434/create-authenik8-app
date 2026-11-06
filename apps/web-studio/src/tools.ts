@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { z } from "zod";
 
+import { formatFindings, runDesignChecks } from "@authenik8/design";
 import type { ToolDefinition } from "@authenik8/models";
 
 /**
@@ -32,6 +33,7 @@ const writeArgsSchema = z.object({
   path: z.string().min(1).max(200),
   content: z.string().max(300_000),
 });
+const auditArgsSchema = z.object({ path: z.string().max(200).optional() });
 
 export const toolDefinitions: ToolDefinition[] = [
   {
@@ -63,6 +65,20 @@ export const toolDefinitions: ToolDefinition[] = [
         content: { type: "string", description: "Full file contents (UTF-8 text)." },
       },
       required: ["path", "content"],
+    },
+  },
+  {
+    name: "design_audit",
+    description:
+      "Run the Authenik8 design-system checks (A8-DS-001 schema, A8-DS-002 required token groups, A8-DS-003 WCAG AA contrast, A8-DS-004 DESIGN.md sync) on a design directory containing tokens.json. Run this after writing or changing design tokens, and fix every failed check.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Design-system directory relative to the project root; defaults to 'design'.",
+        },
+      },
     },
   },
 ];
@@ -147,6 +163,17 @@ export async function executeTool(
       await mkdir(path.dirname(file), { recursive: true });
       await writeFile(file, args.content, "utf8");
       return { ok: true, result: `wrote ${args.path} (${Buffer.byteLength(args.content, "utf8")} bytes)` };
+    }
+
+    if (name === "design_audit") {
+      const args = auditArgsSchema.parse(parsedArguments ?? {});
+      const requested = args.path === undefined || args.path.trim() === "" ? "design" : args.path;
+      const target = resolveInsideSandbox(sandboxRoot, requested);
+      if (target === null) return { ok: false, result: "Error: path escapes the project sandbox." };
+      // runDesignChecks never throws for load/validation problems — they come
+      // back as A8-DS-001 fail findings so the model can repair the bundle.
+      const result = await runDesignChecks(target);
+      return { ok: result.ok, result: truncate(formatFindings(result)) };
     }
 
     return { ok: false, result: `Error: unknown tool "${name}".` };
