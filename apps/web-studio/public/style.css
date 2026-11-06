@@ -96,6 +96,16 @@ body {
 }
 .msg.system-error { align-self: center; color: var(--danger); font-size: 13px; }
 .system-intro { color: var(--muted); border: none; background: none; }
+.msg.tool-line {
+  align-self: flex-start;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--muted);
+  background: none;
+  border: 1px dashed #232b3d;
+  border-radius: 8px;
+  padding: 6px 12px;
+}
 
 .composer {
   display: flex;

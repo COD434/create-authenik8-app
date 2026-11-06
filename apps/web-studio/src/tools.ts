@@ -1,0 +1,160 @@
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+import { z } from "zod";
+
+import type { ToolDefinition } from "@authenik8/models";
+
+/**
+ * Sandboxed file tools for the studio agent loop.
+ *
+ * Scope discipline: every path a model supplies is resolved against the
+ * sandbox root and rejected unless it stays inside it. Absolute and
+ * drive-rooted forms are rejected BEFORE resolution (on Windows,
+ * `path.resolve("C:\\sb", "/x")` escapes to "C:\\x"), and the resolved
+ * result is re-verified. Tool results are size-capped before being fed
+ * back to the model.
+ */
+
+export const MAX_FILE_BYTES = 256 * 1024;
+export const MAX_TOOL_RESULT_CHARS = 16_000;
+export const MAX_LIST_ENTRIES = 500;
+
+export type ToolOutcome = {
+  ok: boolean;
+  /** JSON-ish text fed back to the model as the tool result. */
+  result: string;
+};
+
+const listArgsSchema = z.object({ path: z.string().max(200).optional() });
+const readArgsSchema = z.object({ path: z.string().min(1).max(200) });
+const writeArgsSchema = z.object({
+  path: z.string().min(1).max(200),
+  content: z.string().max(300_000),
+});
+
+export const toolDefinitions: ToolDefinition[] = [
+  {
+    name: "list_files",
+    description:
+      "List every file in the sandbox project as relative paths. Call this first to see the project state.",
+    parameters: {
+      type: "object",
+      properties: { path: { type: "string", description: "Sub-directory to list; defaults to the project root." } },
+    },
+  },
+  {
+    name: "read_file",
+    description: "Read a text file from the sandbox project. Path is relative to the project root.",
+    parameters: {
+      type: "object",
+      properties: { path: { type: "string", description: "File to read, relative to the project root." } },
+      required: ["path"],
+    },
+  },
+  {
+    name: "write_file",
+    description:
+      "Create or overwrite a text file in the sandbox project. Path is relative to the project root; parent directories are created automatically.",
+    parameters: {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "File to write, relative to the project root." },
+        content: { type: "string", description: "Full file contents (UTF-8 text)." },
+      },
+      required: ["path", "content"],
+    },
+  },
+];
+
+/**
+ * Resolve a model-supplied path inside the sandbox, or null when it tries
+ * to escape. Rejects absolute/rooted forms before resolution and re-verifies
+ * the resolved location afterwards.
+ */
+export function resolveInsideSandbox(sandboxRoot: string, requested: string): string | null {
+  const trimmed = requested.trim();
+  if (trimmed === "" || path.isAbsolute(trimmed)) return null;
+  const resolved = path.resolve(sandboxRoot, trimmed);
+  const relative = path.relative(sandboxRoot, resolved);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  return resolved;
+}
+
+function truncate(result: string): string {
+  if (result.length <= MAX_TOOL_RESULT_CHARS) return result;
+  return `${result.slice(0, MAX_TOOL_RESULT_CHARS)}\n...[truncated]`;
+}
+
+async function walk(root: string, dir: string, out: string[], depth: number): Promise<void> {
+  if (out.length >= MAX_LIST_ENTRIES || depth > 8) return;
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (out.length >= MAX_LIST_ENTRIES) return;
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      await walk(root, full, out, depth + 1);
+    } else {
+      out.push(path.relative(root, full));
+    }
+  }
+}
+
+/** Execute one tool call. Never throws: failures are data for the model. */
+export async function executeTool(
+  name: string,
+  argumentsJson: string,
+  sandboxRoot: string,
+): Promise<ToolOutcome> {
+  let parsedArguments: unknown;
+  try {
+    parsedArguments = JSON.parse(argumentsJson);
+  } catch {
+    return { ok: false, result: "Error: tool arguments were not valid JSON." };
+  }
+
+  try {
+    if (name === "list_files") {
+      const args = listArgsSchema.parse(parsedArguments ?? {});
+      const dir = args.path === undefined || args.path === "." || args.path === ""
+        ? sandboxRoot
+        : resolveInsideSandbox(sandboxRoot, args.path);
+      if (dir === null) return { ok: false, result: "Error: path escapes the project sandbox." };
+      const files: string[] = [];
+      await walk(sandboxRoot, dir, files, 0);
+      return { ok: true, result: truncate(JSON.stringify({ files: files.sort() })) };
+    }
+
+    if (name === "read_file") {
+      const args = readArgsSchema.parse(parsedArguments);
+      const file = resolveInsideSandbox(sandboxRoot, args.path);
+      if (file === null) return { ok: false, result: "Error: path escapes the project sandbox." };
+      const content = await readFile(file, "utf8");
+      if (content.length > MAX_FILE_BYTES) {
+        return { ok: false, result: `Error: file is larger than ${MAX_FILE_BYTES} bytes.` };
+      }
+      return { ok: true, result: truncate(content) };
+    }
+
+    if (name === "write_file") {
+      const args = writeArgsSchema.parse(parsedArguments);
+      const file = resolveInsideSandbox(sandboxRoot, args.path);
+      if (file === null) return { ok: false, result: "Error: path escapes the project sandbox." };
+      if (Buffer.byteLength(args.content, "utf8") > MAX_FILE_BYTES) {
+        return { ok: false, result: `Error: content exceeds ${MAX_FILE_BYTES} bytes.` };
+      }
+      await mkdir(path.dirname(file), { recursive: true });
+      await writeFile(file, args.content, "utf8");
+      return { ok: true, result: `wrote ${args.path} (${Buffer.byteLength(args.content, "utf8")} bytes)` };
+    }
+
+    return { ok: false, result: `Error: unknown tool "${name}".` };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "tool failed";
+    if (error instanceof z.ZodError) {
+      return { ok: false, result: `Error: invalid tool arguments: ${error.issues[0]?.message ?? message}` };
+    }
+    return { ok: false, result: `Error: ${message}` };
+  }
+}

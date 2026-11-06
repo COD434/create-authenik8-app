@@ -5,21 +5,34 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { z } from "zod";
 
-import { createModelsGateway, createOpenRouterProvider, type ModelsGateway } from "@authenik8/models";
+import {
+  assembleToolCalls,
+  createModelsGateway,
+  createOpenRouterProvider,
+  type ChatMessage,
+  type ModelsGateway,
+  type ToolCallDelta,
+} from "@authenik8/models";
+
+import { executeTool, toolDefinitions } from "./tools.js";
 
 /**
- * Studio Web (M5 v0): a localhost ChatGPT-style builder chat streaming over
+ * Studio Web (M5 v1): a localhost ChatGPT-style builder chat with a sandboxed
+ * tool loop — the model can list, read, and write real files, streamed over
  * the Authenik8 models gateway (BYOK, free OpenRouter models).
  *
  * Trust boundary:
  * - binds 127.0.0.1 only; no CORS (same-origin UI);
  * - the OpenRouter key arrives per request in the X-OpenRouter-Key header
  *   and is never stored, logged, or echoed;
+ * - tool execution is confined to the sandbox root (path-guarded);
+ * - conversation history lives in server memory only; reset wipes it;
  * - no request logging, no telemetry.
  */
 
 const PORT = Number(process.env.PORT ?? 4870);
 const MAX_BODY_BYTES = 1024 * 1024;
+const MAX_TOOL_ROUNDS = 6;
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 
@@ -29,35 +42,39 @@ const STATIC_FILES: Record<string, { file: string; type: string }> = {
   "/style.css": { file: "style.css", type: "text/css; charset=utf-8" },
 };
 
-const chatMessageSchema = z.object({
-  role: z.enum(["system", "user", "assistant"]),
-  content: z.string().min(1).max(32_000),
-});
-
 const chatBodySchema = z.object({
   model: z.string().min(1).max(120),
-  messages: z.array(chatMessageSchema).min(1).max(40),
+  message: z.string().min(1).max(32_000),
 });
 
 export type WebStudioDeps = {
   /** Build a gateway for one request's key; the server stores nothing. */
   gatewayFor(apiKey: string): Pick<ModelsGateway, "listModels" | "chatStream">;
+  /** Sandbox root for tool execution; created on demand. */
+  sandboxRoot: string;
 };
 
 const SYSTEM_PROMPT = [
   "You are Authenik8 Studio Web, a senior product engineer for the Authenik8 ecosystem.",
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
-  "When the user describes an app, produce concrete, secure, runnable work:",
+  "You have tools that operate on a sandbox project directory: list_files, read_file,",
+  "and write_file (paths are relative to the project root). Build real files in small,",
+  "verifiable steps: list the project, write complete runnable files, and say what you",
+  "did in one short line before each tool call.",
   "Authenik8-generated projects use Express + TypeScript, rotating JWTs with stateful",
   "Redis-backed sessions, Prisma, strict cookies, CSRF, and server-side authorization.",
   "Never suggest client-held secrets, tokens in browser storage, frontend route guards",
   "as authorization, or disabling CSRF/origin checks. Prefer free-tier OpenRouter models",
-  "and plain, reviewable code. Be concise and build in small, verifiable steps.",
+  "and plain, reviewable code.",
 ].join(" ");
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body));
+}
+
+function sseEvent(res: ServerResponse, payload: unknown): void {
+  res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
 function readBody(req: IncomingMessage): Promise<string | null> {
@@ -86,12 +103,20 @@ function apiKeyFrom(req: IncomingMessage): string | null {
 }
 
 export function createWebStudioServer(deps: WebStudioDeps): Server {
+  // Single-user localhost tool: one conversation in memory; /api/reset wipes it.
+  const conversation: ChatMessage[] = [];
+
   return createServer((req, res) => {
-    void handle(deps, req, res);
+    void handle(deps, conversation, req, res);
   });
 }
 
-async function handle(deps: WebStudioDeps, req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handle(
+  deps: WebStudioDeps,
+  conversation: ChatMessage[],
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<void> {
   const url = new URL(req.url ?? "/", "http://127.0.0.1");
 
   try {
@@ -115,6 +140,12 @@ async function handle(deps: WebStudioDeps, req: IncomingMessage, res: ServerResp
           .filter((model) => model.isFree && model.supportsTools)
           .map((model) => ({ id: model.id, name: model.name, contextLength: model.contextLength })),
       });
+      return;
+    }
+
+    if (url.pathname === "/api/reset" && req.method === "POST") {
+      conversation.length = 0;
+      sendJson(res, 200, { ok: true });
       return;
     }
 
@@ -144,27 +175,60 @@ async function handle(deps: WebStudioDeps, req: IncomingMessage, res: ServerResp
       const abort = new AbortController();
       req.on("close", () => abort.abort());
 
+      conversation.push({ role: "user", content: parsed.data.message });
+
       try {
         const gateway = deps.gatewayFor(key);
-        for await (const chunk of gateway.chatStream({
-          model: parsed.data.model,
-          messages: [{ role: "system", content: SYSTEM_PROMPT }, ...parsed.data.messages],
-          signal: abort.signal,
-        })) {
-          if (chunk.delta !== null) {
-            res.write(`data: ${JSON.stringify({ delta: chunk.delta })}\n\n`);
+        let rounds = 0;
+
+        while (rounds < MAX_TOOL_ROUNDS) {
+          rounds++;
+          let text = "";
+          const fragments: ToolCallDelta[] = [];
+
+          for await (const chunk of gateway.chatStream({
+            model: parsed.data.model,
+            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...conversation],
+            tools: toolDefinitions,
+            signal: abort.signal,
+          })) {
+            if (chunk.delta !== null) {
+              text += chunk.delta;
+              sseEvent(res, { delta: chunk.delta });
+            }
+            if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
+            if (chunk.usage !== null) sseEvent(res, { usage: chunk.usage });
+            if (chunk.finishReason !== null) sseEvent(res, { finishReason: chunk.finishReason });
           }
-          if (chunk.usage) {
-            res.write(`data: ${JSON.stringify({ usage: chunk.usage })}\n\n`);
+
+          const calls = assembleToolCalls(fragments);
+          if (calls.length === 0) {
+            conversation.push({ role: "assistant", content: text });
+            sseEvent(res, { done: true, rounds });
+            return;
           }
-          if (chunk.finishReason !== null) {
-            res.write(`data: ${JSON.stringify({ done: true, finishReason: chunk.finishReason })}\n\n`);
+
+          conversation.push({ role: "assistant", content: text, toolCalls: calls });
+          for (const call of calls) {
+            sseEvent(res, { tool: { name: call.name, phase: "start" } });
+            const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
+            conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
+            sseEvent(res, {
+              tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
+            });
+          }
+
+          if (rounds >= MAX_TOOL_ROUNDS) {
+            sseEvent(res, { error: `Stopped: tool round budget (${MAX_TOOL_ROUNDS}) exhausted. Send another message to continue.` });
+            return;
           }
         }
       } catch (error) {
         // ModelsError messages are key-safe by contract in the models package.
         const message = error instanceof Error ? error.message : "stream failed";
-        res.write(`data: ${JSON.stringify({ error: message })}\n\n`);
+        if (!abort.signal.aborted) {
+          sseEvent(res, { error: message });
+        }
       } finally {
         res.end();
       }
@@ -197,9 +261,14 @@ export function main(): void {
       }),
     });
 
-  const server = createWebStudioServer({ gatewayFor });
+  const sandboxRoot = process.env.SANDBOX_DIR
+    ? path.resolve(process.env.SANDBOX_DIR)
+    : path.join(process.cwd(), ".studio-sandbox");
+
+  const server = createWebStudioServer({ gatewayFor, sandboxRoot });
   server.listen(PORT, "127.0.0.1", () => {
-    console.log(`Authenik8 Studio Web: http://127.0.0.1:${PORT} (BYOK: your key stays in this tab)`);
+    console.log(`Authenik8 Studio Web: http://127.0.0.1:${PORT}`);
+    console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);
   });
 }
 

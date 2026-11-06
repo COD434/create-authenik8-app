@@ -1,4 +1,4 @@
-/* Studio Web client (v0): BYOK key in memory only; SSE chat streaming. */
+/* Studio Web client (v1): BYOK key in memory only; SSE agent loop with sandboxed file tools. */
 
 const keyInput = document.getElementById("key");
 const modelSelect = document.getElementById("model");
@@ -8,8 +8,6 @@ const promptEl = document.getElementById("prompt");
 const sendBtn = document.getElementById("send");
 const newChatBtn = document.getElementById("new-chat");
 const usageLine = document.getElementById("usage-line");
-
-const history = []; // { role, content } — the key is never in here
 
 function apiKey() {
   return keyInput.value.trim();
@@ -23,6 +21,15 @@ function addMessage(kind, text) {
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
   el.textContent = text;
+  messagesEl.appendChild(el);
+  autoScroll();
+  return el;
+}
+
+function addToolLine(name) {
+  const el = document.createElement("div");
+  el.className = "msg tool-line";
+  el.textContent = `⚙ ${name} …`;
   messagesEl.appendChild(el);
   autoScroll();
   return el;
@@ -44,21 +51,21 @@ async function loadModels() {
       modelSelect.appendChild(option);
     }
     if (body.models.length === 0) {
-      modelSelect.innerHTML = '<option>no free tool-capable models found</option>';
+      modelSelect.innerHTML = "<option>no free tool-capable models found</option>";
     } else {
       modelSelect.disabled = false;
       sendBtn.disabled = false;
     }
   } catch (error) {
-    modelSelect.innerHTML = `<option>discovery failed</option>`;
+    modelSelect.innerHTML = "<option>discovery failed</option>";
     addMessage("system-error", `Model discovery: ${error.message}`);
   }
 }
 
 keyInput.addEventListener("change", loadModels);
 
-newChatBtn.addEventListener("click", () => {
-  history.length = 0;
+newChatBtn.addEventListener("click", async () => {
+  await fetch("/api/reset", { method: "POST" }).catch(() => {});
   messagesEl.innerHTML = "";
   addMessage("assistant", "New chat. Describe what to build.");
 });
@@ -71,19 +78,19 @@ composer.addEventListener("submit", async (event) => {
   if (prompt.length === 0 || key.length === 0 || modelSelect.disabled) return;
 
   addMessage("user", prompt);
-  history.push({ role: "user", content: prompt });
   promptEl.value = "";
   sendBtn.disabled = true;
 
   const assistantEl = addMessage("assistant", "…");
   let firstDelta = true;
-  let tokens = null;
+  let usage = null;
+  let toolLine = null;
 
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
-      body: JSON.stringify({ model, messages: history }),
+      body: JSON.stringify({ model, message: prompt }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -113,19 +120,28 @@ composer.addEventListener("submit", async (event) => {
             assistantEl.textContent += payload.delta;
             autoScroll();
           }
-          if (payload.usage !== undefined) tokens = payload.usage;
+          if (payload.tool !== undefined) {
+            if (payload.tool.phase === "start") {
+              toolLine = addToolLine(payload.tool.name);
+            } else if (toolLine !== null) {
+              toolLine.textContent = `⚙ ${payload.tool.name} ${payload.tool.ok ? "✓" : "✗"} ${payload.tool.summary}`;
+              toolLine = null;
+            }
+          }
+          if (payload.usage !== undefined) usage = payload.usage;
+          if (payload.done === true) {
+            usageLine.textContent = usage
+              ? `${model} · ${usage.totalTokens} tokens · ${usage.costUsd === null ? "free tier" : `$${usage.costUsd.toFixed(6)}`}`
+              : model;
+          }
           if (payload.error !== undefined) throw new Error(payload.error);
         }
       }
     }
 
     if (firstDelta) assistantEl.textContent = "(empty response)";
-    history.push({ role: "assistant", content: assistantEl.textContent });
-    usageLine.textContent = tokens
-      ? `${model} · ${tokens.totalTokens} tokens · ${tokens.costUsd === null ? "free tier" : `$${tokens.costUsd.toFixed(6)}`}`
-      : `${model}`;
   } catch (error) {
-    assistantEl.remove();
+    if (firstDelta) assistantEl.remove();
     addMessage("system-error", error.message);
   } finally {
     sendBtn.disabled = modelSelect.disabled;
