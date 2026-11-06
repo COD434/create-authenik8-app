@@ -13,6 +13,7 @@ import {
   type ModelsGateway,
   type ToolCallDelta,
 } from "@authenik8/models";
+import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapter";
 
 import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
 
@@ -27,12 +28,16 @@ import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
  *   and is never stored, logged, or echoed;
  * - tool execution is confined to the sandbox root (path-guarded);
  * - conversation history lives in server memory only; reset wipes it;
+ * - the OpenCode agent is triggered ONLY by explicit user action and always
+ *   runs with auto-approve scoped to the sandbox cwd; its output is
+ *   untrusted data and is never treated as instructions;
  * - no request logging, no telemetry.
  */
 
 const PORT = Number(process.env.PORT ?? 4870);
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_TOOL_ROUNDS = 6;
+const AGENT_OUTPUT_TAIL_CHARS = 4_000;
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 
@@ -72,7 +77,22 @@ export type WebStudioDeps = {
   gatewayFor(apiKey: string): Pick<ModelsGateway, "listModels" | "chatStream">;
   /** Sandbox root for tool execution; created on demand. */
   sandboxRoot: string;
+  /** The coding-agent runtime (OpenCode). Triggered only by explicit user action. */
+  agentRuntime: AgentRuntime;
 };
+
+const agentBodySchema = z.object({
+  prompt: z.string().min(1).max(8_000),
+});
+
+const AGENT_BRIEF_PREAMBLE = [
+  "You are the Authenik8 build agent working inside a project directory.",
+  "Build a real, runnable project for the brief below using Authenik8 conventions:",
+  "Express + TypeScript, rotating JWTs with stateful server-side sessions, Prisma,",
+  "strict cookies, CSRF protection, and server-side authorization.",
+  "Never put secrets in client code; never store tokens in browser storage.",
+  "When you finish, print a short summary of what you created.",
+].join(" ");
 
 const SYSTEM_PROMPT = [
   "You are Authenik8 Studio Web, a senior product engineer for the Authenik8 ecosystem.",
@@ -188,15 +208,19 @@ function apiKeyFrom(req: IncomingMessage): string | null {
 export function createWebStudioServer(deps: WebStudioDeps): Server {
   // Single-user localhost tool: one conversation in memory; /api/reset wipes it.
   const conversation: ChatMessage[] = [];
+  // One agent run at a time: it works in the same sandbox cwd.
+  let agentBusy = false;
 
   return createServer((req, res) => {
-    void handle(deps, conversation, req, res);
+    void handle(deps, conversation, () => agentBusy, (busy: boolean) => { agentBusy = busy; }, req, res);
   });
 }
 
 async function handle(
   deps: WebStudioDeps,
   conversation: ChatMessage[],
+  isAgentBusy: () => boolean,
+  setAgentBusy: (busy: boolean) => void,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -229,6 +253,64 @@ async function handle(
     if (url.pathname === "/api/reset" && req.method === "POST") {
       conversation.length = 0;
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === "/api/agent" && req.method === "POST") {
+      if (isAgentBusy()) {
+        sendJson(res, 409, { error: "An agent run is already in progress" });
+        return;
+      }
+      const body = await readBody(req);
+      if (body === null) {
+        sendJson(res, 413, { error: "Request body too large" });
+        return;
+      }
+      const parsed = agentBodySchema.safeParse(JSON.parse(body));
+      if (!parsed.success) {
+        sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+        return;
+      }
+
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      const abort = new AbortController();
+      req.on("close", () => abort.abort());
+
+      // The user's button click is the consent for auto-approve; the run is
+      // scoped to the sandbox cwd. Failures are data, not exceptions.
+      setAgentBusy(true);
+      sseEvent(res, { agent: { phase: "start" } });
+      try {
+        const result = await deps.agentRuntime.run({
+          prompt: `${AGENT_BRIEF_PREAMBLE}\n\nBrief: ${parsed.data.prompt}`,
+          cwd: deps.sandboxRoot,
+          autoApprove: true,
+          signal: abort.signal,
+        });
+        sseEvent(res, {
+          agent: {
+            phase: "done",
+            ok: result.ok,
+            errorCode: result.errorCode,
+            exitCode: result.exitCode,
+            durationMs: result.durationMs,
+            sessionId: result.sessionId,
+            outputTail: result.stdout.slice(-AGENT_OUTPUT_TAIL_CHARS),
+            ...(result.ok ? {} : { errorTail: result.stderr.slice(-AGENT_OUTPUT_TAIL_CHARS) }),
+          },
+        });
+      } catch (error) {
+        // Adapter bugs only; run-level failures are structured results.
+        const message = error instanceof Error ? error.message : "agent run failed";
+        sseEvent(res, { agent: { phase: "done", ok: false, errorCode: "spawn_failed", errorTail: message } });
+      } finally {
+        setAgentBusy(false);
+        res.end();
+      }
       return;
     }
 
@@ -357,7 +439,13 @@ export function main(): void {
     ? path.resolve(process.env.SANDBOX_DIR)
     : path.join(process.cwd(), ".studio-sandbox");
 
-  const server = createWebStudioServer({ gatewayFor, sandboxRoot });
+  // OPENCODE_PATH: the real executable (Windows npm shims are .cmd and are
+  // not resolvable by no-shell spawn — pass the .exe explicitly there).
+  const agentRuntime = createOpenCodeRuntime({
+    cliPath: process.env.OPENCODE_PATH ?? "opencode",
+  });
+
+  const server = createWebStudioServer({ gatewayFor, sandboxRoot, agentRuntime });
   server.listen(PORT, "127.0.0.1", () => {
     console.log(`Authenik8 Studio Web: http://127.0.0.1:${PORT}`);
     console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);

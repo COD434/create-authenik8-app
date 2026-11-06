@@ -15,6 +15,7 @@
       </div>
       <button id="new-chat" class="btn-new">+ New chat</button>
       <button id="preview-btn" class="btn-new">▶ Preview</button>
+      <button id="agent-btn" class="btn-new">🤖 Build with agent</button>
 
       <label class="field">
         <span>Model <em id="model-note">free tier</em></span>
@@ -57,6 +58,26 @@
       </div>
       <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
     </section>
+
+    <div id="agent-overlay" class="agent-overlay" hidden>
+      <div class="agent-modal">
+        <div class="agent-head">
+          <span>Build with the OpenCode agent</span>
+          <button id="agent-close" type="button" title="Close">✕</button>
+        </div>
+        <div id="agent-form">
+          <textarea id="agent-brief" rows="5" placeholder="Describe the full project to generate… e.g. 'a booking app for a barbershop with owner dashboards'"></textarea>
+          <p class="agent-warn">The agent runs unsupervised with auto-approve inside the sandbox
+            directory: it writes files and executes commands. Close this page to abort a running build.</p>
+          <button id="agent-run" type="button">Run agent</button>
+        </div>
+        <div id="agent-status" hidden>
+          <p id="agent-state">Agent running…</p>
+          <pre id="agent-output"></pre>
+          <button id="agent-dismiss" type="button">Close</button>
+        </div>
+      </div>
+    </div>
   </div>
   <script src="/app.js"></script>
 </body>

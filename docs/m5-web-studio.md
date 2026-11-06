@@ -19,10 +19,15 @@ and audit trails instead of a second users table.
 - **BYOK, zero storage**: the user's OpenRouter key is sent per request in
   a header, held in the browser tab's memory only, and passed through to
   OpenRouter. The server never persists, logs, or echoes it (the models
-  package's redaction discipline covers errors).
+  package's redaction discipline covers errors). The agent endpoint does
+  not accept the key at all — OpenCode uses its own auth.
 - **Free models first**: model discovery filters to free-tier, tool-capable
   models by default, so the builder experience costs nothing up front.
   The user's key is still required (OpenRouter free tier needs an account).
+- **Agent runs are user-triggered**: the chat model cannot spawn the
+  OpenCode build agent. The user clicks "Build with agent"; the run is
+  auto-approved (required for unattended work) and scoped to the sandbox
+  cwd. Agent output is untrusted data, rendered as plain text only.
 - **No telemetry**: no request logging beyond the startup line.
 
 ## Slice roadmap
@@ -32,8 +37,8 @@ and audit trails instead of a second users table.
 | v0 | Chat vertical: static UI + SSE streaming over `@authenik8/models` against free models, doctrine system prompt | done (`69e05d7`) |
 | v1 | Tool loop: M1 tool-call deltas + sandboxed `write_file`/`read_file`/`list_files` tools (path-scope guard, size caps, failure-as-data) → the chat writes real files | done (`d641261`) |
 | v2 | Quality loop in-chat: `design_audit` tool runs `@authenik8/design` checks (A8-DS-001..004); the model fixes failed checks and re-runs | done (`ec789c4`) |
-| v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | this slice |
-| v3b | Full generation: drive OpenCode via `@authenik8/agent-adapter` for real Authenik8 project generation | |
+| v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | done (`c724601`) |
+| v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | this slice |
 | v4 | Export/download + one-command run of the built project | |
 
 ## Non-goals

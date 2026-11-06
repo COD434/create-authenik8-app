@@ -87,6 +87,90 @@ document.getElementById("preview-btn").addEventListener("click", () => {
 document.getElementById("preview-reload").addEventListener("click", showPreview);
 document.getElementById("preview-close").addEventListener("click", hidePreview);
 
+// --- Build with agent (user-triggered only) ---
+
+const agentOverlay = document.getElementById("agent-overlay");
+const agentForm = document.getElementById("agent-form");
+const agentStatus = document.getElementById("agent-status");
+const agentState = document.getElementById("agent-state");
+const agentOutput = document.getElementById("agent-output");
+const agentRunBtn = document.getElementById("agent-run");
+let agentRunning = false;
+
+document.getElementById("agent-btn").addEventListener("click", () => {
+  if (agentRunning) return;
+  agentOverlay.hidden = false;
+  agentForm.hidden = false;
+  agentStatus.hidden = true;
+  document.getElementById("agent-brief").focus();
+});
+
+document.getElementById("agent-close").addEventListener("click", () => {
+  if (!agentRunning) agentOverlay.hidden = true;
+});
+document.getElementById("agent-dismiss").addEventListener("click", () => {
+  agentOverlay.hidden = true;
+});
+
+document.getElementById("agent-run").addEventListener("click", async () => {
+  const brief = document.getElementById("agent-brief").value.trim();
+  if (brief.length === 0 || agentRunning) return;
+  agentRunning = true;
+  agentRunBtn.disabled = true;
+  agentForm.hidden = true;
+  agentStatus.hidden = false;
+  agentState.textContent = "Agent running — this can take minutes…";
+  agentOutput.textContent = "";
+
+  try {
+    const res = await fetch("/api/agent", {
+      method: "POST",
+      headers: { "content-type": "application/json" }, // no key: the agent never uses it
+      body: JSON.stringify({ prompt: brief }),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let doneEvent = null;
+
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        for (const line of rawEvent.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = JSON.parse(line.slice(6));
+          if (payload.agent?.phase === "done") doneEvent = payload.agent;
+          // Agent output is untrusted data: rendered as plain text only.
+          if (payload.agent?.outputTail) agentOutput.textContent += payload.agent.outputTail;
+          if (payload.agent?.errorTail) agentOutput.textContent += payload.agent.errorTail;
+        }
+      }
+    }
+
+    if (doneEvent !== null) {
+      agentState.textContent = doneEvent.ok
+        ? `Agent finished in ${(doneEvent.durationMs / 1000).toFixed(0)}s — hit ▶ Preview to see the result.`
+        : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
+    }
+  } catch (error) {
+    agentState.textContent = `Agent error: ${error.message}`;
+  } finally {
+    agentRunning = false;
+    agentRunBtn.disabled = false;
+    showPreview(); // refresh the preview pane with whatever the agent built
+  }
+});
+
 newChatBtn.addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
   messagesEl.innerHTML = "";

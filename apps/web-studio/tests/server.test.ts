@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AgentRunResult, AgentRuntime } from "@authenik8/agent-adapter";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, type WebStudioDeps } from "../src/server.js";
@@ -49,12 +50,39 @@ const textRound: ChatChunk[] = [
 let sandbox: string;
 let capturedKey: string | null = null;
 
+// Agent fake: captures the request, waits for the test to resolve the run.
+let resolveRun: ((result: AgentRunResult) => void) | null = null;
+const agentCalls: Array<{ prompt: string; cwd?: string; autoApprove?: boolean }> = [];
+const fakeRuntime: AgentRuntime = {
+  id: "opencode",
+  run(request) {
+    agentCalls.push({ prompt: request.prompt, cwd: request.cwd, autoApprove: request.autoApprove });
+    return new Promise<AgentRunResult>((resolve) => {
+      resolveRun = resolve;
+    });
+  },
+};
+
+const agentSuccess: AgentRunResult = {
+  ok: true,
+  runtime: "opencode",
+  command: ["opencode", "run", "--format", "json", "--auto", "--", "brief"],
+  exitCode: 0,
+  timedOut: false,
+  durationMs: 1_500,
+  stdout: "created project files",
+  stderr: "",
+  errorCode: null,
+  sessionId: "ses_abc",
+};
+
 const deps: WebStudioDeps = {
   gatewayFor: (apiKey) => {
     capturedKey = apiKey;
     return fakeGateway;
   },
   sandboxRoot: "", // filled in beforeAll
+  agentRuntime: fakeRuntime,
 };
 
 const server = createWebStudioServer(deps);
@@ -71,6 +99,8 @@ beforeEach(() => {
   script = [];
   roundIndex = 0;
   capturedRequests = [];
+  agentCalls.length = 0;
+  resolveRun = null;
 });
 
 afterAll(async () => {
@@ -252,8 +282,7 @@ describe("routing hygiene", () => {
   });
 });
 
-describe("preview route", () => {
-  it("serves sandbox files written by the tools with mapped types and nosniff", async () => {
+describe("preview route", () => {  it("serves sandbox files written by the tools with mapped types and nosniff", async () => {
     const write = await executeTool(
       "write_file",
       JSON.stringify({ path: "index.html", content: "<h1>hello preview</h1>" }),
@@ -304,5 +333,74 @@ describe("preview route", () => {
 
   it("405s non-GET preview requests", async () => {
     expect((await fetch(`${base}/preview/`, { method: "POST" })).status).toBe(405);
+  });
+});
+
+describe("build agent route", () => {
+  function runAgent(prompt: string): Promise<Response> {
+    return fetch(`${base}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    });
+  }
+
+  it("runs the agent in the sandbox with auto-approve and streams the outcome", async () => {
+    const pending = runAgent("a barbershop booking app");
+    await vi.waitFor(() => expect(agentCalls).toHaveLength(1));
+
+    expect(agentCalls[0]!.cwd).toBe(sandbox);
+    expect(agentCalls[0]!.autoApprove).toBe(true);
+    expect(agentCalls[0]!.prompt).toContain("a barbershop booking app");
+    expect(agentCalls[0]!.prompt).toContain("Authenik8"); // doctrine preamble
+
+    resolveRun!(agentSuccess);
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const text = await res.text();
+
+    expect(text).toContain('"phase":"start"');
+    expect(text).toContain('"phase":"done"');
+    expect(text).toContain('"ok":true');
+    expect(text).toContain('"sessionId":"ses_abc"');
+    expect(text).toContain("created project files");
+  });
+
+  it("rejects a second agent run while one is in progress", async () => {
+    const first = runAgent("first build");
+    await vi.waitFor(() => expect(agentCalls).toHaveLength(1));
+
+    const second = await runAgent("second build");
+    expect(second.status).toBe(409);
+
+    resolveRun!(agentSuccess);
+    expect((await first).status).toBe(200);
+  });
+
+  it("streams agent failures as data with the structured error code", async () => {
+    const pending = runAgent("build me something");
+    await vi.waitFor(() => expect(agentCalls).toHaveLength(1));
+
+    resolveRun!({
+      ...agentSuccess,
+      ok: false,
+      exitCode: null,
+      errorCode: "runtime_missing",
+      sessionId: null,
+      stdout: "",
+      stderr: "opencode executable not found",
+    });
+    const text = await (await pending).text();
+
+    expect(text).toContain('"ok":false');
+    expect(text).toContain('"errorCode":"runtime_missing"');
+    expect(text).toContain("opencode executable not found");
+  });
+
+  it("rejects invalid bodies with 400 and never reaches the runtime", async () => {
+    const res = await runAgent("");
+    expect(res.status).toBe(400);
+    expect(agentCalls).toHaveLength(0);
   });
 });
