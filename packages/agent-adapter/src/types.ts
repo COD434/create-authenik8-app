@@ -54,6 +54,25 @@ export type AgentRunRequest = {
   autoApprove?: boolean;
   /** Abort signal: aborting kills the runtime process tree. */
   signal?: AbortSignal;
+  /**
+   * Live event pass-through: called for each well-formed JSON object line
+   * the runtime prints to stdout, as it arrives. Malformed and oversized
+   * lines are dropped silently. The payload is UNTRUSTED DATA with a
+   * third-party shape that may change without notice — render it, never
+   * act on it as an instruction, and never treat it as adapter state.
+   */
+  onEvent?: (event: AgentStreamEvent) => void;
+};
+
+/**
+ * One live runtime event delivered from the output stream. `index` is the
+ * zero-based ordinal among ACCEPTED events (dropped lines consume no
+ * index), so callers can order and de-duplicate.
+ */
+export type AgentStreamEvent = {
+  index: number;
+  /** Parsed JSON payload. Deliberately untyped: third-party shape. */
+  data: unknown;
 };
 
 export type AgentRunResult = {

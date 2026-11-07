@@ -1,18 +1,23 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 
-import type { AgentRunErrorCode, AgentRunRequest, AgentRunResult } from "./types.js";
+import type { AgentRunErrorCode, AgentRunRequest, AgentRunResult, AgentStreamEvent } from "./types.js";
 
 /**
  * Generic runtime-process layer shared by command-based adapters.
  * Spawns an argv array (never a shell), captures output with a hard cap,
  * enforces timeouts and aborts, and performs best-effort process-tree
- * cleanup on Windows and POSIX.
+ * cleanup on Windows and POSIX. Optionally streams well-formed NDJSON
+ * lines to a caller callback as they arrive (live event pass-through).
  */
 
 const DEFAULT_TIMEOUT_MS = 600_000;
 const GRACE_KILL_MS = 2_000;
 const MAX_CAPTURE_BYTES = 4 * 1024 * 1024;
+/** A single stdout line larger than this is dropped, never parsed. */
+const MAX_LINE_CHARS = 256 * 1024;
+/** Hard bound on accepted stream events per run (flood guard). */
+const MAX_STREAM_EVENTS = 5_000;
 
 export type SpawnOutcome = Pick<
   AgentRunResult,
@@ -57,6 +62,36 @@ function captureStream(stream: NodeJS.ReadableStream, sink: { bytes: number; tex
   });
 }
 
+/**
+ * Split a stdout stream into lines as they arrive. Oversized lines are
+ * discarded whole (buffer reset + byte scan to the terminating newline)
+ * so one pathological line cannot exhaust memory or stall the parser.
+ */
+function streamLines(stream: NodeJS.ReadableStream, onLine: (line: string) => void): void {
+  let buffer = "";
+  let discarding = false;
+  stream.on("data", (chunk: Buffer) => {
+    if (discarding) {
+      const end = chunk.indexOf(0x0a); // newline byte
+      if (end === -1) return; // still inside the oversized line
+      chunk = chunk.subarray(end + 1);
+      discarding = false;
+    }
+    buffer += chunk.toString("utf8");
+    let newline = buffer.indexOf("\n");
+    while (newline !== -1) {
+      const line = buffer.slice(0, newline);
+      buffer = buffer.slice(newline + 1);
+      if (line.length <= MAX_LINE_CHARS) onLine(line);
+      newline = buffer.indexOf("\n");
+    }
+    if (buffer.length > MAX_LINE_CHARS) {
+      discarding = true;
+      buffer = "";
+    }
+  });
+}
+
 export async function spawnAgent(
   argv: ReadonlyArray<string>,
   options: {
@@ -64,6 +99,7 @@ export async function spawnAgent(
     timeoutMs?: number;
     env?: Record<string, string>;
     signal?: AbortSignal;
+    onEvent?: (event: AgentStreamEvent) => void;
   } = {},
 ): Promise<SpawnOutcome> {
   const started = Date.now();
@@ -94,6 +130,23 @@ export async function spawnAgent(
 
     captureStream(child.stdout!, stdout);
     captureStream(child.stderr!, stderr);
+
+    const onEvent = options.onEvent;
+    if (onEvent !== undefined) {
+      let accepted = 0;
+      streamLines(child.stdout!, (line) => {
+        if (accepted >= MAX_STREAM_EVENTS) return;
+        const candidate = line.trim();
+        if (candidate === "" || !candidate.startsWith("{")) return;
+        try {
+          const data: unknown = JSON.parse(candidate);
+          onEvent({ index: accepted, data });
+          accepted++;
+        } catch {
+          // Malformed NDJSON line: dropped, never fatal.
+        }
+      });
+    }
 
     let settled = false;
     let timedOut = false;

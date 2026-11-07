@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { buildOpenCodeRunArgs, extractSessionId } from "../src/opencode.js";
+import { buildOpenCodeRunArgs, createOpenCodeRuntime, extractSessionId } from "../src/opencode.js";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import type { AgentStreamEvent } from "../src/types.js";
 
 describe("buildOpenCodeRunArgs", () => {
   it("builds the minimal argv with the prompt safely after --", () => {
@@ -62,5 +66,41 @@ describe("extractSessionId (tolerant, third-party output)", () => {
 
   it("falls back to a tolerant pattern for unexpected shapes", () => {
     expect(extractSessionId('prefix "session_id":"ses_from_pattern" suffix')).toBe("ses_from_pattern");
+  });
+});
+
+describe("createOpenCodeRuntime onEvent pass-through", () => {
+  it("streams NDJSON events from a real process and still reports the session", async () => {
+    // cliPath is the node executable; argv[1] "run" then resolves as a
+    // script path relative to the request cwd — a fixture file named
+    // `run` stands in for the opencode CLI.
+    const dir = await mkdtemp(path.join(tmpdir(), "a8-oc-events-"));
+    try {
+      await writeFile(
+        path.join(dir, "run"),
+        [
+          "console.log(JSON.stringify({ type: 'tool', name: 'write_file' }));",
+          "console.log(JSON.stringify({ sessionID: 'ses_live' }));",
+        ].join("\n"),
+        "utf8",
+      );
+
+      const events: AgentStreamEvent[] = [];
+      const runtime = createOpenCodeRuntime({ cliPath: process.execPath });
+      const result = await runtime.run({
+        prompt: "fixture",
+        cwd: dir,
+        onEvent: (event) => events.push(event),
+      });
+
+      expect(result.errorCode).toBeNull();
+      expect(result.sessionId).toBe("ses_live");
+      expect(events.map((event) => event.data)).toEqual([
+        { type: "tool", name: "write_file" },
+        { sessionID: "ses_live" },
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   });
 });

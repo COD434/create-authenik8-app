@@ -39,7 +39,8 @@ and audit trails instead of a second users table.
 | v2 | Quality loop in-chat: `design_audit` tool runs `@authenik8/design` checks (A8-DS-001..004); the model fixes failed checks and re-runs | done (`ec789c4`) |
 | v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | done (`c724601`) |
 | v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | done (`ba9c76f`) |
-| v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | this slice |
+| v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | done (`3e54c27`) |
+| v4.1 | Live agent events: M4 NDJSON pass-through (`AgentRunRequest.onEvent`, parsed per line with drop-malformed/oversized + flood cap) relayed as SSE `agentEvent` — the Build modal shows runtime progress in real time instead of freezing | this slice |
 
 ## Non-goals
 

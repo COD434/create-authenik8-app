@@ -5,4 +5,5 @@ export type {
   AgentRunRequest,
   AgentRunResult,
   AgentRuntime,
+  AgentStreamEvent,
 } from "./types.js";

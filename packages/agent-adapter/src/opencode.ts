@@ -92,6 +92,7 @@ export function createOpenCodeRuntime(options: OpenCodeRuntimeOptions = {}): Age
         ...(request.timeoutMs !== undefined ? { timeoutMs: request.timeoutMs } : {}),
         ...(request.env !== undefined ? { env: request.env } : {}),
         ...(request.signal !== undefined ? { signal: request.signal } : {}),
+        ...(request.onEvent !== undefined ? { onEvent: request.onEvent } : {}),
       });
 
       const result: AgentRunResult = {

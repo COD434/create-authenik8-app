@@ -11,6 +11,7 @@ import type { ChatChunk, ChatRequest } from "@authenik8/models";
 import { createWebStudioServer, type WebStudioDeps } from "../src/server.js";
 import { executeTool } from "../src/tools.js";
 import type { Runner, RunnerEvent, RunnerHandlers } from "../src/runner.js";
+import type { AgentStreamEvent } from "@authenik8/agent-adapter";
 
 const KEY = "sk-or-test-key-must-never-leak";
 
@@ -53,11 +54,21 @@ let capturedKey: string | null = null;
 
 // Agent fake: captures the request, waits for the test to resolve the run.
 let resolveRun: ((result: AgentRunResult) => void) | null = null;
-const agentCalls: Array<{ prompt: string; cwd?: string; autoApprove?: boolean }> = [];
+const agentCalls: Array<{
+  prompt: string;
+  cwd?: string;
+  autoApprove?: boolean;
+  onEvent?: ((event: AgentStreamEvent) => void) | undefined;
+}> = [];
 const fakeRuntime: AgentRuntime = {
   id: "opencode",
   run(request) {
-    agentCalls.push({ prompt: request.prompt, cwd: request.cwd, autoApprove: request.autoApprove });
+    agentCalls.push({
+      prompt: request.prompt,
+      cwd: request.cwd,
+      autoApprove: request.autoApprove,
+      onEvent: request.onEvent,
+    });
     return new Promise<AgentRunResult>((resolve) => {
       resolveRun = resolve;
     });
@@ -394,6 +405,23 @@ describe("build agent route", () => {
     expect(text).toContain('"ok":true');
     expect(text).toContain('"sessionId":"ses_abc"');
     expect(text).toContain("created project files");
+  });
+
+  it("relays live runtime events as data while the run is in flight", async () => {
+    const pending = runAgent("build with live events");
+    await vi.waitFor(() => expect(agentCalls).toHaveLength(1));
+
+    // Events emitted mid-run, before the final result resolves.
+    agentCalls[0]!.onEvent?.({ index: 0, data: { type: "step", part: "start" } });
+    agentCalls[0]!.onEvent?.({ index: 1, data: { type: "tool", name: "write_file" } });
+
+    resolveRun!(agentSuccess);
+    const text = await (await pending).text();
+
+    expect(text).toContain('"agentEvent"');
+    expect(text).toContain('"type":"step"');
+    expect(text).toContain('"name":"write_file"');
+    expect(text).toContain('"phase":"done"'); // final result still streams
   });
 
   it("rejects a second agent run while one is in progress", async () => {

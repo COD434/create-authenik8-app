@@ -383,6 +383,11 @@ async function handle(
           cwd: deps.sandboxRoot,
           autoApprove: true,
           signal: abort.signal,
+          // Live NDJSON pass-through: untrusted third-party events relayed
+          // verbatim as data. Dropped when the client already hung up.
+          onEvent: (event) => {
+            if (!res.destroyed) sseEvent(res, { agentEvent: event });
+          },
         });
         sseEvent(res, {
           agent: {

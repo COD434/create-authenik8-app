@@ -73,6 +73,81 @@ describe("spawnAgent (generic runtime-process layer)", () => {
   });
 });
 
+describe("spawnAgent live event pass-through (NDJSON)", () => {
+  it("delivers parsed events incrementally, in order, before the run resolves", async () => {
+    const events: Array<{ at: number; event: import("../src/types.js").AgentStreamEvent }> = [];
+    const outcome = await spawnAgent(
+      [
+        process.execPath,
+        "-e",
+        [
+          "console.log(JSON.stringify({ type: 'step', part: 1 }));",
+          "setTimeout(() => { console.log(JSON.stringify({ type: 'step', part: 2 })); }, 250);",
+          "setTimeout(() => {}, 400);", // keep the process alive after the last event
+        ].join(""),
+      ],
+      { onEvent: (event) => events.push({ at: Date.now(), event }) },
+    );
+
+    expect(outcome.errorCode).toBeNull();
+    expect(events.map((entry) => entry.event.data)).toEqual([
+      { type: "step", part: 1 },
+      { type: "step", part: 2 },
+    ]);
+    expect(events.map((entry) => entry.event.index)).toEqual([0, 1]);
+    // Incremental delivery, not end-of-run buffering: the second event
+    // arrived well after the first, while the process was still running.
+    expect(events[1]!.at - events[0]!.at).toBeGreaterThanOrEqual(200);
+  });
+
+  it("drops malformed and oversized lines and keeps capture intact", async () => {
+    const events: import("../src/types.js").AgentStreamEvent[] = [];
+    const outcome = await spawnAgent(
+      [
+        process.execPath,
+        "-e",
+        [
+          "console.log('plain banner line');",
+          "console.log('{not json');",
+          "console.log(JSON.stringify({ ok: true }));",
+          "console.log(JSON.stringify({ big: 'x'.repeat(300 * 1024) }));",
+        ].join(""),
+      ],
+      { onEvent: (event) => events.push(event) },
+    );
+
+    expect(outcome.errorCode).toBeNull();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.data).toEqual({ ok: true });
+    expect(outcome.stdout).toContain("plain banner line"); // capture unaffected
+    expect(outcome.stdout).toContain("\"big\"");
+  });
+
+  it("stops delivering after the flood cap", async () => {
+    const events: import("../src/types.js").AgentStreamEvent[] = [];
+    await spawnAgent(
+      [
+        process.execPath,
+        "-e",
+        "for (let i = 0; i < 6000; i++) console.log(JSON.stringify({ i }));",
+      ],
+      { onEvent: (event) => events.push(event) },
+    );
+    expect(events).toHaveLength(5_000);
+    expect(events[4_999]!.index).toBe(4_999);
+  });
+
+  it("delivers nothing when no callback is provided", async () => {
+    const outcome = await spawnAgent([
+      process.execPath,
+      "-e",
+      "console.log(JSON.stringify({ ignored: true }))",
+    ]);
+    expect(outcome.errorCode).toBeNull();
+    expect(outcome.stdout).toContain("ignored");
+  });
+});
+
 describe("AgentRuntime contract swap-ability", () => {
   it("lets any implementation answer to the same consumer", async () => {
     const fake: AgentRuntime = {

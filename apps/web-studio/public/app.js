@@ -112,6 +112,17 @@ document.getElementById("agent-dismiss").addEventListener("click", () => {
   agentOverlay.hidden = true;
 });
 
+// Live agent events land here: plain text, capped at the last 300 lines
+// with an ellipsis marker when older lines are trimmed away.
+const MAX_AGENT_LINES = 300;
+function appendAgentLine(line) {
+  const lines = agentOutput.textContent.split("\n");
+  lines.push(line);
+  const trimmed = lines.slice(-MAX_AGENT_LINES);
+  agentOutput.textContent = (lines.length > MAX_AGENT_LINES ? "…\n" : "") + trimmed.join("\n");
+  agentOutput.scrollTop = agentOutput.scrollHeight;
+}
+
 document.getElementById("agent-run").addEventListener("click", async () => {
   const brief = document.getElementById("agent-brief").value.trim();
   if (brief.length === 0 || agentRunning) return;
@@ -153,6 +164,12 @@ document.getElementById("agent-run").addEventListener("click", async () => {
           // Agent output is untrusted data: rendered as plain text only.
           if (payload.agent?.outputTail) agentOutput.textContent += payload.agent.outputTail;
           if (payload.agent?.errorTail) agentOutput.textContent += payload.agent.errorTail;
+          // Live runtime events: untrusted third-party NDJSON, one compact
+          // line each, capped so a chatty run cannot flood the modal.
+          if (payload.agentEvent !== undefined) {
+            const text = JSON.stringify(payload.agentEvent.data) ?? "";
+            appendAgentLine(text.length > 2000 ? `${text.slice(0, 2000)}…` : text);
+          }
         }
       }
     }
