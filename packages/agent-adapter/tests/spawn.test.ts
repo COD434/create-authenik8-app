@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { AgentRunResult, AgentRunRequest } from "../src/types.js";
 import type { AgentRuntime } from "../src/types.js";
 import { spawnAgent } from "../src/spawn.js";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 const SLEEPER = "setTimeout(() => {}, 5000)";
 
@@ -51,6 +53,15 @@ describe("spawnAgent (generic runtime-process layer)", () => {
     const outcome = await spawnAgent(["definitely-not-a-real-agent-binary-xyz", "--version"]);
     expect(outcome.errorCode).toBe("runtime_missing");
     expect(outcome.exitCode).toBeNull();
+  });
+
+  it("reports a nonexistent cwd as bad_cwd, not runtime_missing", async () => {
+    const outcome = await spawnAgent([process.execPath, "-e", "console.log('never')"], {
+      cwd: path.join(tmpdir(), "a8-missing-cwd-xyz"),
+    });
+    expect(outcome.errorCode).toBe("bad_cwd");
+    expect(outcome.exitCode).toBeNull();
+    expect(outcome.durationMs).toBe(0);
   });
 
   it("caps runaway output instead of exhausting memory", async () => {

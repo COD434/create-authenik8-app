@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -242,6 +242,15 @@ function apiKeyFrom(req: IncomingMessage): string | null {
   return key.length > 0 ? key : null;
 }
 
+/** JSON body parse that reports malformed input instead of throwing. */
+function parseJsonBody(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 type StudioSession = {
   conversation: ChatMessage[];
   agentBusy: boolean;
@@ -332,6 +341,9 @@ async function handle(
         sendJson(res, 409, { error: "The project is already running" });
         return;
       }
+      // npm spawn needs a real cwd: bootstrap the sandbox if it does not
+      // exist yet (no chat/agent run may have created it).
+      await mkdir(deps.sandboxRoot, { recursive: true });
       res.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
@@ -359,7 +371,12 @@ async function handle(
         sendJson(res, 413, { error: "Request body too large" });
         return;
       }
-      const parsed = agentBodySchema.safeParse(JSON.parse(body));
+      const rawAgent = parseJsonBody(body);
+      if (rawAgent === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = agentBodySchema.safeParse(rawAgent);
       if (!parsed.success) {
         sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
         return;
@@ -378,6 +395,8 @@ async function handle(
       session.agentBusy = true;
       sseEvent(res, { agent: { phase: "start" } });
       try {
+        // OpenCode spawns with the sandbox as cwd: it must exist first.
+        await mkdir(deps.sandboxRoot, { recursive: true });
         const result = await deps.agentRuntime.run({
           prompt: `${AGENT_BRIEF_PREAMBLE}\n\nBrief: ${parsed.data.prompt}`,
           cwd: deps.sandboxRoot,
@@ -423,7 +442,12 @@ async function handle(
         sendJson(res, 413, { error: "Request body too large" });
         return;
       }
-      const parsed = chatBodySchema.safeParse(JSON.parse(body));
+      const rawChat = parseJsonBody(body);
+      if (rawChat === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = chatBodySchema.safeParse(rawChat);
       if (!parsed.success) {
         sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
         return;

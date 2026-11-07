@@ -24,6 +24,7 @@
 export type AgentRunErrorCode =
   | "runtime_missing"
   | "spawn_failed"
+  | "bad_cwd"
   | "timeout"
   | "aborted"
   | "nonzero_exit";

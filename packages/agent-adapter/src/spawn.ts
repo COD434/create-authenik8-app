@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import path from "node:path";
 
 import type { AgentRunErrorCode, AgentRunRequest, AgentRunResult, AgentStreamEvent } from "./types.js";
@@ -102,6 +103,20 @@ export async function spawnAgent(
     onEvent?: (event: AgentStreamEvent) => void;
   } = {},
 ): Promise<SpawnOutcome> {
+  // Pre-flight: spawn() reports a nonexistent cwd as ENOENT, indistinguishable
+  // from a missing executable. Check it so the failure is honest (a bad cwd
+  // is a caller bug, not a missing runtime).
+  if (options.cwd !== undefined && !existsSync(options.cwd)) {
+    return {
+      exitCode: null,
+      timedOut: false,
+      durationMs: 0,
+      stdout: "",
+      stderr: "",
+      errorCode: "bad_cwd",
+    };
+  }
+
   const started = Date.now();
   const stdout = { bytes: 0, text: "" };
   const stderr = { bytes: 0, text: "" };

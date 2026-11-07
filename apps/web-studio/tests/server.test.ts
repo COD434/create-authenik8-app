@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
@@ -320,6 +321,16 @@ describe("routing hygiene", () => {
     const traversal = await fetch(`${base}/..%2F..%2Fpackage.json`);
     expect(traversal.status).toBe(404);
   });
+
+  it("rejects malformed chat JSON with 400 instead of 500", async () => {
+    const res = await fetch(`${base}/api/chat`, {
+      method: "POST",
+      headers: { "x-openrouter-key": "sk-test", "content-type": "application/json" },
+      body: "{not json",
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid JSON body" });
+  });
 });
 
 describe("preview route", () => {  it("serves sandbox files written by the tools with mapped types and nosniff", async () => {
@@ -459,6 +470,28 @@ describe("build agent route", () => {
     const res = await runAgent("");
     expect(res.status).toBe(400);
     expect(agentCalls).toHaveLength(0);
+  });
+
+  it("rejects malformed JSON with 400 instead of 500", async () => {
+    const res = await fetch(`${base}/api/agent`, { method: "POST", body: "{not json" });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid JSON body" });
+    expect(agentCalls).toHaveLength(0);
+  });
+
+  it("bootstraps a missing sandbox directory before the runtime runs", async () => {
+    const fresh = path.join(sandbox, "bootstrap-agent");
+    deps.sandboxRoot = fresh;
+    try {
+      const pending = runAgent("bootstrap test");
+      await vi.waitFor(() => expect(agentCalls).toHaveLength(1));
+      // mkdir ran before the runtime call: the cwd is already real.
+      expect(existsSync(agentCalls[0]!.cwd!)).toBe(true);
+      resolveRun!(agentSuccess);
+      expect((await pending).status).toBe(200);
+    } finally {
+      deps.sandboxRoot = sandbox;
+    }
   });
 });
 

@@ -40,7 +40,26 @@ and audit trails instead of a second users table.
 | v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | done (`c724601`) |
 | v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | done (`ba9c76f`) |
 | v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | done (`3e54c27`) |
-| v4.1 | Live agent events: M4 NDJSON pass-through (`AgentRunRequest.onEvent`, parsed per line with drop-malformed/oversized + flood cap) relayed as SSE `agentEvent` — the Build modal shows runtime progress in real time instead of freezing | this slice |
+| v4.1 | Live agent events: M4 NDJSON pass-through (`AgentRunRequest.onEvent`, parsed per line with drop-malformed/oversized + flood cap) relayed as SSE `agentEvent` — the Build modal shows runtime progress in real time instead of freezing | done (`0e68d03`) |
+
+## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
+
+Two small runs against the real CLI (raw probe + full studio `/api/agent`
+drive in a throwaway sandbox). Findings, all fixed in this slice:
+
+- **Verified end-to-end**: raw NDJSON shapes are `{type: step_start |
+  tool_use | step_finish | text, timestamp, sessionID, part}` — every line
+  parsed and relayed (34 SSE events: 31 live + start/done), session id
+  extracted, exit 0, preview served the built `index.html`. The agent
+  followed the doctrine preamble and produced an Authenik8-style project.
+- **Defect — ambiguous ENOENT**: spawn with a nonexistent cwd reports
+  `runtime_missing` (indistinguishable error code). Fixed: `spawnAgent`
+  pre-flights cwd existence and returns the new structured `bad_cwd` code.
+- **Defect — unbootstrapped sandbox**: the studio passed a nonexistent
+  sandbox root as the agent/npm cwd. Fixed: agent and run routes
+  `mkdir(recursive)` the sandbox before spawning.
+- **Defect — wrong status**: malformed JSON bodies returned 500. Fixed:
+  agent and chat routes return 400 `Invalid JSON body`.
 
 ## Non-goals
 
