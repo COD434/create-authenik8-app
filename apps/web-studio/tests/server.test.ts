@@ -10,6 +10,7 @@ import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, type WebStudioDeps } from "../src/server.js";
 import { executeTool } from "../src/tools.js";
+import type { Runner, RunnerEvent, RunnerHandlers } from "../src/runner.js";
 
 const KEY = "sk-or-test-key-must-never-leak";
 
@@ -76,6 +77,28 @@ const agentSuccess: AgentRunResult = {
   sessionId: "ses_abc",
 };
 
+// Runner fake: controlled isRunning, captured handlers for event injection.
+let fakeRunnerRunning = false;
+let fakeRunnerStarted = 0;
+let fakeRunnerStopped = 0;
+let runnerHandlers: RunnerHandlers | null = null;
+
+const fakeRunner: Runner = {
+  start: () => {
+    fakeRunnerStarted++;
+    return true;
+  },
+  stop: () => {
+    fakeRunnerStopped++;
+  },
+  isRunning: () => fakeRunnerRunning,
+};
+
+const fakeCreateRunner = (handlers: RunnerHandlers): Runner => {
+  runnerHandlers = handlers;
+  return fakeRunner;
+};
+
 const deps: WebStudioDeps = {
   gatewayFor: (apiKey) => {
     capturedKey = apiKey;
@@ -83,6 +106,7 @@ const deps: WebStudioDeps = {
   },
   sandboxRoot: "", // filled in beforeAll
   agentRuntime: fakeRuntime,
+  createRunner: fakeCreateRunner,
 };
 
 const server = createWebStudioServer(deps);
@@ -101,6 +125,11 @@ beforeEach(() => {
   capturedRequests = [];
   agentCalls.length = 0;
   resolveRun = null;
+  fakeRunnerRunning = false;
+  fakeRunnerStarted = 0;
+  fakeRunnerStopped = 0;
+  // runnerHandlers stays: the server captured its handler closures once at
+  // module load and they are stateless.
 });
 
 afterAll(async () => {
@@ -402,5 +431,59 @@ describe("build agent route", () => {
     const res = await runAgent("");
     expect(res.status).toBe(400);
     expect(agentCalls).toHaveLength(0);
+  });
+});
+
+describe("export route", () => {
+  it("downloads the sandbox as a ZIP, skipping node_modules and dotfiles", async () => {
+    await executeTool("write_file", JSON.stringify({ path: "index.html", content: "<h1>ship it</h1>" }), sandbox);
+    await executeTool("write_file", JSON.stringify({ path: ".env", content: "SECRET=1" }), sandbox);
+
+    const res = await fetch(`${base}/api/export`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/zip");
+    expect(res.headers.get("content-disposition")).toContain("attachment");
+
+    const body = Buffer.from(await res.arrayBuffer());
+    expect(body.subarray(0, 4).toString("hex")).toBe("504b0304"); // ZIP local header
+    expect(body.toString("latin1")).toContain("index.html");
+    expect(body.toString("latin1")).not.toContain(".env");
+  });
+});
+
+describe("run routes", () => {
+  it("streams runner events and output over SSE", async () => {
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(1);
+    expect(runnerHandlers).not.toBeNull();
+
+    // Emit a full run lifecycle, then drain: the terminal event ends the stream.
+    runnerHandlers!.onEvent({ phase: "install", code: null });
+    runnerHandlers!.onOutput("added 512 packages");
+    runnerHandlers!.onEvent({ phase: "serve", code: null });
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 });
+
+    const text = await res.text();
+    expect(text).toContain('"phase":"install"');
+    expect(text).toContain("added 512 packages");
+    expect(text).toContain('"phase":"serve"');
+    expect(text).toContain('"phase":"exited"');
+  });
+
+  it("409s a second run while the project is already running", async () => {
+    fakeRunnerRunning = true;
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(409);
+    expect(fakeRunnerStarted).toBe(0);
+
+    const status = await fetch(`${base}/api/run/status`);
+    expect(await status.json()).toEqual({ running: true });
+  });
+
+  it("stops the project through the runner", async () => {
+    const res = await fetch(`${base}/api/run/stop`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStopped).toBe(1);
   });
 });

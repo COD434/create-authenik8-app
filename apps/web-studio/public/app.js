@@ -171,6 +171,70 @@ document.getElementById("agent-run").addEventListener("click", async () => {
   }
 });
 
+// --- Run project (fixed commands: npm install -> npm start) ---
+
+const runOverlay = document.getElementById("run-overlay");
+const runState = document.getElementById("run-state");
+const runOutput = document.getElementById("run-output");
+
+document.getElementById("run-btn").addEventListener("click", async () => {
+  runOverlay.hidden = false;
+  try {
+    const status = await (await fetch("/api/run/status")).json();
+    runState.textContent = status.running ? "The project is already running." : "Not running.";
+  } catch {
+    runState.textContent = "Not running.";
+  }
+});
+
+document.getElementById("run-close").addEventListener("click", () => {
+  runOverlay.hidden = true; // closing does NOT stop the project
+});
+
+document.getElementById("run-start").addEventListener("click", async () => {
+  runOutput.textContent = "";
+  runState.textContent = "Starting…";
+  try {
+    const res = await fetch("/api/run", { method: "POST" });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        for (const line of rawEvent.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = JSON.parse(line.slice(6)); // untrusted: textContent only
+          if (payload.runOut !== undefined) {
+            runOutput.textContent += `${payload.runOut}\n`;
+            runOutput.scrollTop = runOutput.scrollHeight;
+          }
+          if (payload.run?.phase === "install") runState.textContent = "Installing dependencies…";
+          if (payload.run?.phase === "serve") runState.textContent = "Project running — ▶ Preview it in the sidebar pane.";
+          if (payload.run?.phase === "exited") runState.textContent = `Project exited (code ${payload.run.code ?? "killed"}).`;
+          if (payload.run?.phase === "failed") runState.textContent = `Run failed: ${payload.run.message ?? "unknown"}`;
+        }
+      }
+    }
+  } catch (error) {
+    runState.textContent = `Run error: ${error.message}`;
+  }
+});
+
+document.getElementById("run-stop").addEventListener("click", async () => {
+  await fetch("/api/run/stop", { method: "POST" }).catch(() => {});
+  runState.textContent = "Stop requested…";
+});
+
 newChatBtn.addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
   messagesEl.innerHTML = "";

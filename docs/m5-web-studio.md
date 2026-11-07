@@ -38,8 +38,8 @@ and audit trails instead of a second users table.
 | v1 | Tool loop: M1 tool-call deltas + sandboxed `write_file`/`read_file`/`list_files` tools (path-scope guard, size caps, failure-as-data) → the chat writes real files | done (`d641261`) |
 | v2 | Quality loop in-chat: `design_audit` tool runs `@authenik8/design` checks (A8-DS-001..004); the model fixes failed checks and re-runs | done (`ec789c4`) |
 | v3a | Live preview: sandbox served read-only at `/preview/` (path-guarded, dotfile-blind), sandboxed-iframe pane in the UI → what the model builds is visible in moments | done (`c724601`) |
-| v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | this slice |
-| v4 | Export/download + one-command run of the built project | |
+| v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | done (`ba9c76f`) |
+| v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | this slice |
 
 ## Non-goals
 

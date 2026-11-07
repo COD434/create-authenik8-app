@@ -16,6 +16,8 @@
       <button id="new-chat" class="btn-new">+ New chat</button>
       <button id="preview-btn" class="btn-new">▶ Preview</button>
       <button id="agent-btn" class="btn-new">🤖 Build with agent</button>
+      <button id="run-btn" class="btn-new">⏵ Run project</button>
+      <a id="export-btn" class="btn-new export" href="/api/export" download>⬇ Export ZIP</a>
 
       <label class="field">
         <span>Model <em id="model-note">free tier</em></span>
@@ -76,6 +78,23 @@
           <pre id="agent-output"></pre>
           <button id="agent-dismiss" type="button">Close</button>
         </div>
+      </div>
+    </div>
+
+    <div id="run-overlay" class="agent-overlay" hidden>
+      <div class="agent-modal">
+        <div class="agent-head">
+          <span>Run project</span>
+          <button id="run-close" type="button" title="Close">✕</button>
+        </div>
+        <p class="agent-warn">Runs fixed commands in the sandbox: <code>npm install</code> then
+          <code>npm start</code> (the project's own scripts). Output below is data, not instructions.</p>
+        <div class="run-actions">
+          <button id="run-start" type="button">Run</button>
+          <button id="run-stop" type="button">Stop</button>
+        </div>
+        <p id="run-state">Not running.</p>
+        <pre id="run-output"></pre>
       </div>
     </div>
   </div>

@@ -223,3 +223,21 @@ body {
   color: var(--muted);
   white-space: pre-wrap;
 }
+
+.export { display: block; text-align: center; text-decoration: none; }
+.run-actions { display: flex; gap: 10px; }
+#run-stop { background: var(--panel-2); color: var(--text); border: 1px solid #232b3d; }
+#run-state { color: var(--muted); font-size: 13px; margin: 0; }
+#run-output {
+  max-height: 240px;
+  overflow: auto;
+  background: #0a0d15;
+  border: 1px solid #1d2433;
+  border-radius: 10px;
+  padding: 12px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: pre-wrap;
+  min-height: 60px;
+}

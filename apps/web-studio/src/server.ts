@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -16,6 +16,8 @@ import {
 import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapter";
 
 import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
+import { createRunner, npmCommands, type Runner, type RunnerHandlers } from "./runner.js";
+import { createZip, type ZipEntry } from "./zip.js";
 
 /**
  * Studio Web (M5 v1): a localhost ChatGPT-style builder chat with a sandboxed
@@ -38,6 +40,8 @@ const PORT = Number(process.env.PORT ?? 4870);
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_TOOL_ROUNDS = 6;
 const AGENT_OUTPUT_TAIL_CHARS = 4_000;
+const MAX_EXPORT_FILES = 2_000;
+const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 
@@ -79,6 +83,8 @@ export type WebStudioDeps = {
   sandboxRoot: string;
   /** The coding-agent runtime (OpenCode). Triggered only by explicit user action. */
   agentRuntime: AgentRuntime;
+  /** Project runner factory (npm install/start). Fixed commands, user-triggered. */
+  createRunner(handlers: RunnerHandlers): Runner;
 };
 
 const agentBodySchema = z.object({
@@ -198,6 +204,37 @@ function readBody(req: IncomingMessage): Promise<string | null> {
   });
 }
 
+/**
+ * Collect sandbox project files for export: skips dotfiles (.env never
+ * leaves the machine) and node_modules, with hard caps on file count and
+ * total bytes. Zip names use forward slashes per the ZIP convention.
+ */
+async function collectProjectFiles(sandboxRoot: string): Promise<ZipEntry[]> {
+  const entries: ZipEntry[] = [];
+  let totalBytes = 0;
+
+  async function walk(dir: string, depth: number): Promise<void> {
+    if (entries.length >= MAX_EXPORT_FILES || depth > 12) return;
+    const dirents = await readdir(dir, { withFileTypes: true });
+    for (const dirent of dirents) {
+      if (entries.length >= MAX_EXPORT_FILES || totalBytes > MAX_EXPORT_BYTES) return;
+      if (dirent.name.startsWith(".") || dirent.name === "node_modules") continue;
+      const full = path.join(dir, dirent.name);
+      if (dirent.isDirectory()) {
+        await walk(full, depth + 1);
+      } else if (dirent.isFile()) {
+        const data = await readFile(full);
+        totalBytes += data.length;
+        if (totalBytes > MAX_EXPORT_BYTES) return;
+        entries.push({ name: path.relative(sandboxRoot, full).split(path.sep).join("/"), data });
+      }
+    }
+  }
+
+  await walk(sandboxRoot, 0);
+  return entries;
+}
+
 function apiKeyFrom(req: IncomingMessage): string | null {
   const header = req.headers["x-openrouter-key"];
   const value = Array.isArray(header) ? header[0] : header;
@@ -205,22 +242,39 @@ function apiKeyFrom(req: IncomingMessage): string | null {
   return key.length > 0 ? key : null;
 }
 
+type StudioSession = {
+  conversation: ChatMessage[];
+  agentBusy: boolean;
+  runRes: ServerResponse | null;
+};
+
 export function createWebStudioServer(deps: WebStudioDeps): Server {
   // Single-user localhost tool: one conversation in memory; /api/reset wipes it.
-  const conversation: ChatMessage[] = [];
-  // One agent run at a time: it works in the same sandbox cwd.
-  let agentBusy = false;
+  const session: StudioSession = { conversation: [], agentBusy: false, runRes: null };
+
+  // Project runner wiring: run output streams to whoever holds the SSE.
+  const runner = deps.createRunner({
+    onEvent: (event) => {
+      if (session.runRes !== null && !session.runRes.destroyed) sseEvent(session.runRes, { run: event });
+      if (event.phase === "exited" || event.phase === "failed") {
+        if (session.runRes !== null && !session.runRes.destroyed) session.runRes.end();
+        session.runRes = null;
+      }
+    },
+    onOutput: (line) => {
+      if (session.runRes !== null && !session.runRes.destroyed) sseEvent(session.runRes, { runOut: line });
+    },
+  });
 
   return createServer((req, res) => {
-    void handle(deps, conversation, () => agentBusy, (busy: boolean) => { agentBusy = busy; }, req, res);
+    void handle(deps, session, runner, req, res);
   });
 }
 
 async function handle(
   deps: WebStudioDeps,
-  conversation: ChatMessage[],
-  isAgentBusy: () => boolean,
-  setAgentBusy: (busy: boolean) => void,
+  session: StudioSession,
+  runner: Runner,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -251,13 +305,52 @@ async function handle(
     }
 
     if (url.pathname === "/api/reset" && req.method === "POST") {
-      conversation.length = 0;
+      session.conversation.length = 0;
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === "/api/export" && req.method === "GET") {
+      const files = await collectProjectFiles(deps.sandboxRoot);
+      const zip = createZip(files);
+      res.writeHead(200, {
+        "content-type": "application/zip",
+        "content-disposition": 'attachment; filename="authenik8-project.zip"',
+        "cache-control": "no-store",
+      });
+      res.end(zip);
+      return;
+    }
+
+    if (url.pathname === "/api/run/status" && req.method === "GET") {
+      sendJson(res, 200, { running: runner.isRunning() });
+      return;
+    }
+
+    if (url.pathname === "/api/run" && req.method === "POST") {
+      if (runner.isRunning()) {
+        sendJson(res, 409, { error: "The project is already running" });
+        return;
+      }
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      res.flushHeaders(); // headers go out even before the runner emits anything
+      session.runRes = res;
+      runner.start(deps.sandboxRoot); // fixed commands; events stream via session.runRes
+      return;
+    }
+
+    if (url.pathname === "/api/run/stop" && req.method === "POST") {
+      runner.stop();
       sendJson(res, 200, { ok: true });
       return;
     }
 
     if (url.pathname === "/api/agent" && req.method === "POST") {
-      if (isAgentBusy()) {
+      if (session.agentBusy) {
         sendJson(res, 409, { error: "An agent run is already in progress" });
         return;
       }
@@ -282,7 +375,7 @@ async function handle(
 
       // The user's button click is the consent for auto-approve; the run is
       // scoped to the sandbox cwd. Failures are data, not exceptions.
-      setAgentBusy(true);
+      session.agentBusy = true;
       sseEvent(res, { agent: { phase: "start" } });
       try {
         const result = await deps.agentRuntime.run({
@@ -308,7 +401,7 @@ async function handle(
         const message = error instanceof Error ? error.message : "agent run failed";
         sseEvent(res, { agent: { phase: "done", ok: false, errorCode: "spawn_failed", errorTail: message } });
       } finally {
-        setAgentBusy(false);
+        session.agentBusy = false;
         res.end();
       }
       return;
@@ -340,7 +433,7 @@ async function handle(
       const abort = new AbortController();
       req.on("close", () => abort.abort());
 
-      conversation.push({ role: "user", content: parsed.data.message });
+      session.conversation.push({ role: "user", content: parsed.data.message });
 
       try {
         const gateway = deps.gatewayFor(key);
@@ -353,7 +446,7 @@ async function handle(
 
           for await (const chunk of gateway.chatStream({
             model: parsed.data.model,
-            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...conversation],
+            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...session.conversation],
             tools: toolDefinitions,
             signal: abort.signal,
           })) {
@@ -368,16 +461,16 @@ async function handle(
 
           const calls = assembleToolCalls(fragments);
           if (calls.length === 0) {
-            conversation.push({ role: "assistant", content: text });
+            session.conversation.push({ role: "assistant", content: text });
             sseEvent(res, { done: true, rounds });
             return;
           }
 
-          conversation.push({ role: "assistant", content: text, toolCalls: calls });
+          session.conversation.push({ role: "assistant", content: text, toolCalls: calls });
           for (const call of calls) {
             sseEvent(res, { tool: { name: call.name, phase: "start" } });
             const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
-            conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
+            session.conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
             sseEvent(res, {
               tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
             });
@@ -445,7 +538,12 @@ export function main(): void {
     cliPath: process.env.OPENCODE_PATH ?? "opencode",
   });
 
-  const server = createWebStudioServer({ gatewayFor, sandboxRoot, agentRuntime });
+  const server = createWebStudioServer({
+    gatewayFor,
+    sandboxRoot,
+    agentRuntime,
+    createRunner: (handlers) => createRunner(npmCommands(), handlers),
+  });
   server.listen(PORT, "127.0.0.1", () => {
     console.log(`Authenik8 Studio Web: http://127.0.0.1:${PORT}`);
     console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);
