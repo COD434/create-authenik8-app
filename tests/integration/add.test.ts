@@ -398,6 +398,12 @@ describe("resource scaffolding recipe", () => {
       expect(openApi).toContain("InvoiceUpdateInput: inputSchemaWithExample(invoiceUpdateSchema, {");
       expect(openApi).toContain('{ type: "string", enum: ["DRAFT", "ACTIVE"] }');
       expect(openApi).toContain("status: \"DRAFT\",");
+      // Compiled policy metadata mirrors the projects family: mode, rule
+      // summary, and denial masking on every non-create operation.
+      expect(openApi).toContain('"x-authenik8-policy": {');
+      expect(openApi).toContain('resource: "Invoice",');
+      expect(openApi).toContain('rule: "anyOf(inRole(ADMIN), ownerOf(ownerId))",');
+      expect(openApi).toContain('"denial-visibility": "masked-404",');
 
       const client = await fs.readFile(
         path.join(project.targetDir, "packages/api-client/src/index.ts"),
@@ -414,13 +420,28 @@ describe("resource scaffolding recipe", () => {
       expect(app).toContain('import { invoiceRoutes } from "./modules/invoices/invoice.routes.js";');
       expect(app).toContain('app.use("/api/invoices", invoiceRoutes);');
 
+      const policyModule = await fs.readFile(
+        path.join(project.targetDir, "apps/api/src/modules/invoices/invoice.policy.ts"),
+        "utf8",
+      );
+      // The generated policy is DSL-declared, not hand-written functions:
+      // one declaration compiled to the shapes the service, the test
+      // harness, and the OpenAPI metadata consume.
+      expect(policyModule).toContain(
+        "export const invoicePolicy = definePolicy<Actor, Resource>({ read: readRule, write: writeRule });",
+      );
+      expect(policyModule).toContain('import { anyOf, definePolicy, describeRule, inRole, ownerOf } from "@authenik8/policies";');
+      expect(policyModule).toContain("export const invoicePolicyReadSummary = describeRule(readRule);");
+
       const policyTest = await fs.readFile(
         path.join(project.targetDir, "apps/api/tests/invoice.policy.test.ts"),
         "utf8",
       );
-      expect(policyTest).toContain('import { canReadInvoice, canWriteInvoice, invoiceListScope } from "../src/modules/invoices/invoice.policy.js";');
+      expect(policyTest).toContain('import { assertPolicyConsistency } from "@authenik8/policies";');
+      expect(policyTest).toContain("assertPolicyConsistency(invoicePolicy, [");
       expect(policyTest).toContain('describe("Invoice ownership policy"');
       expect(policyTest).toContain("expect(invoiceListScope(admin)).toEqual({});");
+      expect(policyTest).toContain('expect(invoicePolicyReadSummary).toBe("anyOf(inRole(ADMIN), ownerOf(ownerId))");');
 
       const pages = await fs.readFile(
         path.join(project.targetDir, "apps/web/src/features/invoices/InvoicePages.tsx"),
