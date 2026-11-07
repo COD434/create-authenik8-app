@@ -6,6 +6,7 @@ import { validate } from "@readme/openapi-parser";
 
 import { describe, expect, it } from "vitest";
 import { openApiDocument } from "../src/openapi.js";
+import { projectPolicyReadSummary, projectPolicyWriteSummary } from "../src/modules/projects/project.policy.js";
 
 const documentedPaths = [
 
@@ -115,6 +116,45 @@ describe("OpenAPI contract", () => {
       "x-authenik8-requires-active-session": true,
       "x-authenik8-requires-admin": true,
     });
+  });
+
+  it("documents the compiled resource policy on project operations, matching the enforced rules", () => {
+    // The rule strings come from the policy declaration via describeRule —
+    // if the OpenAPI metadata drifts from the enforced rules, this fails.
+    expect(openApiDocument.paths["/api/projects"].get).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Project",
+        mode: "list",
+        rule: projectPolicyReadSummary,
+        "list-scope": "compiled from the read rule",
+      },
+    });
+    expect(openApiDocument.paths["/api/projects/{id}"].get).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Project",
+        mode: "read",
+        rule: projectPolicyReadSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    expect(openApiDocument.paths["/api/projects/{id}"].patch).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Project",
+        mode: "write",
+        rule: projectPolicyWriteSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    expect(openApiDocument.paths["/api/projects/{id}"].delete).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Project",
+        mode: "write",
+        rule: projectPolicyWriteSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    // createProject assigns ownership at creation; it declares no policy.
+    expect(openApiDocument.paths["/api/projects"].post).not.toHaveProperty("x-authenik8-policy");
   });
 
   it("never emits private JWK members or environment secrets", () => {

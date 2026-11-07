@@ -2,10 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import {
   allOf,
   anyOf,
+  assertPolicyConsistency,
   definePolicy,
+  describeRule,
   inRole,
   ownerOf,
   requireAccess,
+  resourceMatchesWhere,
+  PolicyConsistencyError,
   type PolicyRequest,
   type PolicyResponse,
   type PolicyRule,
@@ -89,25 +93,49 @@ describe("definePolicy", () => {
     write: anyOf(inRole("ADMIN"), ownerOf("ownerId")),
   });
 
-  it("keeps record checks and list scopes consistent for every actor kind", () => {
-    for (const actor of [owner, stranger, admin]) {
-      const scope = policy.listScope(actor);
-      // A row the record check denies must never match the list scope:
-      // evaluate the fragment the way Prisma would, against the owner map.
-      const matchesScope = (resource: Resource): boolean => {
-        if (Object.keys(scope).length === 0) return true;
-        if ("OR" in scope) {
-          const branches = scope.OR as Array<Record<string, unknown>>;
-          return branches.some((branch) =>
-            Object.entries(branch).every(([key, value]) => resource[key] === value),
-          );
-        }
-        return Object.entries(scope).every(([key, value]) => resource[key] === value);
-      };
+  it("passes the compiled consistency harness for every actor kind", () => {
+    // One call verifies probe expectations AND the record-check/list-scope
+    // invariant for every probed resource — the check this suite used to
+    // hand-roll with a local matchesScope helper.
+    assertPolicyConsistency(policy, [
+      {
+        label: "owner",
+        actor: owner,
+        readable: [project],
+        writable: [project],
+      },
+      {
+        label: "stranger",
+        actor: stranger,
+        readable: [{ ownerId: "user-2" }],
+        denied: [project],
+        writable: [{ ownerId: "user-2" }],
+        writeDenied: [project],
+      },
+      {
+        label: "admin",
+        actor: admin,
+        readable: [project, { ownerId: "user-9" }],
+        writable: [project, { ownerId: "user-9" }],
+      },
+    ]);
+  });
 
-      expect(policy.canRead(actor, project)).toBe(matchesScope(project));
-      expect(policy.canRead(actor, { ownerId: "user-9" })).toBe(matchesScope({ ownerId: "user-9" }));
-    }
+  it("reports the mismatch when record checks and list scopes diverge", () => {
+    // Deliberately broken hand-written policy: the list scope admits every
+    // row while the record check denies strangers — the exact bug the
+    // harness exists to catch.
+    const broken = {
+      canRead: (actor: Actor, resource: Resource) => actor.role === "ADMIN" || resource.ownerId === actor.userId,
+      canWrite: () => false,
+      listScope: () => ({}), // unrestricted lists, restricted reads
+    };
+    expect(() =>
+      assertPolicyConsistency(broken, [{ label: "stranger", actor: stranger, denied: [project] }]),
+    ).toThrow(PolicyConsistencyError);
+    expect(() =>
+      assertPolicyConsistency(broken, [{ label: "stranger", actor: stranger, denied: [project] }]),
+    ).toThrow(/canRead\(.*\) is false.*listScope \{\} matches/);
   });
 
   it("grants owners, scopes strangers to their own rows, and lets administrators through", () => {
@@ -128,6 +156,75 @@ describe("definePolicy", () => {
     );
     expect(adminsOnly.listScope(owner)).toEqual({ key: { in: [] } });
     expect(adminsOnly.listScope(admin)).toEqual({});
+  });
+});
+
+describe("resourceMatchesWhere (compiled test evaluator)", () => {
+  const record = { ownerId: "user-1", editorId: "user-2", title: "hello" };
+
+  it("evaluates the fragments the compiler emits", () => {
+    expect(resourceMatchesWhere(record, {})).toBe(true); // unrestricted
+    expect(resourceMatchesWhere(record, { ownerId: "user-1" })).toBe(true);
+    expect(resourceMatchesWhere(record, { ownerId: "user-9" })).toBe(false);
+    expect(resourceMatchesWhere(record, { OR: [{ ownerId: "user-9" }, { editorId: "user-2" }] })).toBe(true);
+    expect(resourceMatchesWhere(record, { AND: [{ ownerId: "user-1" }, { title: "hello" }] })).toBe(true);
+    expect(resourceMatchesWhere(record, { AND: [{ ownerId: "user-1" }, { title: "nope" }] })).toBe(false);
+  });
+
+  it("evaluates operator objects and fails closed on unknown ones", () => {
+    expect(resourceMatchesWhere(record, { id: { in: [] } })).toBe(false); // denyScope default
+    expect(resourceMatchesWhere(record, { ownerId: { in: ["user-1", "user-2"] } })).toBe(true);
+    expect(resourceMatchesWhere(record, { ownerId: { equals: "user-1" } })).toBe(true);
+    expect(resourceMatchesWhere(record, { ownerId: { unsupported: 1 } })).toBe(false);
+  });
+
+  it("treats empty OR branches as matching everything, per Prisma semantics", () => {
+    expect(resourceMatchesWhere(record, { OR: [{}] })).toBe(true);
+  });
+});
+
+describe("assertPolicyConsistency (compiled test harness)", () => {
+  const policy = definePolicy<Actor, Resource>({
+    read: anyOf(inRole("ADMIN"), ownerOf("ownerId")),
+    write: anyOf(inRole("ADMIN"), ownerOf("ownerId")),
+  });
+
+  it("names the probe, the resource, and both sides of a probe-expectation failure", () => {
+    expect(() =>
+      assertPolicyConsistency(policy, [{ label: "stranger", actor: stranger, readable: [project] }]),
+    ).toThrow(PolicyConsistencyError);
+    expect(() =>
+      assertPolicyConsistency(policy, [{ label: "stranger", actor: stranger, readable: [project] }]),
+    ).toThrow(/probe "stranger" must be able to read \{"ownerId":"user-1"\}/);
+  });
+
+  it("verifies write probes", () => {
+    expect(() =>
+      assertPolicyConsistency(policy, [{ label: "stranger", actor: stranger, writeDenied: [project] }]),
+    ).not.toThrow();
+    expect(() =>
+      assertPolicyConsistency(policy, [{ label: "stranger", actor: stranger, writable: [project] }]),
+    ).toThrow(/must be able to write/);
+  });
+});
+
+describe("describeRule (compiled OpenAPI metadata)", () => {
+  it("summarizes the composed rule tree", () => {
+    expect(describeRule(anyOf(inRole("ADMIN"), ownerOf("ownerId")))).toBe(
+      "anyOf(inRole(ADMIN), ownerOf(ownerId))",
+    );
+    expect(describeRule(allOf(inRole("USER"), ownerOf("ownerId")))).toBe(
+      "allOf(inRole(USER), ownerOf(ownerId))",
+    );
+    expect(describeRule(ownerOf("editorId"))).toBe("ownerOf(editorId)");
+  });
+
+  it("never fabricates semantics for custom rules", () => {
+    const custom: PolicyRule<Actor, Resource> = {
+      allows: () => true,
+      compile: () => ({ kind: "unrestricted" }),
+    };
+    expect(describeRule(custom)).toBe("(custom rule)");
   });
 });
 

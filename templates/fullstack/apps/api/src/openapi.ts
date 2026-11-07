@@ -816,6 +816,12 @@ export const openApiDocument = {
         tags: ["Projects"],
         summary: "List authorized projects",
         "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          resource: "Project",
+          mode: "list",
+          rule: "anyOf(inRole(ADMIN), ownerOf(ownerId))",
+          "list-scope": "compiled from the read rule",
+        },
         security: bearerSecurity,
         responses: {
           ...authenticatedErrors,
@@ -844,6 +850,12 @@ export const openApiDocument = {
         tags: ["Projects"],
         summary: "Read an authorized project",
         "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          resource: "Project",
+          mode: "read",
+          rule: "anyOf(inRole(ADMIN), ownerOf(ownerId))",
+          "denial-visibility": "masked-404",
+        },
         security: bearerSecurity,
         responses: {
           ...authenticatedErrors,
@@ -857,6 +869,12 @@ export const openApiDocument = {
         tags: ["Projects"],
         summary: "Update an authorized project",
         "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          resource: "Project",
+          mode: "write",
+          rule: "anyOf(inRole(ADMIN), ownerOf(ownerId))",
+          "denial-visibility": "masked-404",
+        },
         "x-authenik8-credentials": "include",
         security: protectedMutationSecurity,
         requestBody: requestBody("ProjectUpdateInput"),
@@ -872,6 +890,12 @@ export const openApiDocument = {
         tags: ["Projects"],
         summary: "Delete an authorized project",
         "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          resource: "Project",
+          mode: "write",
+          rule: "anyOf(inRole(ADMIN), ownerOf(ownerId))",
+          "denial-visibility": "masked-404",
+        },
         "x-authenik8-credentials": "include",
         security: protectedMutationSecurity,
         responses: {

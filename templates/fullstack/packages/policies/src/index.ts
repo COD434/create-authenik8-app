@@ -1,11 +1,14 @@
 /**
  * Declarative resource policies (roadmap item 13).
  *
- * A policy is declared as a rule tree and COMPILED to the shapes the API
- * already consumes: boolean access checks for single records (`canRead`,
- * `canWrite`) and a Prisma `where` fragment for list queries
- * (`listScope`). Declaring rules once keeps record checks and list
- * filters from drifting apart — the class of bug where a list endpoint
+ * A policy is declared as a rule tree and COMPILED to every shape the API
+ * and its verification consume: boolean access checks for single records
+ * (`canRead`, `canWrite`), a Prisma `where` fragment for list queries
+ * (`listScope`), route-level middleware (`requireAccess`), rule-tree
+ * summaries for OpenAPI metadata (`describeRule`), and a runner-agnostic
+ * consistency harness for tests (`assertPolicyConsistency`). Declaring
+ * rules once keeps record checks, list filters, and the documented
+ * contract from drifting apart — the class of bug where a list endpoint
  * leaks rows an individual GET would deny.
  *
  * Server-side only. Rules never bypass `authenticate`; they assume an
@@ -32,10 +35,15 @@ export type CompiledFilter =
  * `allows` decides a single record access. `compile` derives the same
  * rule's list scope for an actor. The two MUST stay consistent: a row an
  * individual check denies must never appear in a compiled list scope.
+ *
+ * `describe` is an optional human-readable summary of the rule tree,
+ * composed through `describeRule` for OpenAPI policy metadata. Built-in
+ * rules carry it; custom rules summarize as `"(custom rule)"`.
  */
 export type PolicyRule<Actor extends ActorLike, Resource> = {
   allows(actor: Actor, resource: Resource): boolean;
   compile(actor: Actor): CompiledFilter;
+  describe?: () => string;
 };
 
 /** The actor owns the row: `resource[ownerKey] === actor.userId`. */
@@ -45,6 +53,7 @@ export function ownerOf<Resource extends Record<string, unknown>>(
   return {
     allows: (actor, resource) => resource[ownerKey] === actor.userId,
     compile: (actor) => ({ kind: "where", where: { [ownerKey]: actor.userId } }),
+    describe: () => `ownerOf(${ownerKey})`,
   };
 }
 
@@ -54,6 +63,7 @@ export function inRole<Actor extends ActorLike, Resource>(role: string): PolicyR
   return {
     allows: (actor) => actor.role === role,
     compile: (actor) => (actor.role === role ? { kind: "unrestricted" } : { kind: "denied" }),
+    describe: () => `inRole(${role})`,
   };
 }
 
@@ -83,6 +93,7 @@ export function anyOf<Actor extends ActorLike, Resource>(
       if (wheres.length > 1) return { kind: "where", where: { OR: wheres } };
       return { kind: "denied" };
     },
+    describe: () => `anyOf(${rules.map((rule) => describeRule(rule)).join(", ")})`,
   };
 }
 
@@ -108,6 +119,7 @@ export function allOf<Actor extends ActorLike, Resource>(
       }
       return { kind: "where", where: merged };
     },
+    describe: () => `allOf(${rules.map((rule) => describeRule(rule)).join(", ")})`,
   };
 }
 
@@ -156,6 +168,138 @@ export function definePolicy<Actor extends ActorLike, Resource>(
       return scope.where;
     },
   };
+}
+
+// --- Compiled rule summaries (roadmap item 13: "compiled to OpenAPI") ---
+
+/**
+ * Human-readable summary of a rule tree. Built-in rules carry their
+ * description; a custom rule (no `describe`) summarizes as
+ * `"(custom rule)"` so summaries never fabricate semantics.
+ */
+export function describeRule<Actor extends ActorLike, Resource>(
+  rule: PolicyRule<Actor, Resource>,
+): string {
+  return rule.describe?.() ?? "(custom rule)";
+}
+
+// --- Compiled verification (roadmap item 13: "compiled to tests") ---
+
+/**
+ * Evaluate whether a record matches a Prisma `where` fragment, for the
+ * shapes this package's compiler emits: scalar equality, `{ equals }`,
+ * `{ in: [...] }`, `OR`, and `AND` branches. Unknown operator objects
+ * fail closed (no match), so a test surfaces any unsupported shape
+ * instead of silently passing.
+ */
+export function resourceMatchesWhere(
+  resource: Record<string, unknown>,
+  where: Record<string, unknown>,
+): boolean {
+  return Object.entries(where).every(([key, condition]) => {
+    const value = resource[key];
+    if ((key === "OR" || key === "AND") && Array.isArray(condition)) {
+      const branches = condition.map((branch) =>
+        resourceMatchesWhere(resource, branch !== null && typeof branch === "object" && !Array.isArray(branch)
+          ? (branch as Record<string, unknown>)
+          : {}),
+      );
+      return key === "OR" ? branches.some((matched) => matched) : branches.every((matched) => matched);
+    }
+    if (condition !== null && typeof condition === "object" && !Array.isArray(condition)) {
+      const operators = condition as Record<string, unknown>;
+      if ("equals" in operators) return value === operators["equals"];
+      if ("in" in operators) {
+        const candidates = operators["in"];
+        return Array.isArray(candidates) && candidates.includes(value);
+      }
+      return false;
+    }
+    return value === condition;
+  });
+}
+
+/** Raised by `assertPolicyConsistency`; message names the probe and shapes. */
+export class PolicyConsistencyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PolicyConsistencyError";
+  }
+}
+
+export type PolicyProbe<Actor extends ActorLike, Resource> = {
+  /** Probe label used in failure messages, e.g. "owner", "stranger". */
+  label: string;
+  actor: Actor;
+  /** Resources the actor must be able to read. */
+  readable?: Resource[];
+  /** Resources the actor must NOT be able to read. */
+  denied?: Resource[];
+  /** Resources the actor must be able to write. */
+  writable?: Resource[];
+  /** Resources the actor must NOT be able to write. */
+  writeDenied?: Resource[];
+};
+
+/**
+ * Verify a declared policy as data, in one call: probe expectations hold
+ * for record checks AND every probe resource's `canRead` outcome equals
+ * what the actor's compiled `listScope` would return in a list — the
+ * invariant that keeps single-record denials from leaking through list
+ * endpoints. Throws `PolicyConsistencyError` naming the probe, the
+ * resource, and both sides of any mismatch; returns silently on success.
+ * Dependency-free by design: any test runner can call it.
+ */
+export function assertPolicyConsistency<Actor extends ActorLike, Resource>(
+  policy: ResourcePolicy<Actor, Resource>,
+  probes: Array<PolicyProbe<Actor, Resource>>,
+): void {
+  for (const probe of probes) {
+    for (const resource of probe.readable ?? []) {
+      if (policy.canRead(probe.actor, resource) !== true) {
+        throw new PolicyConsistencyError(
+          `Policy probe "${probe.label}" must be able to read ${JSON.stringify(resource)}.`,
+        );
+      }
+    }
+    for (const resource of probe.denied ?? []) {
+      if (policy.canRead(probe.actor, resource) !== false) {
+        throw new PolicyConsistencyError(
+          `Policy probe "${probe.label}" must NOT be able to read ${JSON.stringify(resource)}.`,
+        );
+      }
+    }
+    for (const resource of probe.writable ?? []) {
+      if (policy.canWrite(probe.actor, resource) !== true) {
+        throw new PolicyConsistencyError(
+          `Policy probe "${probe.label}" must be able to write ${JSON.stringify(resource)}.`,
+        );
+      }
+    }
+    for (const resource of probe.writeDenied ?? []) {
+      if (policy.canWrite(probe.actor, resource) !== false) {
+        throw new PolicyConsistencyError(
+          `Policy probe "${probe.label}" must NOT be able to write ${JSON.stringify(resource)}.`,
+        );
+      }
+    }
+
+    // The core invariant: what the record check allows is exactly what
+    // the compiled list scope returns for the same actor and record.
+    const scope = policy.listScope(probe.actor);
+    for (const resource of [...(probe.readable ?? []), ...(probe.denied ?? [])]) {
+      const record = resource as Record<string, unknown>;
+      const inList = resourceMatchesWhere(record, scope);
+      const allowed = policy.canRead(probe.actor, resource);
+      if (inList !== allowed) {
+        throw new PolicyConsistencyError(
+          `Policy inconsistency for probe "${probe.label}": canRead(${JSON.stringify(record)}) is ${allowed}, ` +
+            `but listScope ${JSON.stringify(scope)} ${inList ? "matches" : "does not match"} the same record. ` +
+            "A row an individual GET denies must never appear in a list.",
+        );
+      }
+    }
+  }
 }
 
 // --- Compiled middleware (roadmap item 13: "compiled to middleware") ---
