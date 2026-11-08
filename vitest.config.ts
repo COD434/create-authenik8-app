@@ -31,7 +31,13 @@ export default defineConfig({
     restoreMocks: true,
     clearMocks: true,
     mockReset: true,
-    testTimeout: 30_000,
+    // 30s was sized for unit tests. The integration suites generate whole
+    // projects, install stubs, and boot servers; under coverage
+    // instrumentation (roughly 2x slowdown) an integrated fixture can
+    // exceed 30s on a loaded Windows host even though the same test
+    // passes un-instrumented and in isolation. Only the per-test budget
+    // widens; no assertion is relaxed.
+    testTimeout: 120_000,
     coverage: {
       provider: "v8",
       reporter: ["text", "json-summary","html"],

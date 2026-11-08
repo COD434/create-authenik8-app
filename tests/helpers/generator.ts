@@ -595,7 +595,9 @@ process.memoryUsage = () => ({ heapUsed: 32 * 1024 * 1024 });
 let failed = false;
 try {
   await import(${JSON.stringify(entryImportPath)});
-  const deadline = Date.now() + 5000;
+  // Wide enough for a cold tsx import chain on a loaded Windows host;
+  // only widens the wait for output, not what output is required.
+  const deadline = Date.now() + 15000;
   while (Date.now() < deadline && stdout.length === 0 && stderr.length === 0) {
     await new Promise((resolve) => setTimeout(resolve, 50));
   }
@@ -634,7 +636,7 @@ if (failed) process.exitCode = 1;
     const timeout = setTimeout(() => {
       child.kill("SIGTERM");
       reject(new Error(`Generated server smoke test timed out for ${entryPath}`));
-    }, 10_000);
+    }, 30_000);
 
     child.on("error", (error) => {
       clearTimeout(timeout);

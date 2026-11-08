@@ -134,7 +134,12 @@ function availablePort() {
 
 function runUntilOutput(command, args, cwd, expectedOutput, environment) {
   return new Promise((resolve, reject) => {
-    const child = spawn(shellCommand(command), args, {
+    // No shell: this receives process.execPath plus an argv array, so
+    // cmd.exe is never involved. Quoting here would corrupt the
+    // executable path on Windows, where a shell-less spawn would try to
+    // run a literal '"C:\Program Files\nodejs\node.exe"' and fail with
+    // ENOENT (runUntilOutput is the one spawn here that must not quote).
+    const child = spawn(command, args, {
       cwd,
 
       env: createFreshProjectEnv(environment),
