@@ -34,6 +34,10 @@
       "description": "Example application resource. Every operation is authorized on the backend."
     },
     {
+      "name": "Webhooks",
+      "description": "Outbound event subscriptions with HMAC-signed deliveries. Every operation is authorized on the backend."
+    },
+    {
       "name": "Administration",
       "description": "Administrator-only operations enforced by API middleware."
     }
@@ -464,6 +468,108 @@
           }
         }
       },
+      "Webhook": {
+        "type": "object",
+        "required": [
+          "id",
+          "userId",
+          "url",
+          "events",
+          "active",
+          "createdAt",
+          "updatedAt"
+        ],
+        "description": "A webhook subscription. The signing secret is returned exactly once, only in the create response as signingSecret.",
+        "example": {
+          "id": "f2c1cf46-d1e1-4c6a-9025-fa91154349f1",
+          "userId": "760e21f4-48f0-4d0a-9af5-292ef6ac7e55",
+          "url": "https://ops.example.com/hooks/authenik8",
+          "events": [
+            "project.created",
+            "project.updated",
+            "project.deleted"
+          ],
+          "active": true,
+          "createdAt": "2026-07-29T09:00:00.000Z",
+          "updatedAt": "2026-07-29T09:15:00.000Z"
+        },
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "url": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "project.created",
+                "project.updated",
+                "project.deleted"
+              ]
+            }
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "WebhookResponse": {
+        "type": "object",
+        "required": [
+          "webhook"
+        ],
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          }
+        }
+      },
+      "WebhookList": {
+        "type": "object",
+        "required": [
+          "webhooks"
+        ],
+        "properties": {
+          "webhooks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Webhook"
+            }
+          }
+        }
+      },
+      "WebhookCreatedResponse": {
+        "type": "object",
+        "required": [
+          "webhook",
+          "signingSecret"
+        ],
+        "description": "The signing secret is delivered once here. Store it before leaving this page; it cannot be retrieved again.",
+        "properties": {
+          "webhook": {
+            "$ref": "#/components/schemas/Webhook"
+          },
+          "signingSecret": {
+            "type": "string"
+          }
+        }
+      },
       "SessionList": {
         "type": "object",
         "required": [
@@ -816,6 +922,72 @@
         "additionalProperties": false,
         "example": {
           "status": "ARCHIVED"
+        }
+      },
+      "WebhookCreateInput": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "events": {
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "project.created",
+                "project.updated",
+                "project.deleted"
+              ]
+            }
+          }
+        },
+        "required": [
+          "url",
+          "events"
+        ],
+        "additionalProperties": false,
+        "example": {
+          "url": "https://ops.example.com/hooks/authenik8",
+          "events": [
+            "project.created",
+            "project.updated",
+            "project.deleted"
+          ]
+        }
+      },
+      "WebhookUpdateInput": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "events": {
+            "minItems": 1,
+            "maxItems": 32,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "project.created",
+                "project.updated",
+                "project.deleted"
+              ]
+            }
+          },
+          "active": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "active": false
         }
       },
       "AdminUserUpdateInput": {
@@ -2681,6 +2853,325 @@
           },
           "422": {
             "description": "Malformed project identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/webhooks": {
+      "get": {
+        "operationId": "listWebhooks",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "List authorized webhooks",
+        "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          "resource": "Webhook",
+          "mode": "list",
+          "rule": "anyOf(inRole(ADMIN), ownerOf(userId))",
+          "list-scope": "compiled from the read rule"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/RequestRejected"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Create an owned webhook subscription",
+        "description": "Generates an HMAC-SHA256 signing secret, sealed at rest, and returns it exactly once in this response. Deliveries sign body as `t=<unix seconds>,v1=<hex hmac-sha256(secret, t + '.' + body)>`.",
+        "x-authenik8-requires-active-session": true,
+        "x-authenik8-credentials": "include",
+        "security": [
+          {
+            "bearerAuth": [],
+            "csrfCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookCreateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook created with one-time signing secret",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookCreatedResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/RequestRejected"
+          },
+          "422": {
+            "description": "Validation error or per-user webhook limit reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{id}": {
+      "parameters": [
+        {
+          "in": "path",
+          "name": "id",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Read an authorized webhook",
+        "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          "resource": "Webhook",
+          "mode": "read",
+          "rule": "anyOf(inRole(ADMIN), ownerOf(userId))",
+          "denial-visibility": "masked-404"
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/RequestRejected"
+          },
+          "404": {
+            "description": "Not found or not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed webhook identifier",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Update an authorized webhook",
+        "description": "Does not rotate the signing secret; deleting and recreating the subscription rotates it.",
+        "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          "resource": "Webhook",
+          "mode": "write",
+          "rule": "anyOf(inRole(ADMIN), ownerOf(userId))",
+          "denial-visibility": "masked-404"
+        },
+        "x-authenik8-credentials": "include",
+        "security": [
+          {
+            "bearerAuth": [],
+            "csrfCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebhookUpdateInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated webhook",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/RequestRejected"
+          },
+          "404": {
+            "description": "Not found or not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhook",
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Delete an authorized webhook",
+        "description": "Deletes the subscription and its queued undelivered deliveries.",
+        "x-authenik8-requires-active-session": true,
+        "x-authenik8-policy": {
+          "resource": "Webhook",
+          "mode": "write",
+          "rule": "anyOf(inRole(ADMIN), ownerOf(userId))",
+          "denial-visibility": "masked-404"
+        },
+        "x-authenik8-credentials": "include",
+        "security": [
+          {
+            "bearerAuth": [],
+            "csrfCookie": [],
+            "csrfToken": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Webhook deleted"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthenticated"
+          },
+          "403": {
+            "$ref": "#/components/responses/RequestRejected"
+          },
+          "404": {
+            "description": "Not found or not authorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Malformed webhook identifier",
             "content": {
               "application/json": {
                 "schema": {

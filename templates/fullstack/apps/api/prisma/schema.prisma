@@ -23,6 +23,7 @@ model User {
   resetTokens       PasswordResetToken[]
   verificationTokens EmailVerificationToken[]
   auditEvents       AuditEvent[] @relation("AuditActor")
+  webhooks          Webhook[]
 }
 
 model OAuthAccount {
@@ -107,6 +108,43 @@ model AuditEvent {
   @@index([actorId])
 }
 
+model Webhook {
+  id        String   @id @default(uuid())
+  userId    String
+  url       String
+  events    String[]
+  // HMAC-SHA256 signing key for outgoing deliveries, sealed at rest with
+  // the same vault secret as refresh tokens; never returned after creation.
+  secret    String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([userId])
+}
+
+model WebhookDelivery {
+  id            String         @id @default(uuid())
+  webhookId     String
+  event         String
+  payload       String
+  status        DeliveryStatus @default(PENDING)
+  attempts      Int            @default(0)
+  // 2xx deliveries become DELIVERED; 410 endpoints retire immediately to
+  // FAILED; other failures retry with exponential backoff until maxAttempts.
+  nextAttemptAt DateTime
+  respondedAt   DateTime?
+  lastStatus    Int?
+  lastError     String?
+  createdAt     DateTime       @default(now())
+  webhook       Webhook        @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([webhookId, createdAt])
+}
+
 enum Role {
   USER
   ADMIN
@@ -121,4 +159,10 @@ enum ProjectStatus {
   DRAFT
   ACTIVE
   ARCHIVED
+}
+
+enum DeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
 }

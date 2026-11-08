@@ -8,7 +8,7 @@ a connected React and Express monorepo backed by the Authenik8 Identity Engine
 
 ```text
 apps/web    React frontend (the included reference app)
-apps/api    Express API (identity, sessions, OAuth, account, projects, admin, audit)
+apps/api    Express API (identity, sessions, OAuth, account, projects, webhooks, admin, audit)
 packages/contracts   shared Zod contracts
 packages/policies    declarative resource policies (@authenik8/policies)
 packages/api-client  generated browser API client (@authenik8/api-client)

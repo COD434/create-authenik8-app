@@ -85,6 +85,39 @@ export const projectUpdateSchema = projectCreateSchema.partial().refine(
   "Provide at least one field",
 );
 
+export const webhookEventTypeSchema = z.enum([
+  "project.created",
+  "project.updated",
+  "project.deleted",
+]);
+
+const webhookUrlSchema = z.string()
+  .trim()
+  .url("Enter a valid webhook URL")
+  .max(2048, "Enter a webhook URL of at most 2048 characters")
+  .refine(
+    (value) =>
+      value.startsWith("https://")
+      || value.startsWith("http://localhost:")
+      || value.startsWith("http://localhost/")
+      || value.startsWith("http://127.0.0.1:"),
+    "Webhook URLs must use https (http is allowed only for localhost development)",
+  );
+
+export const webhookCreateSchema = z.strictObject({
+  url: webhookUrlSchema,
+  events: z.array(webhookEventTypeSchema).min(1, "Subscribe to at least one event").max(32),
+});
+
+export const webhookUpdateSchema = z.strictObject({
+  url: webhookUrlSchema,
+  events: z.array(webhookEventTypeSchema).min(1, "Subscribe to at least one event").max(32),
+  active: z.boolean(),
+}).partial().refine(
+  (value) => Object.keys(value).length > 0,
+  "Provide at least one field",
+);
+
 export const adminUserUpdateSchema = z.strictObject({
   role: roleSchema.optional(),
   status: userStatusSchema.optional(),
@@ -102,6 +135,9 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 export type ProjectCreateInput = z.infer<typeof projectCreateSchema>;
 export type ProjectUpdateInput = z.infer<typeof projectUpdateSchema>;
 export type AdminUserUpdateInput = z.infer<typeof adminUserUpdateSchema>;
+export type WebhookEventType = z.infer<typeof webhookEventTypeSchema>;
+export type WebhookCreateInput = z.infer<typeof webhookCreateSchema>;
+export type WebhookUpdateInput = z.infer<typeof webhookUpdateSchema>;
 
 export type User = {
   id: string;
@@ -119,6 +155,16 @@ export type Project = {
   description: string;
   status: ProjectStatus;
   ownerId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Webhook = {
+  id: string;
+  userId: string;
+  url: string;
+  events: WebhookEventType[];
+  active: boolean;
   createdAt: string;
   updatedAt: string;
 };

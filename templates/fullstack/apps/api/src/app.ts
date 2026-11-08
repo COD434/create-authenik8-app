@@ -14,6 +14,11 @@ import { requestId } from "./middleware/request-id.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { projectRoutes } from "./modules/projects/project.routes.js";
 import { userRoutes } from "./modules/users/user.routes.js";
+import {
+  startWebhookWorker,
+  stopWebhookWorker,
+} from "./modules/webhooks/webhook.service.js";
+import { webhookRoutes } from "./modules/webhooks/webhook.routes.js";
 import { AppError, asyncHandler, errorHandler, notFound } from "./utils/http.js";
 import { openApiDocument } from "./openapi.js";
 
@@ -50,6 +55,7 @@ export function createApp() {
   app.use("/api/auth", authRoutes);
   app.use("/api/account", userRoutes);
   app.use("/api/projects", projectRoutes);
+  app.use("/api/webhooks", webhookRoutes);
   app.use("/api/admin", adminRoutes);
 
   if (env.NODE_ENV === "production") {

@@ -1,6 +1,7 @@
 import { projectCreateSchema, projectUpdateSchema } from "@authenik8/contracts";
 import type { Project } from "@prisma/client";
 import { AppError } from "../../utils/http.js";
+import { emitWebhookEvent } from "../webhooks/webhook.service.js";
 import { canReadProject, canWriteProject, projectListScope } from "./project.policy.js";
 import { projectRepository } from "./project.repository.js";
 
@@ -27,15 +28,20 @@ export async function getProject(actor: Actor, id: string) {
 
 export async function createProject(actor: Actor, body: unknown) {
   const input = projectCreateSchema.parse(body);
-  return present(await projectRepository.create({ ...input, ownerId: actor.userId }));
+  const project = present(await projectRepository.create({ ...input, ownerId: actor.userId }));
+  await emitWebhookEvent("project.created", project);
+  return project;
 }
 
 export async function updateProject(actor: Actor, id: string, body: unknown) {
   await authorizedProject(actor, id, true);
-  return present(await projectRepository.update(id, projectUpdateSchema.parse(body)));
+  const project = present(await projectRepository.update(id, projectUpdateSchema.parse(body)));
+  await emitWebhookEvent("project.updated", project);
+  return project;
 }
 
 export async function deleteProject(actor: Actor, id: string) {
-  await authorizedProject(actor, id, true);
+  const project = await authorizedProject(actor, id, true);
   await projectRepository.remove(id);
+  await emitWebhookEvent("project.deleted", present(project));
 }

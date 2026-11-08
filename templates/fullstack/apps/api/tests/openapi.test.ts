@@ -7,6 +7,7 @@ import { validate } from "@readme/openapi-parser";
 import { describe, expect, it } from "vitest";
 import { openApiDocument } from "../src/openapi.js";
 import { projectPolicyReadSummary, projectPolicyWriteSummary } from "../src/modules/projects/project.policy.js";
+import { webhookPolicyReadSummary, webhookPolicyWriteSummary } from "../src/modules/webhooks/webhook.policy.js";
 
 const documentedPaths = [
 
@@ -37,6 +38,8 @@ const documentedPaths = [
   "/api/account/providers/{provider}",
   "/api/projects",
   "/api/projects/{id}",
+  "/api/webhooks",
+  "/api/webhooks/{id}",
   "/api/admin/users",
   "/api/admin/users/{id}",
   "/api/admin/users/{id}/sessions",
@@ -155,6 +158,57 @@ describe("OpenAPI contract", () => {
     });
     // createProject assigns ownership at creation; it declares no policy.
     expect(openApiDocument.paths["/api/projects"].post).not.toHaveProperty("x-authenik8-policy");
+  });
+
+  it("documents the compiled resource policy on webhook operations, matching the enforced rules", () => {
+    expect(openApiDocument.paths["/api/webhooks"].get).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Webhook",
+        mode: "list",
+        rule: webhookPolicyReadSummary,
+        "list-scope": "compiled from the read rule",
+      },
+    });
+    expect(openApiDocument.paths["/api/webhooks/{id}"].get).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Webhook",
+        mode: "read",
+        rule: webhookPolicyReadSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    expect(openApiDocument.paths["/api/webhooks/{id}"].patch).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Webhook",
+        mode: "write",
+        rule: webhookPolicyWriteSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    expect(openApiDocument.paths["/api/webhooks/{id}"].delete).toMatchObject({
+      "x-authenik8-policy": {
+        resource: "Webhook",
+        mode: "write",
+        rule: webhookPolicyWriteSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
+    // createWebhook assigns ownership at creation and returns the one-time
+    // signing secret; it declares no policy metadata.
+    expect(openApiDocument.paths["/api/webhooks"].post).not.toHaveProperty("x-authenik8-policy");
+  });
+
+  it("documents the one-time signing secret boundary in webhook operations", () => {
+    const create = openApiDocument.paths["/api/webhooks"].post;
+    expect(create.operationId).toBe("createWebhook");
+    expect(create.description).toContain("returns it exactly once");
+    // The 201 response references the created-response schema, whose
+    // required list carries signingSecret; reads never carry the secret
+    // because the Webhook response model does not include it at all.
+    expect(JSON.stringify(create.responses["201"])).toContain("signing secret");
+    expect(openApiDocument.components.schemas.WebhookCreatedResponse.required).toContain("signingSecret");
+    expect(openApiDocument.components.schemas.Webhook.required).not.toContain("secret");
+    expect(openApiDocument.components.schemas.Webhook.properties).not.toHaveProperty("signingSecret");
   });
 
   it("never emits private JWK members or environment secrets", () => {

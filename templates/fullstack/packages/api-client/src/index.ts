@@ -16,6 +16,9 @@ import type {
   Session,
   User,
   UserStatus,
+  Webhook,
+  WebhookCreateInput,
+  WebhookUpdateInput,
   Role,
 } from "@authenik8/contracts";
 
@@ -366,6 +369,20 @@ export function createAuthenik8Client(options: Authenik8ClientOptions = {}) {
       request<void>(`/projects/${encodeURIComponent(id)}`, { method: "DELETE" }),
   };
 
+  const webhooks = {
+    list: () => request<{ webhooks: Webhook[] }>("/webhooks"),
+    get: (id: string) => request<{ webhook: Webhook }>(`/webhooks/${encodeURIComponent(id)}`),
+    create: (input: WebhookCreateInput) =>
+      request<{ webhook: Webhook; signingSecret: string }>("/webhooks", { method: "POST", body: json(input) }),
+    update: (id: string, input: WebhookUpdateInput) =>
+      request<{ webhook: Webhook }>(`/webhooks/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body: json(input),
+      }),
+    remove: (id: string) =>
+      request<void>(`/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  };
+
   const admin = {
     users: {
       list: (page = 1) => request<Page<User>>(`/admin/users?page=${page}`),
@@ -400,6 +417,7 @@ export function createAuthenik8Client(options: Authenik8ClientOptions = {}) {
     account,
     sessions,
     projects,
+    webhooks,
     admin,
     health: {
       status: () => request<{ status: string; database: string; redis: string }>("/health/ready"),
@@ -450,6 +468,7 @@ export const accountApi = {
   startProviderLink: defaultClient.account.startProviderLink,
 };
 export const projectApi = defaultClient.projects;
+export const webhookApi = defaultClient.webhooks;
 export const adminApi = {
   users: defaultClient.admin.users.list,
   getUser: defaultClient.admin.users.get,
