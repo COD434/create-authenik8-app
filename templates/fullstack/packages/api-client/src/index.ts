@@ -19,6 +19,7 @@ import type {
   Webhook,
   WebhookCreateInput,
   WebhookDelivery,
+  WebhookDeliveryStatus,
   WebhookUpdateInput,
   Role,
 } from "@authenik8/contracts";
@@ -382,8 +383,12 @@ export function createAuthenik8Client(options: Authenik8ClientOptions = {}) {
       }),
     remove: (id: string) =>
       request<void>(`/webhooks/${encodeURIComponent(id)}`, { method: "DELETE" }),
-    deliveries: (id: string, page = 1) =>
-      request<Page<WebhookDelivery>>(`/webhooks/${encodeURIComponent(id)}/deliveries?page=${page}`),
+    deliveries: (id: string, page = 1, status?: WebhookDeliveryStatus[]) =>
+      request<Page<WebhookDelivery>>(
+        `/webhooks/${encodeURIComponent(id)}/deliveries?page=${page}${
+          status && status.length > 0 ? `&status=${encodeURIComponent(status.join(","))}` : ""
+        }`,
+      ),
   };
 
   const admin = {

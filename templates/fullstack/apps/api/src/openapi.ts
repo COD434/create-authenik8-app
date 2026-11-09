@@ -127,6 +127,15 @@ const pageParameter = {
   required: false,
   schema: { type: "integer", minimum: 1, maximum: 10_000, default: 1 },
 };
+const webhookDeliveryStatusParameter = {
+  in: "query",
+  name: "status",
+  required: false,
+  description: "Filter to delivery cycles in these statuses; pass a comma-separated list for several.",
+  style: "form",
+  explode: false,
+  schema: { type: "array", minItems: 1, items: ref("WebhookDeliveryStatus") },
+};
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -380,6 +389,10 @@ export const openApiDocument = {
           signingSecret: { type: "string" },
         },
       },
+      WebhookDeliveryStatus: {
+        type: "string",
+        enum: ["PENDING", "DELIVERED", "FAILED"],
+      },
       WebhookDelivery: {
         type: "object",
         required: ["id", "event", "data", "status", "attempts", "nextAttemptAt", "respondedAt", "lastStatus", "lastError", "createdAt"],
@@ -388,7 +401,7 @@ export const openApiDocument = {
           id: { type: "string", format: "uuid" },
           event: { type: "string", enum: ["project.created", "project.updated", "project.deleted"] },
           data: {},
-          status: { type: "string", enum: ["PENDING", "DELIVERED", "FAILED"] },
+          status: ref("WebhookDeliveryStatus"),
           attempts: { type: "integer", minimum: 0 },
           nextAttemptAt: { type: "string", format: "date-time" },
           respondedAt: { type: ["string", "null"], format: "date-time" },
@@ -1133,12 +1146,12 @@ export const openApiDocument = {
           "denial-visibility": "masked-404",
         },
         security: bearerSecurity,
-        parameters: [pageParameter],
+        parameters: [pageParameter, webhookDeliveryStatusParameter],
         responses: {
           ...authenticatedErrors,
           "200": jsonResponse("Paginated webhook deliveries", ref("WebhookDeliveryPage")),
           "404": errorResponse("Not found or not authorized"),
-          "422": errorResponse("Malformed webhook identifier"),
+          "422": errorResponse("Malformed webhook identifier or delivery status filter"),
         },
       },
     },

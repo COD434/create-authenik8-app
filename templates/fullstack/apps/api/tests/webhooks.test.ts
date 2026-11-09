@@ -62,6 +62,7 @@ import {
 } from "../src/modules/webhooks/webhook.service.js";
 import {
   webhookCreateSchema,
+  webhookDeliveryStatusFilterSchema,
   webhookEventCatalog,
   webhookEventTypeSchema,
   webhookUpdateSchema,
@@ -151,6 +152,14 @@ describe("webhook contracts", () => {
       expect(webhookEventTypeSchema.safeParse(topic).success).toBe(true);
       expect(purpose.schema.safeParse(purpose.example).success).toBe(true);
     }
+  });
+
+  it("parses comma-separated delivery status filters", () => {
+    expect(webhookDeliveryStatusFilterSchema.parse("FAILED")).toEqual(["FAILED"]);
+    expect(webhookDeliveryStatusFilterSchema.parse("PENDING,FAILED")).toEqual(["PENDING", "FAILED"]);
+    expect(webhookDeliveryStatusFilterSchema.safeParse("UNDELIVERED").success).toBe(false);
+    expect(webhookDeliveryStatusFilterSchema.safeParse("").success).toBe(false);
+    expect(webhookDeliveryStatusFilterSchema.safeParse(["PENDING"]).success).toBe(false);
   });
 });
 
@@ -519,5 +528,25 @@ describe("webhook delivery history", () => {
       status: "FAILED",
       lastError: "Stored event payload is not valid JSON",
     });
+  });
+
+  it("filters delivery history by the requested statuses", async () => {
+    historyMocks();
+    mocks.findWebhookById.mockResolvedValue(aWebhook().webhook);
+
+    await listWebhookDeliveries(owner, "webhook-1", 1, ["PENDING", "FAILED"]);
+
+    expect((mocks.deliveryFindMany.mock.calls[0]?.[0] as { where: unknown }).where)
+      .toEqual({ webhookId: "webhook-1", status: { in: ["PENDING", "FAILED"] } });
+    expect((mocks.countDeliveries.mock.calls[0]?.[0] as { where: unknown }).where)
+      .toEqual({ webhookId: "webhook-1", status: { in: ["PENDING", "FAILED"] } });
+
+    // Absent filter preserves the unfiltered history shape.
+    await listWebhookDeliveries(owner, "webhook-1", 1, undefined);
+
+    expect((mocks.deliveryFindMany.mock.calls[1]?.[0] as { where: unknown }).where)
+      .toEqual({ webhookId: "webhook-1" });
+    expect((mocks.countDeliveries.mock.calls[1]?.[0] as { where: unknown }).where)
+      .toEqual({ webhookId: "webhook-1" });
   });
 });

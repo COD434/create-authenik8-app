@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { validate } from "@readme/openapi-parser";
-import { webhookEventCatalog } from "@authenik8/contracts";
+import { webhookDeliveryStatusSchema, webhookEventCatalog } from "@authenik8/contracts";
 
 import { describe, expect, it } from "vitest";
 import { openApiDocument } from "../src/openapi.js";
@@ -241,6 +241,17 @@ describe("OpenAPI contract", () => {
       expect(documented.description).toBe(webhookEventCatalog[topic].description);
       expect(documented.payloadSchema.properties?.name).toBeDefined();
     }
+  });
+
+  it("documents the delivery status filter, matching the enforced contract enum", () => {
+    const get = openApiDocument.paths["/api/webhooks/{id}/deliveries"].get as unknown as {
+      parameters: Array<{ name?: string; in?: string; required?: boolean; explode?: boolean; schema?: { items?: unknown } }>;
+    };
+    const status = get.parameters.find((parameter) => parameter.name === "status");
+    expect(status).toMatchObject({ in: "query", required: false, explode: false });
+    const statusComponent = openApiDocument.components.schemas
+      ?.WebhookDeliveryStatus as unknown as { enum: string[] } | undefined;
+    expect(statusComponent?.enum).toEqual([...(webhookDeliveryStatusSchema as unknown as { options: string[] }).options]);
   });
 
   it("never emits private JWK members or environment secrets", () => {

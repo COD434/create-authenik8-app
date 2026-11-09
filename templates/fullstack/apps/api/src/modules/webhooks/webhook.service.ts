@@ -3,6 +3,7 @@ import {
   webhookCreateSchema,
   webhookEventCatalog,
   webhookUpdateSchema,
+  type WebhookDeliveryStatus,
   type WebhookEventType,
 } from "@authenik8/contracts";
 import type { Webhook, WebhookDelivery } from "@prisma/client";
@@ -128,7 +129,12 @@ function presentDelivery(delivery: WebhookDelivery) {
   };
 }
 
-export async function listWebhookDeliveries(actor: Actor, webhookId: string, page: number) {
+export async function listWebhookDeliveries(
+  actor: Actor,
+  webhookId: string,
+  page: number,
+  statuses?: WebhookDeliveryStatus[],
+) {
   await authorizedWebhook(actor, webhookId);
   // Mirrors the administrator-audit pagination contract: controller-level
   // pageSchema parsing plus a defensive service-side page clamp.
@@ -137,6 +143,7 @@ export async function listWebhookDeliveries(actor: Actor, webhookId: string, pag
     webhookId,
     safePage,
     DELIVERIES_PAGE_SIZE,
+    statuses,
   );
   return {
     items: deliveries.map(presentDelivery),

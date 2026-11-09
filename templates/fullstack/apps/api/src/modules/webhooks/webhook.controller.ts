@@ -1,5 +1,9 @@
 import { asyncHandler } from "../../utils/http.js";
-import { identifierSchema, pageSchema } from "@authenik8/contracts";
+import {
+  identifierSchema,
+  pageSchema,
+  webhookDeliveryStatusFilterSchema,
+} from "@authenik8/contracts";
 import {
   createWebhook,
   deleteWebhook,
@@ -29,9 +33,16 @@ export const deleteWebhookController = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 export const listWebhookDeliveriesController = asyncHandler(async (req, res) => {
+  // The status filter is a comma-separated list ("PENDING,FAILED");
+  // absent means all statuses.
+  const statuses =
+    req.query.status === undefined
+      ? undefined
+      : webhookDeliveryStatusFilterSchema.parse(req.query.status);
   res.json(await listWebhookDeliveries(
     actor(req.user!),
     identifierSchema.parse(req.params.id),
     pageSchema.parse(req.query.page),
+    statuses,
   ));
 });

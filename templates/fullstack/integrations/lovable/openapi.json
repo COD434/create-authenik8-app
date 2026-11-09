@@ -570,6 +570,14 @@
           }
         }
       },
+      "WebhookDeliveryStatus": {
+        "type": "string",
+        "enum": [
+          "PENDING",
+          "DELIVERED",
+          "FAILED"
+        ]
+      },
       "WebhookDelivery": {
         "type": "object",
         "required": [
@@ -600,12 +608,7 @@
           },
           "data": {},
           "status": {
-            "type": "string",
-            "enum": [
-              "PENDING",
-              "DELIVERED",
-              "FAILED"
-            ]
+            "$ref": "#/components/schemas/WebhookDeliveryStatus"
           },
           "attempts": {
             "type": "integer",
@@ -3553,6 +3556,21 @@
               "maximum": 10000,
               "default": 1
             }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "description": "Filter to delivery cycles in these statuses; pass a comma-separated list for several.",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/components/schemas/WebhookDeliveryStatus"
+              }
+            }
           }
         ],
         "responses": {
@@ -3583,7 +3601,7 @@
             }
           },
           "422": {
-            "description": "Malformed webhook identifier",
+            "description": "Malformed webhook identifier or delivery status filter",
             "content": {
               "application/json": {
                 "schema": {

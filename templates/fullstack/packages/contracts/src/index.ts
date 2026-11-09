@@ -141,6 +141,18 @@ export const webhookEventCatalog = {
   { schema: z.ZodType; example: unknown; description: string }
 >;
 
+export const webhookDeliveryStatusSchema = z.enum(["PENDING", "DELIVERED", "FAILED"]);
+export type WebhookDeliveryStatus = z.infer<typeof webhookDeliveryStatusSchema>;
+
+/**
+ * The `?status=` delivery-history filter: one or more comma-separated
+ * delivery statuses (`PENDING`, `DELIVERED`, `FAILED`).
+ */
+export const webhookDeliveryStatusFilterSchema = z
+  .string()
+  .transform((value) => value.split(","))
+  .pipe(z.array(webhookDeliveryStatusSchema).min(1, "Filter by at least one delivery status"));
+
 const webhookUrlSchema = z.string()
   .trim()
   .url("Enter a valid webhook URL")
@@ -223,7 +235,7 @@ export type WebhookDelivery = {
   id: string;
   event: WebhookEventType;
   data: unknown;
-  status: "PENDING" | "DELIVERED" | "FAILED";
+  status: WebhookDeliveryStatus;
   attempts: number;
   nextAttemptAt: string;
   respondedAt: string | null;

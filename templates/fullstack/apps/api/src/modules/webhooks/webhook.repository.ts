@@ -59,16 +59,23 @@ export const webhookRepository = {
     webhookId: string,
     page: number,
     pageSize: number,
+    statuses?: WebhookDelivery["status"][],
   ): Promise<{ deliveries: WebhookDelivery[]; total: number }> {
+    // One shared where clause so the page slice and the total always count
+    // the same filtered set, fenced to the authorized webhook.
+    const where: Prisma.WebhookDeliveryWhereInput = {
+      webhookId,
+      ...(statuses && statuses.length > 0 ? { status: { in: statuses } } : {}),
+    };
     return prisma
       .$transaction([
         prisma.webhookDelivery.findMany({
-          where: { webhookId },
+          where,
           orderBy: { createdAt: "desc" },
           skip: (page - 1) * pageSize,
           take: pageSize,
         }),
-        prisma.webhookDelivery.count({ where: { webhookId } }),
+        prisma.webhookDelivery.count({ where }),
       ])
       .then(([deliveries, total]) => ({ deliveries, total }));
   },
