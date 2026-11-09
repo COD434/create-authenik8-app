@@ -18,7 +18,7 @@ It includes:
 - Profile, password, linked-provider, session, and session-revocation screens
 - Admin users, roles, status controls, session revocation, and audit events
 - An owned Project resource across database, API, policy, client, and UI layers
-- Outbound webhooks: owned event subscriptions with HMAC-signed deliveries, bounded retries, a database-backed delivery worker, and paginated delivery history
+- Outbound webhooks: owned event subscriptions with HMAC-signed deliveries, bounded retries, a database-backed delivery worker, paginated delivery history, and a declared event catalog whose payload schemas are validated at emission and published in the OpenAPI webhook metadata
 - OpenAPI 3.1 output, health checks, structured logs, request IDs, and security middleware
 - Project-local PostgreSQL and Redis-compatible local auth state, Prisma migrations, seed data, tests, and production docs
 - Optional Docker Compose for teams that prefer containerized PostgreSQL and Redis

@@ -91,6 +91,56 @@ export const webhookEventTypeSchema = z.enum([
   "project.deleted",
 ]);
 
+/**
+ * Outbound webhook event catalog: the declared domain events, the payload
+ * schema each one satisfies, an example payload, and a receiver-facing
+ * description. The subscription contract subscribes to exactly these
+ * topics, `emitWebhookEvent` validates payloads against the declared
+ * schemas before enqueueing, and the OpenAPI webhook receiver metadata is
+ * derived from this record - the payload contract, subscription
+ * validation, and documentation cannot drift apart.
+ */
+const projectEventPayloadSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  description: z.string(),
+  status: projectStatusSchema,
+  ownerId: z.string().uuid(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
+});
+
+const projectEventExample = {
+  id: "0cbb641e-37e7-4452-a907-b5664e41fc79",
+  name: "Launch checklist",
+  description: "Tasks for the first release",
+  status: "ACTIVE",
+  ownerId: "760e21f4-48f0-4d0a-9af5-292ef6ac7e55",
+  createdAt: "2026-07-29T09:00:00.000Z",
+  updatedAt: "2026-07-29T09:15:00.000Z",
+};
+
+export const webhookEventCatalog = {
+  "project.created": {
+    schema: projectEventPayloadSchema,
+    example: projectEventExample,
+    description: "Emitted after a project row is committed: the created project's representation.",
+  },
+  "project.updated": {
+    schema: projectEventPayloadSchema,
+    example: projectEventExample,
+    description: "Emitted after a project update is committed: the updated project's representation.",
+  },
+  "project.deleted": {
+    schema: projectEventPayloadSchema,
+    example: projectEventExample,
+    description: "Emitted after a project is deleted: the deleted project's last representation.",
+  },
+} satisfies Record<
+  z.infer<typeof webhookEventTypeSchema>,
+  { schema: z.ZodType; example: unknown; description: string }
+>;
+
 const webhookUrlSchema = z.string()
   .trim()
   .url("Enter a valid webhook URL")

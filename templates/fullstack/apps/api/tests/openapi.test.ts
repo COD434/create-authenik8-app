@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { validate } from "@readme/openapi-parser";
+import { webhookEventCatalog } from "@authenik8/contracts";
 
 import { describe, expect, it } from "vitest";
 import { openApiDocument } from "../src/openapi.js";
@@ -220,6 +221,26 @@ describe("OpenAPI contract", () => {
     expect(openApiDocument.components.schemas.WebhookCreatedResponse.required).toContain("signingSecret");
     expect(openApiDocument.components.schemas.Webhook.required).not.toContain("secret");
     expect(openApiDocument.components.schemas.Webhook.properties).not.toHaveProperty("signingSecret");
+  });
+
+  it("derives webhook receiver metadata from the declared event catalog", () => {
+    const create = openApiDocument.paths["/api/webhooks"].post as unknown as {
+      "x-authenik8-webhook-delivery-envelope": {
+        properties: { event: { enum: string[] } };
+      };
+      "x-authenik8-webhook-events": Record<
+        string,
+        { description: string; payloadSchema: { properties?: Record<string, unknown> } }
+      >;
+    };
+    const topics = Object.keys(webhookEventCatalog);
+    expect(Object.keys(create["x-authenik8-webhook-events"])).toEqual(topics);
+    expect(create["x-authenik8-webhook-delivery-envelope"].properties.event.enum).toEqual(topics);
+    for (const topic of topics) {
+      const documented = create["x-authenik8-webhook-events"][topic];
+      expect(documented.description).toBe(webhookEventCatalog[topic].description);
+      expect(documented.payloadSchema.properties?.name).toBeDefined();
+    }
   });
 
   it("never emits private JWK members or environment secrets", () => {

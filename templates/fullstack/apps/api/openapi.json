@@ -3020,9 +3020,231 @@
           "Webhooks"
         ],
         "summary": "Create an owned webhook subscription",
-        "description": "Generates an HMAC-SHA256 signing secret, sealed at rest, and returns it exactly once in this response. Deliveries sign body as `t=<unix seconds>,v1=<hex hmac-sha256(secret, t + '.' + body)>`.",
+        "description": "Generates an HMAC-SHA256 signing secret, sealed at rest, and returns it exactly once in this response. Deliveries sign body as `t=<unix seconds>,v1=<hex hmac-sha256(secret, t + '.' + body)>`. The receiver contract is declared on this operation: x-authenik8-webhook-delivery-envelope and x-authenik8-webhook-events.",
         "x-authenik8-requires-active-session": true,
         "x-authenik8-credentials": "include",
+        "x-authenik8-webhook-delivery-envelope": {
+          "type": "object",
+          "description": "Signed POST body sent to each subscribed endpoint.",
+          "required": [
+            "id",
+            "event",
+            "createdAt",
+            "deliveryAttempt",
+            "data"
+          ],
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Delivery id; deliveries are at-least-once, deduplicate when consuming."
+            },
+            "event": {
+              "type": "string",
+              "enum": [
+                "project.created",
+                "project.updated",
+                "project.deleted"
+              ]
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "deliveryAttempt": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "data": {
+              "type": "object",
+              "description": "Event payload; per-event schemas are in x-authenik8-webhook-events."
+            }
+          }
+        },
+        "x-authenik8-webhook-events": {
+          "project.created": {
+            "description": "Emitted after a project row is committed: the created project's representation.",
+            "example": {
+              "id": "0cbb641e-37e7-4452-a907-b5664e41fc79",
+              "name": "Launch checklist",
+              "description": "Tasks for the first release",
+              "status": "ACTIVE",
+              "ownerId": "760e21f4-48f0-4d0a-9af5-292ef6ac7e55",
+              "createdAt": "2026-07-29T09:00:00.000Z",
+              "updatedAt": "2026-07-29T09:15:00.000Z"
+            },
+            "payloadSchema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "DRAFT",
+                    "ACTIVE",
+                    "ARCHIVED"
+                  ]
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "status",
+                "ownerId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "project.updated": {
+            "description": "Emitted after a project update is committed: the updated project's representation.",
+            "example": {
+              "id": "0cbb641e-37e7-4452-a907-b5664e41fc79",
+              "name": "Launch checklist",
+              "description": "Tasks for the first release",
+              "status": "ACTIVE",
+              "ownerId": "760e21f4-48f0-4d0a-9af5-292ef6ac7e55",
+              "createdAt": "2026-07-29T09:00:00.000Z",
+              "updatedAt": "2026-07-29T09:15:00.000Z"
+            },
+            "payloadSchema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "DRAFT",
+                    "ACTIVE",
+                    "ARCHIVED"
+                  ]
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "status",
+                "ownerId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "project.deleted": {
+            "description": "Emitted after a project is deleted: the deleted project's last representation.",
+            "example": {
+              "id": "0cbb641e-37e7-4452-a907-b5664e41fc79",
+              "name": "Launch checklist",
+              "description": "Tasks for the first release",
+              "status": "ACTIVE",
+              "ownerId": "760e21f4-48f0-4d0a-9af5-292ef6ac7e55",
+              "createdAt": "2026-07-29T09:00:00.000Z",
+              "updatedAt": "2026-07-29T09:15:00.000Z"
+            },
+            "payloadSchema": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "DRAFT",
+                    "ACTIVE",
+                    "ARCHIVED"
+                  ]
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                },
+                "createdAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "status",
+                "ownerId",
+                "createdAt",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
         "security": [
           {
             "bearerAuth": [],

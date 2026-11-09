@@ -11,6 +11,7 @@ import {
   resetPasswordSchema,
   verificationSchema,
   webhookCreateSchema,
+  webhookEventCatalog,
   webhookUpdateSchema,
 } from "@authenik8/contracts";
 import { z, type ZodType } from "zod";
@@ -78,6 +79,36 @@ const bearerSecurity = [{ bearerAuth: [] }];
 const csrfSecurity = [{ csrfCookie: [], csrfToken: [] }];
 const refreshSecurity = [{ refreshCookie: [], csrfCookie: [], csrfToken: [] }];
 const protectedMutationSecurity = [{ bearerAuth: [], csrfCookie: [], csrfToken: [] }];
+
+/**
+ * Receiver-side webhook metadata, derived from the declared event catalog
+ * in contracts (no hand-written drift): the signed delivery envelope a
+ * subscribed endpoint must expect, and each event's payload schema,
+ * example, and receiver-facing description.
+ */
+const webhookDeliveryEnvelopeSchema: JsonSchema = {
+  type: "object",
+  description: "Signed POST body sent to each subscribed endpoint.",
+  required: ["id", "event", "createdAt", "deliveryAttempt", "data"],
+  properties: {
+    id: { type: "string", description: "Delivery id; deliveries are at-least-once, deduplicate when consuming." },
+    event: { type: "string", enum: Object.keys(webhookEventCatalog) },
+    createdAt: { type: "string", format: "date-time" },
+    deliveryAttempt: { type: "integer", minimum: 1 },
+    data: { type: "object", description: "Event payload; per-event schemas are in x-authenik8-webhook-events." },
+  },
+};
+const webhookEventsMetadata = () =>
+  Object.fromEntries(
+    Object.entries(webhookEventCatalog).map(([topic, purpose]) => [
+      topic,
+      {
+        description: purpose.description,
+        example: purpose.example,
+        payloadSchema: inputSchema(purpose.schema),
+      },
+    ]),
+  );
 const idParameter = {
   in: "path",
   name: "id",
@@ -1002,9 +1033,13 @@ export const openApiDocument = {
           "Generates an HMAC-SHA256 signing secret, sealed at rest, and returns it",
           "exactly once in this response. Deliveries sign body as",
           "`t=<unix seconds>,v1=<hex hmac-sha256(secret, t + '.' + body)>`.",
+          "The receiver contract is declared on this operation:",
+          "x-authenik8-webhook-delivery-envelope and x-authenik8-webhook-events.",
         ].join(" "),
         "x-authenik8-requires-active-session": true,
         "x-authenik8-credentials": "include",
+        "x-authenik8-webhook-delivery-envelope": webhookDeliveryEnvelopeSchema,
+        "x-authenik8-webhook-events": webhookEventsMetadata(),
         security: protectedMutationSecurity,
         requestBody: requestBody("WebhookCreateInput"),
         responses: {

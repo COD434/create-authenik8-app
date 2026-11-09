@@ -1,6 +1,7 @@
 import { randomBytes, createHmac } from "node:crypto";
 import {
   webhookCreateSchema,
+  webhookEventCatalog,
   webhookUpdateSchema,
   type WebhookEventType,
 } from "@authenik8/contracts";
@@ -147,11 +148,20 @@ export async function listWebhookDeliveries(actor: Actor, webhookId: string, pag
 
 /**
  * Record PENDING deliveries for every active webhook subscribed to
- * `event`. Never throws: an emission failure must not fail the (already
+ * `event`. Payloads are validated against the declared event catalog
+ * before enqueueing (a schema-invalid payload is logged and dropped).
+ * Never throws: an emission failure must not fail the (already
  * committed) domain change that triggered it.
  */
 export async function emitWebhookEvent(event: WebhookEventType, data: Record<string, unknown>): Promise<void> {
   try {
+    // Fail closed against the declared event contract: a payload that does
+    // not satisfy the cataloged schema is never serialized into delivery
+    // rows, so receivers can trust the documented payload shape.
+    if (!webhookEventCatalog[event].schema.safeParse(data).success) {
+      logger.error({ event }, "Webhook event payload failed the declared catalog schema; not enqueued");
+      return;
+    }
     const subscribers = await webhookRepository.findActiveSubscribers(event);
     if (subscribers.length === 0) return;
     await webhookRepository.createDeliveries(subscribers.map((subscriber) => ({

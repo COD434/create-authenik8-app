@@ -60,7 +60,12 @@ import {
   WEBHOOK_MAX_ATTEMPTS,
   WEBHOOK_RETRY_DELAYS_SECONDS,
 } from "../src/modules/webhooks/webhook.service.js";
-import { webhookCreateSchema, webhookUpdateSchema } from "@authenik8/contracts";
+import {
+  webhookCreateSchema,
+  webhookEventCatalog,
+  webhookEventTypeSchema,
+  webhookUpdateSchema,
+} from "@authenik8/contracts";
 import { openSealedValue, sealValue } from "../src/utils/sealed-value.js";
 
 const REFRESH_SECRET = "test-refresh-secret-with-more-than-32-characters";
@@ -135,6 +140,17 @@ describe("webhook contracts", () => {
     expect(webhookUpdateSchema.safeParse({ events: ["project.updated"] }).success).toBe(true);
     expect(webhookUpdateSchema.safeParse({}).success).toBe(false);
     expect(webhookUpdateSchema.safeParse({ active: "yes" }).success).toBe(false);
+  });
+
+  it("keeps the subscription enum and the declared event catalog aligned", () => {
+    const topics = Object.keys(webhookEventCatalog);
+    expect(topics).toEqual([...(webhookEventTypeSchema as unknown as { options: string[] }).options]);
+    // Every declared event's example payload is accepted by its own schema,
+    // so the cataloged examples are always deliverable documents.
+    for (const [topic, purpose] of Object.entries(webhookEventCatalog)) {
+      expect(webhookEventTypeSchema.safeParse(topic).success).toBe(true);
+      expect(purpose.schema.safeParse(purpose.example).success).toBe(true);
+    }
   });
 });
 
@@ -235,10 +251,11 @@ describe("webhook subscriptions", () => {
 
 describe("webhook event emission", () => {
   it("records PENDING deliveries only for active matching subscribers", async () => {
+    const payload = webhookEventCatalog["project.created"].example;
     mocks.webhookFindMany.mockResolvedValue([{ id: "webhook-1" }, { id: "webhook-2" }]);
     mocks.createDeliveries.mockResolvedValue(2);
 
-    await expect(emitWebhookEvent("project.created", { id: "project-1" })).resolves.toBeUndefined();
+    await expect(emitWebhookEvent("project.created", payload)).resolves.toBeUndefined();
 
     expect(mocks.webhookFindMany.mock.calls[0]?.[0]).toEqual({
       where: { active: true, events: { has: "project.created" } },
@@ -249,22 +266,36 @@ describe("webhook event emission", () => {
     expect(rows[0]).toMatchObject({
       webhookId: "webhook-1",
       event: "project.created",
-      payload: '{"id":"project-1"}',
+      payload: JSON.stringify(payload),
     });
     expect(rows[0]?.nextAttemptAt).toBeInstanceOf(Date);
   });
 
+  it("drops payloads that violate the declared event catalog before enqueueing", async () => {
+    mocks.webhookFindMany.mockResolvedValue([{ id: "webhook-1" }]);
+
+    await expect(
+      emitWebhookEvent("project.created", { id: "project-1", malformed: true }),
+    ).resolves.toBeUndefined();
+
+    // Fail closed: not even a subscriber lookup happens for an undeclared
+    // payload shape, and no delivery row is ever created.
+    expect(mocks.webhookFindMany).toHaveBeenCalledTimes(0);
+    expect(mocks.createDeliveries).toHaveBeenCalledTimes(0);
+  });
+
   it("never fails the committed domain change when emission fails", async () => {
+    const payload = webhookEventCatalog["project.created"].example;
     mocks.webhookFindMany.mockRejectedValueOnce(new Error("database unavailable"));
-    await expect(emitWebhookEvent("project.created", {})).resolves.toBeUndefined();
+    await expect(emitWebhookEvent("project.created", payload)).resolves.toBeUndefined();
     mocks.webhookFindMany.mockResolvedValueOnce([{ id: "webhook-1" }]);
     mocks.createDeliveries.mockRejectedValueOnce(new Error("database unavailable"));
-    await expect(emitWebhookEvent("project.created", {})).resolves.toBeUndefined();
+    await expect(emitWebhookEvent("project.created", payload)).resolves.toBeUndefined();
   });
 
   it("emits nothing when nobody subscribes", async () => {
     mocks.webhookFindMany.mockResolvedValue([]);
-    await expect(emitWebhookEvent("project.updated", {})).resolves.toBeUndefined();
+    await expect(emitWebhookEvent("project.updated", webhookEventCatalog["project.updated"].example)).resolves.toBeUndefined();
     expect(mocks.createDeliveries).toHaveBeenCalledTimes(0);
   });
 });
