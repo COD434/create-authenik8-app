@@ -169,6 +169,19 @@ export type Webhook = {
   updatedAt: string;
 };
 
+export type WebhookDelivery = {
+  id: string;
+  event: WebhookEventType;
+  data: unknown;
+  status: "PENDING" | "DELIVERED" | "FAILED";
+  attempts: number;
+  nextAttemptAt: string;
+  respondedAt: string | null;
+  lastStatus: number | null;
+  lastError: string | null;
+  createdAt: string;
+};
+
 export type Session = {
   id: string;
   userAgent: string;

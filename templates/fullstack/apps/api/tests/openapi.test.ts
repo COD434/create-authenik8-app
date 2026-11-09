@@ -40,6 +40,7 @@ const documentedPaths = [
   "/api/projects/{id}",
   "/api/webhooks",
   "/api/webhooks/{id}",
+  "/api/webhooks/{id}/deliveries",
   "/api/admin/users",
   "/api/admin/users/{id}",
   "/api/admin/users/{id}/sessions",
@@ -196,6 +197,16 @@ describe("OpenAPI contract", () => {
     // createWebhook assigns ownership at creation and returns the one-time
     // signing secret; it declares no policy metadata.
     expect(openApiDocument.paths["/api/webhooks"].post).not.toHaveProperty("x-authenik8-policy");
+    // Delivery history inherits the parent webhook's read rule.
+    expect(openApiDocument.paths["/api/webhooks/{id}/deliveries"].get).toMatchObject({
+      operationId: "listWebhookDeliveries",
+      "x-authenik8-policy": {
+        resource: "Webhook",
+        mode: "read",
+        rule: webhookPolicyReadSummary,
+        "denial-visibility": "masked-404",
+      },
+    });
   });
 
   it("documents the one-time signing secret boundary in webhook operations", () => {

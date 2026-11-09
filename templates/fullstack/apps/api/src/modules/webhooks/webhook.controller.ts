@@ -1,9 +1,10 @@
 import { asyncHandler } from "../../utils/http.js";
-import { identifierSchema } from "@authenik8/contracts";
+import { identifierSchema, pageSchema } from "@authenik8/contracts";
 import {
   createWebhook,
   deleteWebhook,
   getWebhook,
+  listWebhookDeliveries,
   listWebhooks,
   updateWebhook,
 } from "./webhook.service.js";
@@ -26,4 +27,11 @@ export const updateWebhookController = asyncHandler(async (req, res) => {
 export const deleteWebhookController = asyncHandler(async (req, res) => {
   await deleteWebhook(actor(req.user!), identifierSchema.parse(req.params.id));
   res.status(204).send();
+});
+export const listWebhookDeliveriesController = asyncHandler(async (req, res) => {
+  res.json(await listWebhookDeliveries(
+    actor(req.user!),
+    identifierSchema.parse(req.params.id),
+    pageSchema.parse(req.query.page),
+  ));
 });

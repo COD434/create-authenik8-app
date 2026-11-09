@@ -9,6 +9,7 @@ import {
   createWebhookController,
   deleteWebhookController,
   getWebhookController,
+  listWebhookDeliveriesController,
   listWebhooksController,
   updateWebhookController,
 } from "./webhook.controller.js";
@@ -26,6 +27,11 @@ webhookRoutes.post("/", requireAllowedOrigin, requireCsrf, createWebhookControll
 // Declarative resource policy (A8 policy DSL): the compiled middleware
 // enforces ownership before the controller; the service re-checks.
 webhookRoutes.get("/:id", requireWebhookAccess("read", loadWebhook), getWebhookController);
+webhookRoutes.get(
+  "/:id/deliveries",
+  requireWebhookAccess("read", loadWebhook),
+  listWebhookDeliveriesController,
+);
 webhookRoutes.patch(
   "/:id",
   requireAllowedOrigin,

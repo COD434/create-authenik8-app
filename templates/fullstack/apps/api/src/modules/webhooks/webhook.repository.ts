@@ -55,4 +55,21 @@ export const webhookRepository = {
   recordDelivery(id: string, result: DeliveryResult): Promise<WebhookDelivery> {
     return prisma.webhookDelivery.update({ where: { id }, data: result });
   },
+  paginateDeliveries(
+    webhookId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ deliveries: WebhookDelivery[]; total: number }> {
+    return prisma
+      .$transaction([
+        prisma.webhookDelivery.findMany({
+          where: { webhookId },
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+        prisma.webhookDelivery.count({ where: { webhookId } }),
+      ])
+      .then(([deliveries, total]) => ({ deliveries, total }));
+  },
 };

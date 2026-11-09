@@ -4,7 +4,7 @@ import {
   webhookUpdateSchema,
   type WebhookEventType,
 } from "@authenik8/contracts";
-import type { Webhook } from "@prisma/client";
+import type { Webhook, WebhookDelivery } from "@prisma/client";
 import { env } from "../../config/env.js";
 import { logger } from "../../config/logger.js";
 import { AppError } from "../../utils/http.js";
@@ -100,6 +100,49 @@ export async function updateWebhook(actor: Actor, id: string, body: unknown) {
 export async function deleteWebhook(actor: Actor, id: string) {
   await authorizedWebhook(actor, id, true);
   await webhookRepository.remove(id);
+}
+
+const DELIVERIES_PAGE_SIZE = 50;
+
+function presentDelivery(delivery: WebhookDelivery) {
+  let data: unknown;
+  try {
+    data = JSON.parse(delivery.payload) as unknown;
+  } catch {
+    // Corrupted rows stay visible and marked FAILED at the record level;
+    // the payload cannot be revived here.
+    data = null;
+  }
+  return {
+    id: delivery.id,
+    event: delivery.event as WebhookEventType,
+    data,
+    status: delivery.status,
+    attempts: delivery.attempts,
+    nextAttemptAt: delivery.nextAttemptAt.toISOString(),
+    respondedAt: delivery.respondedAt?.toISOString() ?? null,
+    lastStatus: delivery.lastStatus,
+    lastError: delivery.lastError,
+    createdAt: delivery.createdAt.toISOString(),
+  };
+}
+
+export async function listWebhookDeliveries(actor: Actor, webhookId: string, page: number) {
+  await authorizedWebhook(actor, webhookId);
+  // Mirrors the administrator-audit pagination contract: controller-level
+  // pageSchema parsing plus a defensive service-side page clamp.
+  const safePage = Math.max(1, page);
+  const { deliveries, total } = await webhookRepository.paginateDeliveries(
+    webhookId,
+    safePage,
+    DELIVERIES_PAGE_SIZE,
+  );
+  return {
+    items: deliveries.map(presentDelivery),
+    total,
+    page: safePage,
+    pageSize: DELIVERIES_PAGE_SIZE,
+  };
 }
 
 /**

@@ -13,8 +13,10 @@ const mocks = vi.hoisted(() => ({
   updateWebhookRow: vi.fn(),
   removeWebhookRow: vi.fn(),
   deliveryFindMany: vi.fn(),
+  countDeliveries: vi.fn(),
   createDeliveries: vi.fn(),
   recordDeliveryRow: vi.fn(),
+  transaction: vi.fn(),
 }));
 
 vi.mock("../src/config/prisma.js", () => ({
@@ -31,7 +33,9 @@ vi.mock("../src/config/prisma.js", () => ({
       findMany: mocks.deliveryFindMany,
       createMany: mocks.createDeliveries,
       update: mocks.recordDeliveryRow,
+      count: mocks.countDeliveries,
     },
+    $transaction: mocks.transaction,
   },
 }));
 
@@ -49,6 +53,7 @@ import {
   deliverDueWebhookDeliveries,
   emitWebhookEvent,
   getWebhook,
+  listWebhookDeliveries,
   listWebhooks,
   updateWebhook,
   webhookSignature,
@@ -398,5 +403,90 @@ describe("webhook signatures (public helper)", () => {
     expect(signature).toBe(
       `t=1700000000,v1=${createHmac("sha256", "shared-secret").update(`1700000000.${body}`).digest("hex")}`,
     );
+  });
+});
+
+describe("webhook delivery history", () => {
+  function historyMocks(overrides: Record<string, unknown> = {}) {
+    mocks.transaction.mockImplementation((operations: Array<Promise<unknown>>) => Promise.all(operations));
+    const delivery = {
+      id: "delivery-9",
+      webhookId: "webhook-1",
+      event: "project.created",
+      payload: JSON.stringify({ id: "project-1", name: "Launch checklist" }),
+      status: "DELIVERED" as const,
+      attempts: 1,
+      nextAttemptAt: new Date("2026-01-02T03:04:05.000Z"),
+      respondedAt: new Date("2026-01-02T03:05:05.000Z") as Date | null,
+      lastStatus: 200 as number | null,
+      lastError: null as string | null,
+      createdAt: new Date("2026-01-02T03:04:05.000Z"),
+      ...overrides,
+    };
+    mocks.deliveryFindMany.mockResolvedValue([delivery]);
+    mocks.countDeliveries.mockResolvedValue(1);
+    return delivery;
+  }
+
+  it("serves paginated history to authorized readers and masks strangers", async () => {
+    historyMocks();
+    const { webhook } = aWebhook();
+    mocks.findWebhookById.mockImplementation(async (args: { where: { id: string } }) =>
+      args.where.id === webhook.id ? webhook : null);
+
+    const result = await listWebhookDeliveries(owner, "webhook-1", 2);
+
+    expect(result.items[0]).toEqual({
+      id: "delivery-9",
+      event: "project.created",
+      data: { id: "project-1", name: "Launch checklist" },
+      status: "DELIVERED",
+      attempts: 1,
+      nextAttemptAt: "2026-01-02T03:04:05.000Z",
+      respondedAt: "2026-01-02T03:05:05.000Z",
+      lastStatus: 200,
+      lastError: null,
+      createdAt: "2026-01-02T03:04:05.000Z",
+    });
+    expect(result.total).toBe(1);
+    expect(result.page).toBe(2);
+    expect(result.pageSize).toBe(50);
+    // The page slice and count flow through one repository transaction and
+    // are fenced to the authorized webhook.
+    expect(mocks.deliveryFindMany.mock.calls[0]?.[0]).toMatchObject({
+      where: { webhookId: "webhook-1" },
+      skip: 50,
+      take: 50,
+      orderBy: { createdAt: "desc" },
+    });
+    expect(mocks.countDeliveries.mock.calls[0]?.[0]).toEqual({ where: { webhookId: "webhook-1" } });
+    await expect(listWebhookDeliveries(stranger, "webhook-1", 1))
+      .rejects.toMatchObject({ code: "WEBHOOK_NOT_FOUND" });
+    await expect(listWebhookDeliveries(owner, "missing-id", 1))
+      .rejects.toMatchObject({ code: "WEBHOOK_NOT_FOUND" });
+    expect(mocks.deliveryFindMany).toHaveBeenCalledTimes(1);
+  });
+
+  it("clamps the page defensively before querying", async () => {
+    historyMocks();
+    mocks.findWebhookById.mockResolvedValue(aWebhook().webhook);
+
+    const result = await listWebhookDeliveries(owner, "webhook-1", 0);
+
+    expect(result.page).toBe(1);
+    expect(mocks.deliveryFindMany.mock.calls[0]?.[0]).toMatchObject({ skip: 0, take: 50 });
+  });
+
+  it("presents a corrupted stored payload as null data instead of throwing", async () => {
+    historyMocks({ payload: "{not json", status: "FAILED" as const, lastStatus: null, lastError: "Stored event payload is not valid JSON" });
+    mocks.findWebhookById.mockResolvedValue(aWebhook().webhook);
+
+    const result = await listWebhookDeliveries(owner, "webhook-1", 1);
+
+    expect(result.items[0]).toMatchObject({
+      data: null,
+      status: "FAILED",
+      lastError: "Stored event payload is not valid JSON",
+    });
   });
 });
