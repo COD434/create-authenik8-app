@@ -36,14 +36,12 @@ import { createZip, type ZipEntry } from "./zip.js";
  * - no request logging, no telemetry.
  */
 
-const PORT = Number(process.env.PORT ?? 4870);
+const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_TOOL_ROUNDS = 6;
 const AGENT_OUTPUT_TAIL_CHARS = 4_000;
 const MAX_EXPORT_FILES = 2_000;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
-
-const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 
 const STATIC_FILES: Record<string, { file: string; type: string }> = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
@@ -551,7 +549,20 @@ async function handle(
   }
 }
 
-export function main(): void {
+export type StudioStartOptions = {
+  /** Preferred port; it falls back to the next ten when busy (default: PORT env or 4870). */
+  port?: number;
+  /** Called once the server answers on its final URL — the launcher opens the browser here. */
+  onReady?: (url: string) => void;
+};
+
+/**
+ * Boot the studio with port discipline: a busy preferred port falls back to
+ * the next ten before giving up with a clear message — a first-run developer
+ * meets the URL line, never a raw EADDRINUSE stack. Returns the server so a
+ * programmatic caller (tests) can close it.
+ */
+export function startStudio(options: StudioStartOptions = {}): Server {
   const gatewayFor = (apiKey: string) =>
     createModelsGateway({
       provider: createOpenRouterProvider({
@@ -577,10 +588,33 @@ export function main(): void {
     agentRuntime,
     createRunner: (handlers) => createRunner(npmCommands(), handlers),
   });
-  server.listen(PORT, "127.0.0.1", () => {
-    console.log(`Authenik8 Studio Web: http://127.0.0.1:${PORT}`);
-    console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);
-  });
+
+  const preferred = options.port ?? Number(process.env.PORT ?? 4870);
+  const lastResort = preferred + 10;
+  const attempt = (port: number): void => {
+    server.once("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE" && port < lastResort) {
+        attempt(port + 1);
+      } else if (error.code === "EADDRINUSE") {
+        console.error(`Ports ${preferred}-${lastResort} are all busy. Free one up, or set PORT to a different base.`);
+        process.exit(1);
+      } else {
+        throw error;
+      }
+    });
+    server.listen(port, "127.0.0.1", () => {
+      const url = `http://127.0.0.1:${port}`;
+      console.log(`Authenik8 Studio Web: ${url}`);
+      console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);
+      options.onReady?.(url);
+    });
+  };
+  attempt(preferred);
+  return server;
+}
+
+export function main(): void {
+  startStudio();
 }
 
 const invokedDirectly = process.argv[1] !== undefined

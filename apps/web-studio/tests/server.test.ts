@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
+import { createServer as createNetServer } from "node:net";
 import path from "node:path";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +10,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import type { AgentRunResult, AgentRuntime } from "@authenik8/agent-adapter";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
-import { createWebStudioServer, type WebStudioDeps } from "../src/server.js";
+import { createWebStudioServer, startStudio, type WebStudioDeps } from "../src/server.js";
 import { executeTool } from "../src/tools.js";
 import type { Runner, RunnerEvent, RunnerHandlers } from "../src/runner.js";
 import type { AgentStreamEvent } from "@authenik8/agent-adapter";
@@ -568,5 +569,26 @@ describe("run routes", () => {
     const res = await fetch(`${base}/api/run/stop`, { method: "POST" });
     expect(res.status).toBe(200);
     expect(fakeRunnerStopped).toBe(1);
+  });
+});
+
+describe("startStudio port discipline", () => {
+  it("falls back to the next free port when the preferred one is busy", async () => {
+    // Something else already owns a port (the first-run dev's classic bind collision).
+    const occupant = createNetServer();
+    await new Promise<void>((resolve) => occupant.listen(0, "127.0.0.1", resolve));
+    const busyPort = (occupant.address() as AddressInfo).port;
+
+    const started = startStudio({ port: busyPort });
+    // The busy port is skipped: the server ends up answering on the next one.
+    await vi.waitFor(() => {
+      const final = started.address() as AddressInfo | null;
+      expect(final !== null && final.port > busyPort).toBe(true);
+    });
+    const finalPort = (started.address() as AddressInfo).port;
+    expect(finalPort).toBe(busyPort + 1);
+
+    await new Promise<void>((resolve) => started.close(resolve));
+    await new Promise<void>((resolve) => occupant.close(resolve));
   });
 });
