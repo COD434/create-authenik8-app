@@ -41,6 +41,7 @@ and audit trails instead of a second users table.
 | v3b | Full generation: user-triggered OpenCode build agent (via `@authenik8/agent-adapter`) runs auto-approved in the sandbox cwd, outcome streamed as data | done (`ba9c76f`) |
 | v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | done (`3e54c27`) |
 | v4.1 | Live agent events: M4 NDJSON pass-through (`AgentRunRequest.onEvent`, parsed per line with drop-malformed/oversized + flood cap) relayed as SSE `agentEvent` — the Build modal shows runtime progress in real time instead of freezing | done (`0e68d03`) |
+| v4.2 | The studio's own skin built with the workspace's own design system: `apps/web-studio/design/tokens.json` + `DESIGN.md` (validated by `runDesignChecks`; all declared contrast pairs WCAG AA), CSS generated with `renderTokensCss`, inline-SVG icons (no CDN), surface-elevation restyle with motion honoring `prefers-reduced-motion` — plus the first-run export fix: `/api/export` bootstraps a missing sandbox and returns a valid empty ZIP instead of a 500 | done |
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 

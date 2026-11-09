@@ -510,6 +510,28 @@ describe("export route", () => {
     expect(body.toString("latin1")).toContain("index.html");
     expect(body.toString("latin1")).not.toContain(".env");
   });
+
+  it("bootstraps a missing sandbox and exports a valid empty ZIP on first run", async () => {
+    // A first-run dev can click Export ZIP before anything was ever
+    // generated: the sandbox does not exist yet. The export must not 500.
+    const fresh = path.join(sandbox, "bootstrap-export");
+    deps.sandboxRoot = fresh;
+    try {
+      const res = await fetch(`${base}/api/export`);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toBe("application/zip");
+
+      const body = Buffer.from(await res.arrayBuffer());
+      expect(existsSync(fresh)).toBe(true); // sandbox was bootstrapped, not zip-crashed
+      const eocd = body.subarray(body.length - 22);
+      expect(eocd.subarray(0, 4).toString("hex")).toBe("504b0506"); // end of central directory
+      expect(eocd.readUInt16LE(10)).toBe(0); // zero entries
+      expect(eocd.readUInt16LE(12)).toBe(0);
+    } finally {
+      deps.sandboxRoot = sandbox;
+      await rm(fresh, { recursive: true, force: true }).catch(() => {});
+    }
+  });
 });
 
 describe("run routes", () => {

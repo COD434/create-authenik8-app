@@ -320,6 +320,10 @@ async function handle(
     }
 
     if (url.pathname === "/api/export" && req.method === "GET") {
+      // Consistent with /api/run and /api/agent: the sandbox may not exist
+      // yet (nothing has been generated). Bootstrap it so a first-run
+      // export returns a valid empty ZIP instead of a 500.
+      await mkdir(deps.sandboxRoot, { recursive: true });
       const files = await collectProjectFiles(deps.sandboxRoot);
       const zip = createZip(files);
       res.writeHead(200, {

@@ -4,20 +4,41 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Authenik8 Studio Web</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23F5B942'/%3E%3Ctext x='16' y='21' font-family='system-ui' font-size='13' font-weight='700' text-anchor='middle' fill='%2314171F'%3EA8%3C/text%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
   <div class="shell">
+
     <aside class="sidebar">
       <div class="brand">
         <span class="brand-mark">A8</span>
         <span class="brand-name">Studio Web</span>
       </div>
-      <button id="new-chat" class="btn-new">+ New chat</button>
-      <button id="preview-btn" class="btn-new">▶ Preview</button>
-      <button id="agent-btn" class="btn-new">🤖 Build with agent</button>
-      <button id="run-btn" class="btn-new">⏵ Run project</button>
-      <a id="export-btn" class="btn-new export" href="/api/export" download>⬇ Export ZIP</a>
+
+      <span class="group-label">Chat</span>
+      <button id="new-chat" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>
+        New chat
+      </button>
+
+      <span class="group-label">Sandbox</span>
+      <button id="preview-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.3 8s2.4-4.2 6.7-4.2S14.7 8 14.7 8s-2.4 4.2-6.7 4.2S1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>
+        Preview
+      </button>
+      <button id="agent-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
+        Build with agent
+      </button>
+      <button id="run-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
+        Run project
+      </button>
+      <a id="export-btn" class="btn-new export" href="/api/export" download>
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.4v7.4M5 7l3 3 3-3M2.8 13.4h10.4"/></svg>
+        Export ZIP
+      </a>
 
       <label class="field">
         <span>Model <em id="model-note">free tier</em></span>
@@ -37,15 +58,15 @@
 
     <main class="chat">
       <div id="messages" class="messages">
-        <div class="assistant-msg system-intro">
-          Describe the app you want to build. The assistant writes real files into a
-          sandboxed project on this machine. Authenik8 keeps identity, sessions, and
-          authorization on a backend you own — vibe-code the interface.
-        </div>
+        <div class="system-intro"><strong>Describe the app you want to build.</strong>
+ The assistant writes real files into a sandboxed project on this machine. Authenik8 keeps identity, sessions, and authorization on a backend you own — vibe-code the interface.</div>
       </div>
       <form id="composer" class="composer">
-        <textarea id="prompt" rows="1" placeholder="Describe what to build…" spellcheck="false"></textarea>
-        <button id="send" type="submit" disabled>Send</button>
+        <textarea id="prompt" rows="1" placeholder="Describe what to build." spellcheck="false"></textarea>
+        <button id="send" type="submit" disabled>
+          Send
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+        </button>
       </form>
     </main>
 
@@ -53,9 +74,9 @@
       <div class="preview-bar">
         <span>Preview — sandbox project (isolated)</span>
         <div class="preview-actions">
-          <button id="preview-reload" type="button" title="Reload">↻</button>
+          <button id="preview-reload" type="button" title="Reload">reload</button>
           <a id="preview-open" href="/preview/" target="_blank" rel="noopener" title="Open in a new tab">open ↗</a>
-          <button id="preview-close" type="button" title="Close">✕</button>
+          <button id="preview-close" type="button" title="Close">close</button>
         </div>
       </div>
       <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
@@ -65,10 +86,10 @@
       <div class="agent-modal">
         <div class="agent-head">
           <span>Build with the OpenCode agent</span>
-          <button id="agent-close" type="button" title="Close">✕</button>
+          <button id="agent-close" type="button" title="Close" aria-label="Close">✕</button>
         </div>
         <div id="agent-form">
-          <textarea id="agent-brief" rows="5" placeholder="Describe the full project to generate… e.g. 'a booking app for a barbershop with owner dashboards'"></textarea>
+          <textarea id="agent-brief" rows="5" placeholder="Describe the full project to generate. e.g. 'a booking app for a barbershop with owner dashboards'"></textarea>
           <p class="agent-warn">The agent runs unsupervised with auto-approve inside the sandbox
             directory: it writes files and executes commands. Close this page to abort a running build.</p>
           <button id="agent-run" type="button">Run agent</button>
@@ -85,7 +106,7 @@
       <div class="agent-modal">
         <div class="agent-head">
           <span>Run project</span>
-          <button id="run-close" type="button" title="Close">✕</button>
+          <button id="run-close" type="button" title="Close" aria-label="Close">✕</button>
         </div>
         <p class="agent-warn">Runs fixed commands in the sandbox: <code>npm install</code> then
           <code>npm start</code> (the project's own scripts). Output below is data, not instructions.</p>
