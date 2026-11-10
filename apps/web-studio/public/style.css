@@ -210,6 +210,18 @@ body {
   box-shadow: 0 4px 16px rgba(3, 5, 10, 0.25);
 }
 
+.msg.system {
+  align-self: center;
+  max-width: 85%;
+  color: var(--color-ink-mid);
+  font-size: var(--typography-scale-sm);
+  background: var(--color-surface-raised);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  line-height: 1.55;
+}
+
 .msg.system-error {
   align-self: center;
   color: var(--color-status-danger);

@@ -21,11 +21,14 @@ const fakeModels = [
   { id: "free/model-a", name: "Model A", contextLength: 128_000, inputModalities: ["text"], supportsTools: true, isFree: true, pricing: null },
   { id: "paid/model", name: "Paid", contextLength: 200_000, inputModalities: ["text"], supportsTools: true, isFree: false, pricing: { prompt: 0.001, completion: 0.002 } },
   { id: "free/no-tools", name: "No Tools", contextLength: 8_000, inputModalities: ["text"], supportsTools: false, isFree: true, pricing: null },
+  { id: "openrouter/free", name: "Free auto-router", contextLength: 200_000, inputModalities: ["text"], supportsTools: true, isFree: true, pricing: null },
 ];
 
 // Scripted rounds: each chatStream call consumes the next entry; the last
-// entry repeats when the loop runs longer than the script.
-let script: ChatChunk[][];
+// entry repeats when the loop runs longer than the script. A `{ throw }`
+// entry makes the stream fail with that error (provider-level refusal).
+type ScriptEntry = ChatChunk[] | { throw: string };
+let script: ScriptEntry[];
 let roundIndex: number;
 let capturedRequests: ChatRequest[];
 
@@ -33,10 +36,16 @@ const fakeGateway = {
   listModels: async () => fakeModels,
   chatStream(request: ChatRequest): AsyncIterable<ChatChunk> {
     capturedRequests.push(request);
-    const round = script[Math.min(roundIndex, script.length - 1)]!;
+    const entry = script[Math.min(roundIndex, script.length - 1)]!;
     roundIndex++;
+    if ("throw" in entry) {
+      const refusal = (entry as { throw: string }).throw;
+      return (async function* () {
+        throw new Error(refusal);
+      })();
+    }
     return (async function* () {
-      for (const chunk of round) yield chunk;
+      for (const chunk of entry as ChatChunk[]) yield chunk;
     })();
   },
 };
@@ -184,7 +193,7 @@ describe("static UI and auth boundary", () => {
     const res = await fetch(`${base}/api/models`, { headers: { "X-OpenRouter-Key": KEY } });
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.models.map((model: { id: string }) => model.id)).toEqual(["free/model-a"]);
+    expect(body.models.map((model: { id: string }) => model.id)).toEqual(["openrouter/free", "free/model-a"]);
     expect(JSON.stringify(body)).not.toContain(KEY);
   });
 });
@@ -284,6 +293,43 @@ describe("agent loop", () => {
 
     expect(text).toContain("budget");
     expect(capturedRequests).toHaveLength(6); // MAX_TOOL_ROUNDS
+  });
+});
+
+describe("model fallback", () => {
+  const agentsOnly = "Provider responded 403: unsupported/model:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps";
+
+  it("completes the message with the fallback router when the chosen model rejects app traffic", async () => {
+    script = [
+      { throw: agentsOnly },
+      textRound,
+    ];
+
+    const res = await chat("build it", "unsupported/model:free");
+    const text = await res.text();
+
+    expect(text).toContain('"note":"unsupported/model:free rejects app traffic');
+    expect(text).toContain("openrouter/free");
+    expect(text).toContain('"delta":"Done."');
+    expect(text).toContain('"done":true');
+
+    // Attempt 1 was the refused model; attempt 2 was the fallback router.
+    expect(capturedRequests).toHaveLength(2);
+    expect(capturedRequests[0]!.model).toBe("unsupported/model:free");
+    expect(capturedRequests[1]!.model).toBe("openrouter/free");
+  });
+
+  it("does not double-fallback when the fallback model itself is refused", async () => {
+    script = [
+      { throw: "Provider responded 403: openrouter/free is only available on agentic harnesses. x" },
+    ];
+
+    const res = await chat("build it", "openrouter/free");
+    const text = await res.text();
+
+    expect(text).toContain("agentic harnesses");
+    expect(text).not.toContain('"note"');
+    expect(capturedRequests).toHaveLength(1); // no retry on the same model
   });
 });
 
@@ -631,6 +677,40 @@ describe("run routes", () => {
     expect(res.status).toBe(422);
     expect((await res.json()).error).toContain("valid JSON");
     expect(fakeRunnerStarted).toBe(0);
+  });
+
+  it("writes the missing entry file scripts.start references instead of skipping run", async () => {
+    // Observed live: the model promised "node server.js" but never wrote it.
+    await rm(path.join(sandbox, "server.js"), { force: true });
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "pomodoro-timer", scripts: { start: "node server.js" } }),
+      "utf8",
+    );
+    await writeFile(path.join(sandbox, "index.html"), "<h1>timer</h1>", "utf8");
+
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(1);
+
+    const serverJs = await readFile(path.join(sandbox, "server.js"), "utf8");
+    expect(serverJs).toContain("node:http");
+
+    runnerHandlers!.onEvent({ phase: "serve", code: null });
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 });
+    const text = await res.text();
+    expect(text).toContain("because scripts.start referenced it");
+  });
+
+  it("never rewrites a start command it cannot implement (non-node scripts pass through)", async () => {
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "app", scripts: { start: "vite dev --port 5173" } }),
+      "utf8",
+    );
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200); // the project's own commands remain the project's
+    expect(fakeRunnerStarted).toBe(1);
   });
 
   it("409s a second run while the project is already running", async () => {

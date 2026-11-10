@@ -55,6 +55,12 @@ async function loadModels() {
     } else {
       modelSelect.disabled = false;
       sendBtn.disabled = false;
+      // Default to the auto-router when present: some free models behind
+      // agents-only providers 403 app traffic — a broken zero-click default
+      // must never be the entry experience.
+      if (body.models.some((model) => model.id === "openrouter/free")) {
+        modelSelect.value = "openrouter/free";
+      }
     }
   } catch (error) {
     modelSelect.innerHTML = "<option>discovery failed</option>";
@@ -333,6 +339,7 @@ composer.addEventListener("submit", async (event) => {
               ? `${model} · ${usage.totalTokens} tokens · ${usage.costUsd === null ? "free tier" : `$${usage.costUsd.toFixed(6)}`}`
               : model;
           }
+          if (payload.note !== undefined) addMessage("system", payload.note);
           if (payload.error !== undefined) throw new Error(payload.error);
         }
       }

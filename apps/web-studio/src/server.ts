@@ -39,6 +39,14 @@ import { createZip, type ZipEntry } from "./zip.js";
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const MAX_BODY_BYTES = 1024 * 1024;
 const MAX_TOOL_ROUNDS = 6;
+/**
+ * Some free models sit behind providers that only accept traffic from coding
+ * agents: any plain app call gets 403 "only available on agentic harnesses"
+ * (observed first-hand with the then-default dropdown entry). The auto-router
+ * accepts app traffic, so it is the reliable first-run default and the one-shot
+ * fallback for that error class.
+ */
+const FALLBACK_MODEL = "openrouter/free";
 const AGENT_OUTPUT_TAIL_CHARS = 4_000;
 const MAX_EXPORT_FILES = 2_000;
 const MAX_EXPORT_BYTES = 64 * 1024 * 1024;
@@ -201,9 +209,47 @@ async function ensureStaticRunnable(sandboxRoot: string): Promise<{ note: string
 
     return { note: `Authenik8 bootstrapped the static project for Run: ${notes.join(", ")} (no model call, no dependencies).` };
   }
+
+  // Manifest exists: a model may have promised scripts.start -> node <entry>
+  // but never written the entry file (observed live: package.json with
+  // "node server.js", no server.js — node crashed instantly). If the entry is
+  // a simple module at the sandbox root and the app is static, write the
+  // deterministic server AT THAT PATH so the run cannot dead-end. Nothing is
+  // clobbered: the file is only written when missing.
+  let manifest2: { scripts?: Record<string, unknown> } | null = null;
+  try {
+    manifest2 = JSON.parse(manifestRaw) as { scripts?: Record<string, unknown> };
+  } catch {
+    return null; // runBlocker teaches the fix for malformed manifests
+  }
+  const start = manifest2?.scripts?.start;
+  if (typeof start === "string") {
+    const nodeEntry = /^node\s+([A-Za-z0-9_.-]+\.[cm]?js)$/i.exec(start.trim());
+    if (nodeEntry !== null) {
+      const entryPath = path.join(sandboxRoot, nodeEntry[1]!);
+      try {
+        await stat(entryPath);
+      } catch {
+        let hasIndexHtml = false;
+        try {
+          await stat(path.join(sandboxRoot, "index.html"));
+          hasIndexHtml = true;
+        } catch {
+          hasIndexHtml = false;
+        }
+        if (hasIndexHtml) {
+          await writeFile(entryPath, BOOTSTRAP_SERVER_JS, "utf8");
+          return {
+            note: `Authenik8 wrote ${nodeEntry[1]} (zero-dependency static server) because scripts.start referenced it but the file was missing (no model call, no dependencies).`,
+          };
+        }
+      }
+    }
+  }
   return null;
 }
-async function runBlocker(sandboxRoot: string): Promise<string | null> {  let raw: string;
+async function runBlocker(sandboxRoot: string): Promise<string | null> {
+  let raw: string;
   try {
     raw = await readFile(path.join(sandboxRoot, "package.json"), "utf8");
   } catch {
@@ -408,11 +454,15 @@ async function handle(
         sendJson(res, 401, { error: "Missing X-OpenRouter-Key header" });
         return;
       }
-      const models = await deps.gatewayFor(key).listModels();
+      const models = (await deps.gatewayFor(key).listModels())
+        .filter((model) => model.isFree && model.supportsTools);
+      // Predictable default: the app-traffic-accepting auto-router first.
+      const ranked = [
+        ...models.filter((model) => model.id === FALLBACK_MODEL),
+        ...models.filter((model) => model.id !== FALLBACK_MODEL),
+      ];
       sendJson(res, 200, {
-        models: models
-          .filter((model) => model.isFree && model.supportsTools)
-          .map((model) => ({ id: model.id, name: model.name, contextLength: model.contextLength })),
+        models: ranked.map((model) => ({ id: model.id, name: model.name, contextLength: model.contextLength })),
       });
       return;
     }
@@ -591,48 +641,71 @@ async function handle(
 
       try {
         const gateway = deps.gatewayFor(key);
-        let rounds = 0;
 
-        while (rounds < MAX_TOOL_ROUNDS) {
-          rounds++;
-          let text = "";
-          const fragments: ToolCallDelta[] = [];
+        const generate = async (model: string): Promise<void> => {
+          let rounds = 0;
 
-          for await (const chunk of gateway.chatStream({
-            model: parsed.data.model,
-            messages: [{ role: "system", content: SYSTEM_PROMPT }, ...session.conversation],
-            tools: toolDefinitions,
-            signal: abort.signal,
-          })) {
-            if (chunk.delta !== null) {
-              text += chunk.delta;
-              sseEvent(res, { delta: chunk.delta });
+          while (rounds < MAX_TOOL_ROUNDS) {
+            rounds++;
+            let text = "";
+            const fragments: ToolCallDelta[] = [];
+
+            for await (const chunk of gateway.chatStream({
+              model,
+              messages: [{ role: "system", content: SYSTEM_PROMPT }, ...session.conversation],
+              tools: toolDefinitions,
+              signal: abort.signal,
+            })) {
+              if (chunk.delta !== null) {
+                text += chunk.delta;
+                sseEvent(res, { delta: chunk.delta });
+              }
+              if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
+              if (chunk.usage !== null) sseEvent(res, { usage: chunk.usage });
+              if (chunk.finishReason !== null) sseEvent(res, { finishReason: chunk.finishReason });
             }
-            if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
-            if (chunk.usage !== null) sseEvent(res, { usage: chunk.usage });
-            if (chunk.finishReason !== null) sseEvent(res, { finishReason: chunk.finishReason });
-          }
 
-          const calls = assembleToolCalls(fragments);
-          if (calls.length === 0) {
-            session.conversation.push({ role: "assistant", content: text });
-            sseEvent(res, { done: true, rounds });
-            return;
-          }
+            const calls = assembleToolCalls(fragments);
+            if (calls.length === 0) {
+              session.conversation.push({ role: "assistant", content: text });
+              sseEvent(res, { done: true, rounds });
+              return;
+            }
 
-          session.conversation.push({ role: "assistant", content: text, toolCalls: calls });
-          for (const call of calls) {
-            sseEvent(res, { tool: { name: call.name, phase: "start" } });
-            const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
-            session.conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
+            session.conversation.push({ role: "assistant", content: text, toolCalls: calls });
+            for (const call of calls) {
+              sseEvent(res, { tool: { name: call.name, phase: "start" } });
+              const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
+              session.conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
+              sseEvent(res, {
+                tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
+              });
+            }
+
+            if (rounds >= MAX_TOOL_ROUNDS) {
+              sseEvent(res, { error: `Stopped: tool round budget (${MAX_TOOL_ROUNDS}) exhausted. Send another message to continue.` });
+              return;
+            }
+          }
+        };
+
+        try {
+          await generate(parsed.data.model);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "stream failed";
+          if (
+            message.includes("agentic harnesses")
+            && parsed.data.model !== FALLBACK_MODEL
+            && !abort.signal.aborted
+          ) {
+            // Agent-only providers 403 the whole product: complete this
+            // message with the app-traffic router instead of dead-ending.
             sseEvent(res, {
-              tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
+              note: `${parsed.data.model} rejects app traffic (agents-only provider), so Authenik8 completed this message with ${FALLBACK_MODEL}. Pick it in the dropdown to keep it.`,
             });
-          }
-
-          if (rounds >= MAX_TOOL_ROUNDS) {
-            sseEvent(res, { error: `Stopped: tool round budget (${MAX_TOOL_ROUNDS}) exhausted. Send another message to continue.` });
-            return;
+            await generate(FALLBACK_MODEL);
+          } else if (!abort.signal.aborted) {
+            sseEvent(res, { error: message });
           }
         }
       } catch (error) {
