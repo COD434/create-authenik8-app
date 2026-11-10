@@ -118,6 +118,21 @@ document.getElementById("agent-dismiss").addEventListener("click", () => {
   agentOverlay.hidden = true;
 });
 
+// The modal must be dismissible in every conventional way: clicking the
+// backdrop outside the dialog, and Escape (agent first, then run panel).
+agentOverlay.addEventListener("mousedown", (event) => {
+  if (event.target === agentOverlay && !agentRunning) agentOverlay.hidden = true;
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  if (!agentOverlay.hidden) {
+    if (!agentRunning) agentOverlay.hidden = true;
+    return;
+  }
+  const runOverlay = document.getElementById("run-overlay");
+  if (!runOverlay.hidden) runOverlay.hidden = true;
+});
+
 // Live agent events land here: plain text, capped at the last 300 lines
 // with an ellipsis marker when older lines are trimmed away.
 const MAX_AGENT_LINES = 300;

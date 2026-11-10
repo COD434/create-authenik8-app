@@ -1,9 +1,10 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { createServer as createNetServer } from "node:net";
+import { createServer } from "node:http";
 import { realpathSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { isDirectInvocation, isPortFree, pickFreePort } from "./bin.mjs";
+import { isDirectInvocation, isPortFree, pickFreePort, studioAlreadyRunning } from "./bin.mjs";
 
 const occupied = [];
 
@@ -30,6 +31,41 @@ describe("launcher port discipline", () => {
   it("gives up with null when the whole preferred range is busy", async () => {
     for (let port = 5290; port <= 5300; port += 1) await occupy(port);
     expect(await pickFreePort(5290)).toBeNull();
+  });
+});
+
+describe("studio adoption probe", () => {
+  const httpServers = [];
+
+  afterAll(async () => {
+    for (const server of httpServers) await new Promise((resolve) => server.close(resolve));
+  });
+
+  async function serveHttp(port, handler) {
+    const server = createServer(handler);
+    await new Promise((resolve) => server.listen(port, "127.0.0.1", resolve));
+    httpServers.push(server);
+  }
+
+  it("recognizes our run-status shape as an already-running studio", async () => {
+    await serveHttp(5310, (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end('{"running":false}');
+    });
+    expect(await studioAlreadyRunning(5310)).toBe(true);
+  });
+
+  it("rejects generic web servers, wrong shapes, and dead ports", async () => {
+    await serveHttp(5311, (_req, res) => {
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end('{"hello":"world"}');
+    });
+    expect(await studioAlreadyRunning(5311)).toBe(false); // not our shape
+
+    await serveHttp(5312, (_req, res) => res.end("<html>someone else</html>"));
+    expect(await studioAlreadyRunning(5312)).toBe(false);
+
+    expect(await studioAlreadyRunning(5313)).toBe(false); // nothing listens
   });
 });
 

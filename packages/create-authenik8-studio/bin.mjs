@@ -43,6 +43,27 @@ export async function pickFreePort(start) {
   return null;
 }
 
+/**
+ * Is an Authenik8 studio already serving on this port? The run-status shape
+ * (`{ running: boolean }`) is studio-specific: generic web servers answer
+ * differently or not at all. Used to make the launcher idempotent — a
+ * second launch adopts the running studio instead of leaving a zombie
+ * fallback instance on the next port (observed live: one such stale
+ * instance held a browser tab hostage on 4871).
+ */
+export async function studioAlreadyRunning(port) {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/run/status`, {
+      signal: AbortSignal.timeout(2500),
+    });
+    if (!res.ok) return false;
+    const body = await res.json();
+    return body !== null && typeof body === "object" && typeof body.running === "boolean";
+  } catch {
+    return false;
+  }
+}
+
 export function openInBrowser(url) {
   try {
     if (process.platform === "win32") {
@@ -83,6 +104,17 @@ export async function boot(argv = []) {
   }
 
   const preferred = requested ?? Number(process.env.PORT ?? 4870);
+
+  // Idempotent launch: if our studio already answers on the preferred port,
+  // adopt it (reopen the tab when asked) instead of spawning a second
+  // process that would strand a stale fallback instance on the next port.
+  if (await studioAlreadyRunning(preferred)) {
+    const url = `http://127.0.0.1:${preferred}`;
+    console.log(`Authenik8 Studio Web is already running: ${url} — reusing it.`);
+    if (openBrowser) openInBrowser(url);
+    process.exit(0);
+  }
+
   const port = await pickFreePort(preferred);
   if (port === null) {
     console.error(`Ports ${preferred}-${preferred + 10} are all busy. Free one up, or try again with --port <n>.`);
