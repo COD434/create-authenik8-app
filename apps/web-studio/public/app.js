@@ -195,20 +195,26 @@ const runState = document.getElementById("run-state");
 const runOutput = document.getElementById("run-output");
 
 document.getElementById("run-btn").addEventListener("click", async () => {
-  runOverlay.hidden = false;
+  runOverlay.hidden = false; // in-flow panel: it never blocks the page or the preview
+  let running = false;
   try {
-    const status = await (await fetch("/api/run/status")).json();
-    runState.textContent = status.running ? "The project is already running." : "Not running.";
+    running = (await (await fetch("/api/run/status")).json()).running;
   } catch {
-    runState.textContent = "Not running.";
+    running = false;
   }
+  if (running) {
+    runState.textContent = "The project is already running — Stop is right below.";
+    return;
+  }
+  // One click tests the app immediately: start, then watch the preview open.
+  startRun();
 });
 
 document.getElementById("run-close").addEventListener("click", () => {
-  runOverlay.hidden = true; // closing does NOT stop the project
+  runOverlay.hidden = true; // hiding does NOT stop the project
 });
 
-document.getElementById("run-start").addEventListener("click", async () => {
+async function startRun() {
   runOutput.textContent = "";
   runState.textContent = "Starting…";
   try {
@@ -236,7 +242,10 @@ document.getElementById("run-start").addEventListener("click", async () => {
             runOutput.scrollTop = runOutput.scrollHeight;
           }
           if (payload.run?.phase === "install") runState.textContent = "Installing dependencies…";
-          if (payload.run?.phase === "serve") runState.textContent = "Project running — ▶ Preview it in the sidebar pane.";
+          if (payload.run?.phase === "serve") {
+            runState.textContent = "Project running — previewing it on the right.";
+            showPreview(); // the whole point: test the app the moment it serves
+          }
           if (payload.run?.phase === "exited") runState.textContent = `Project exited (code ${payload.run.code ?? "killed"}).`;
           if (payload.run?.phase === "failed") runState.textContent = `Run failed: ${payload.run.message ?? "unknown"}`;
         }
@@ -245,7 +254,9 @@ document.getElementById("run-start").addEventListener("click", async () => {
   } catch (error) {
     runState.textContent = `Run error: ${error.message}`;
   }
-});
+}
+
+document.getElementById("run-start").addEventListener("click", startRun);
 
 document.getElementById("run-stop").addEventListener("click", async () => {
   await fetch("/api/run/stop", { method: "POST" }).catch(() => {});

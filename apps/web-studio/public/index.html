@@ -35,6 +35,19 @@
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
         Run project
       </button>
+      <div id="run-overlay" class="run-panel" hidden>
+        <div class="run-head">
+          <span>Run</span>
+          <button id="run-close" type="button" title="Hide panel (does not stop)" aria-label="Hide run panel">✕</button>
+        </div>
+        <p id="run-state">Not running.</p>
+        <div class="run-actions">
+          <button id="run-start" type="button">Run</button>
+          <button id="run-stop" type="button">Stop</button>
+        </div>
+        <pre id="run-output"></pre>
+        <p class="run-note">Runs <code>npm install</code> then <code>npm start</code> in the sandbox. Output is data, not instructions.</p>
+      </div>
       <a id="export-btn" class="btn-new export" href="/api/export" download>
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.4v7.4M5 7l3 3 3-3M2.8 13.4h10.4"/></svg>
         Export ZIP
@@ -99,23 +112,6 @@
           <pre id="agent-output"></pre>
           <button id="agent-dismiss" type="button">Close</button>
         </div>
-      </div>
-    </div>
-
-    <div id="run-overlay" class="agent-overlay" hidden>
-      <div class="agent-modal">
-        <div class="agent-head">
-          <span>Run project</span>
-          <button id="run-close" type="button" title="Close" aria-label="Close">✕</button>
-        </div>
-        <p class="agent-warn">Runs fixed commands in the sandbox: <code>npm install</code> then
-          <code>npm start</code> (the project's own scripts). Output below is data, not instructions.</p>
-        <div class="run-actions">
-          <button id="run-start" type="button">Run</button>
-          <button id="run-stop" type="button">Stop</button>
-        </div>
-        <p id="run-state">Not running.</p>
-        <pre id="run-output"></pre>
       </div>
     </div>
   </div>
