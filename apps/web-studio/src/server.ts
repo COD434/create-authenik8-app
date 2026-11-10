@@ -109,12 +109,42 @@ const SYSTEM_PROMPT = [
   "and fix every failed check before moving on.",
   "The user previews your work live: the sandbox's index.html is served at /preview/.",
   "For web output, create index.html at the project root and keep asset paths relative.",
+  "Every project root must include a package.json whose scripts.start boots the app.",
+  "For a static site, also write a tiny zero-dependency node server.js that serves the",
+  "directory (npm start = node server.js) so the user can run it, not only preview it.",
   "Authenik8-generated projects use Express + TypeScript, rotating JWTs with stateful",
   "Redis-backed sessions, Prisma, strict cookies, CSRF, and server-side authorization.",
   "Never suggest client-held secrets, tokens in browser storage, frontend route guards",
   "as authorization, or disabling CSRF/origin checks. Prefer free-tier OpenRouter models",
   "and plain, reviewable code.",
 ].join(" ");
+
+/**
+ * Why the sandbox cannot be run yet, or null when `npm start` would resolve
+ * locally. Fail closed: npm resolves run scripts by walking up the directory
+ * tree, so without a package.json IN the sandbox root the runner could
+ * execute the nearest ancestor project's scripts instead — the runner must
+ * never do that. The error copy teaches the user the fix.
+ */
+async function runBlocker(sandboxRoot: string): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = await readFile(path.join(sandboxRoot, "package.json"), "utf8");
+  } catch {
+    return "No package.json in the sandbox yet: static apps are already live in the Preview pane. To run a server, ask the assistant to add a package.json with a start script.";
+  }
+  let manifest: { scripts?: Record<string, unknown> };
+  try {
+    manifest = JSON.parse(raw) as { scripts?: Record<string, unknown> };
+  } catch {
+    return "The sandbox package.json is not valid JSON — ask the assistant to fix it, then run again.";
+  }
+  const start = manifest.scripts?.start;
+  if (typeof start !== "string" || start.length === 0) {
+    return "The sandbox package.json has no start script — ask the assistant to add one (e.g. \"start\": \"node server.js\"), then run again.";
+  }
+  return null;
+}
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
@@ -341,6 +371,13 @@ async function handle(
     if (url.pathname === "/api/run" && req.method === "POST") {
       if (runner.isRunning()) {
         sendJson(res, 409, { error: "The project is already running" });
+        return;
+      }
+      // Fail closed when the sandbox holds no runnable project: npm would
+      // otherwise resolve scripts outside the sandbox (it walks up the tree).
+      const blocker = await runBlocker(deps.sandboxRoot);
+      if (blocker !== null) {
+        sendJson(res, 422, { error: blocker });
         return;
       }
       // npm spawn needs a real cwd: bootstrap the sandbox if it does not

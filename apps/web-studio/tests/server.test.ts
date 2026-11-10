@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
@@ -536,6 +536,15 @@ describe("export route", () => {
 });
 
 describe("run routes", () => {
+  beforeEach(async () => {
+    // A runnable sandbox: npm must resolve scripts.start INSIDE the sandbox.
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "sandbox-app", scripts: { start: "node server.js" } }),
+      "utf8",
+    );
+  });
+
   it("streams runner events and output over SSE", async () => {
     const res = await fetch(`${base}/api/run`, { method: "POST" });
     expect(res.status).toBe(200);
@@ -553,6 +562,34 @@ describe("run routes", () => {
     expect(text).toContain("added 512 packages");
     expect(text).toContain('"phase":"serve"');
     expect(text).toContain('"phase":"exited"');
+  });
+
+  it("fails closed when the sandbox has no package.json (npm would walk up out of the sandbox)", async () => {
+    await rm(path.join(sandbox, "package.json"), { force: true });
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("package.json");
+    expect(fakeRunnerStarted).toBe(0);
+  });
+
+  it("fails closed when package.json has no start script", async () => {
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "sandbox-app", scripts: { dev: "vite" } }),
+      "utf8",
+    );
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("start");
+    expect(fakeRunnerStarted).toBe(0);
+  });
+
+  it("fails closed on an unparseable package.json", async () => {
+    await writeFile(path.join(sandbox, "package.json"), "{ not json", "utf8");
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toContain("valid JSON");
+    expect(fakeRunnerStarted).toBe(0);
   });
 
   it("409s a second run while the project is already running", async () => {
