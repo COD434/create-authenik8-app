@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -16,6 +17,7 @@ import {
 import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapter";
 
 import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
+import { resolveOpenCodePath } from "./opencode-path.js";
 import { createRunner, npmCommands, type Runner, type RunnerHandlers } from "./runner.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
@@ -131,8 +133,12 @@ const SYSTEM_PROMPT = [
  * The zero-dependency static server the studio writes into a static sandbox
  * before a run: `npm start = node server.js` so Run works for every
  * chat-generated app, deterministic content (no model round-trip).
+ * Studio-written copies open with BOOTSTRAP_MARKER: a marker match means the
+ * file is ours and may be refreshed to the current template later; a model's
+ * or user's own server.js never touches that prefix, so it is never clobbered.
  */
-const BOOTSTRAP_SERVER_JS = `// Written by Authenik8 Studio Web: minimal zero-dependency static server.
+const BOOTSTRAP_MARKER = "// Written by Authenik8 Studio Web";
+const BOOTSTRAP_SERVER_JS = `${BOOTSTRAP_MARKER}: minimal zero-dependency static server.
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
@@ -141,24 +147,34 @@ const root = __dirname;
 const port = Number(process.env.PORT ?? 3000);
 const types = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".ico": "image/x-icon", ".woff2": "font/woff2" };
 
-http.createServer((req, res) => {
-  let name;
-  try {
-    name = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
-  } catch {
-    res.writeHead(400); res.end(); return;
-  }
-  if (name === "/") name = "/index.html";
-  if (name.startsWith("/") === false || name.includes("..") || /(^|\\/)\\./.test(name.slice(1))) {
-    res.writeHead(403); res.end(); return;
-  }
-  const file = path.join(root, name);
-  fs.readFile(file, (error, data) => {
-    if (error) { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }); res.end("Not found"); return; }
-    res.writeHead(200, { "content-type": types[path.extname(file).toLowerCase()] ?? "application/octet-stream" });
-    res.end(data);
+// The studio can restart while an earlier run's server still holds this
+// port; scan upward instead of dying on EADDRINUSE.
+function bind(current) {
+  const server = http.createServer((req, res) => {
+    let name;
+    try {
+      name = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
+    } catch {
+      res.writeHead(400); res.end(); return;
+    }
+    if (name === "/") name = "/index.html";
+    if (name.startsWith("/") === false || name.includes("..") || /(^|\\/)\\./.test(name.slice(1))) {
+      res.writeHead(403); res.end(); return;
+    }
+    const file = path.join(root, name);
+    fs.readFile(file, (error, data) => {
+      if (error) { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }); res.end("Not found"); return; }
+      res.writeHead(200, { "content-type": types[path.extname(file).toLowerCase()] ?? "application/octet-stream" });
+      res.end(data);
+    });
   });
-}).listen(port, "127.0.0.1", () => console.log(\`Static app on http://127.0.0.1:\${port}\`));
+  server.on("error", (error) => {
+    if (error && error.code === "EADDRINUSE" && current < port + 9) bind(current + 1);
+    else { console.error((error && error.message) || String(error)); process.exit(1); }
+  });
+  server.listen(current, "127.0.0.1", () => console.log(\`Static app on http://127.0.0.1:\${current}\`));
+}
+bind(port);
 `;
 
 const BOOTSTRAP_MANIFEST = {
@@ -203,6 +219,11 @@ async function ensureStaticRunnable(sandboxRoot: string): Promise<{ note: string
       // Missing → write the deterministic one; a custom server.js is never clobbered.
       await writeFile(path.join(sandboxRoot, "server.js"), BOOTSTRAP_SERVER_JS, "utf8");
       notes.push("wrote a zero-dependency server.js");
+    } else if (serverJs.startsWith(BOOTSTRAP_MARKER) && serverJs !== BOOTSTRAP_SERVER_JS) {
+      // Ours from an earlier studio version: refresh to the current template
+      // (markers keep model/user files safe; our own files have no user work).
+      await writeFile(path.join(sandboxRoot, "server.js"), BOOTSTRAP_SERVER_JS, "utf8");
+      notes.push("refreshed the studio-written server.js");
     }
     await writeFile(path.join(sandboxRoot, "package.json"), JSON.stringify(BOOTSTRAP_MANIFEST, null, 2) + "\n", "utf8");
     notes.push("added package.json with a start script");
@@ -228,7 +249,16 @@ async function ensureStaticRunnable(sandboxRoot: string): Promise<{ note: string
     if (nodeEntry !== null) {
       const entryPath = path.join(sandboxRoot, nodeEntry[1]!);
       try {
-        await stat(entryPath);
+        const existing = await readFile(entryPath, "utf8");
+        if (existing.startsWith(BOOTSTRAP_MARKER) && existing !== BOOTSTRAP_SERVER_JS) {
+          // Ours from an earlier studio version: refresh to the current
+          // template — e.g. the port-scan-safe server — without a model call.
+          await writeFile(entryPath, BOOTSTRAP_SERVER_JS, "utf8");
+          return {
+            note: `Authenik8 refreshed ${nodeEntry[1]} to the current zero-dependency static server (port-scan safe).`,
+          };
+        }
+        return null; // a model's or user's own entry file: untouched
       } catch {
         let hasIndexHtml = false;
         try {
@@ -772,10 +802,14 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     ? path.resolve(process.env.SANDBOX_DIR)
     : path.join(process.cwd(), ".studio-sandbox");
 
-  // OPENCODE_PATH: the real executable (Windows npm shims are .cmd and are
-  // not resolvable by no-shell spawn — pass the .exe explicitly there).
+  // The agent runtime spawns opencode directly (no shell), so npm's .cmd
+  // shims never resolve on Windows — resolve the underlying executable the
+  // installed CLI actually ships (npm global @opencode/cli, the official
+  // installer layout), with OPENCODE_PATH as the explicit override. When
+  // nothing is found the bare "opencode" stays: a PATH spawn works on POSIX,
+  // and Windows fails closed with install guidance in the agent modal.
   const agentRuntime = createOpenCodeRuntime({
-    cliPath: process.env.OPENCODE_PATH ?? "opencode",
+    cliPath: resolveOpenCodePath(process.env, homedir(), process.platform) ?? "opencode",
   });
 
   const server = createWebStudioServer({

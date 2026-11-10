@@ -713,6 +713,48 @@ describe("run routes", () => {
     expect(fakeRunnerStarted).toBe(1);
   });
 
+  it("refreshes a stale studio-owned entry file to the current template", async () => {
+    // A sandbox provisioned by an earlier studio version keeps running with
+    // the old template unless the studio owns and refreshes its own files.
+    await writeFile(
+      path.join(sandbox, "server.js"),
+      "// Written by Authenik8 Studio Web: minimal zero-dependency static server.\nconst http = require('node:http');\nhttp.createServer(() => {}).listen(3000);\n",
+      "utf8",
+    );
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "app", scripts: { start: "node server.js" } }),
+      "utf8",
+    );
+    await writeFile(path.join(sandbox, "index.html"), "<h1>app</h1>", "utf8");
+
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(1);
+    const serverJs = await readFile(path.join(sandbox, "server.js"), "utf8");
+    expect(serverJs).toContain("EADDRINUSE"); // the resilient-port template
+
+    runnerHandlers!.onEvent({ phase: "serve", code: null });
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 });
+    const text = await res.text();
+    expect(text).toContain("refreshed server.js");
+  });
+
+  it("never touches a model-written entry file that shares the name", async () => {
+    const custom = "console.log('the model wrote me');\n";
+    await writeFile(path.join(sandbox, "server.js"), custom, "utf8");
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "app", scripts: { start: "node server.js" } }),
+      "utf8",
+    );
+
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(1);
+    expect(await readFile(path.join(sandbox, "server.js"), "utf8")).toBe(custom);
+  });
+
   it("409s a second run while the project is already running", async () => {
     fakeRunnerRunning = true;
     const res = await fetch(`${base}/api/run`, { method: "POST" });

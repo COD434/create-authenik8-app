@@ -183,7 +183,9 @@ document.getElementById("agent-run").addEventListener("click", async () => {
     if (doneEvent !== null) {
       agentState.textContent = doneEvent.ok
         ? `Agent finished in ${(doneEvent.durationMs / 1000).toFixed(0)}s — hit ▶ Preview to see the result.`
-        : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
+        : doneEvent.errorCode === "runtime_missing"
+          ? "Agent failed: no spawnable opencode CLI found. Install it with `npm install -g @opencode/cli` (or set OPENCODE_PATH), then reload this page."
+          : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
     }
   } catch (error) {
     agentState.textContent = `Agent error: ${error.message}`;
