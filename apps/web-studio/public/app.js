@@ -201,7 +201,6 @@ const runState = document.getElementById("run-state");
 const runOutput = document.getElementById("run-output");
 
 document.getElementById("run-btn").addEventListener("click", async () => {
-  runOverlay.hidden = false; // in-flow panel: it never blocks the page or the preview
   let running = false;
   try {
     running = (await (await fetch("/api/run/status")).json()).running;
@@ -209,10 +208,13 @@ document.getElementById("run-btn").addEventListener("click", async () => {
     running = false;
   }
   if (running) {
-    runState.textContent = "The project is already running — Stop is right below.";
+    // Toggle instead of shoving the panel back: the user closed it for a
+    // reason; a click re-opens it to review output or press Stop.
+    runOverlay.hidden = !runOverlay.hidden;
+    if (!runOverlay.hidden) runState.textContent = "The project is running — Stop is right below.";
     return;
   }
-  // One click tests the app immediately: start, then watch the preview open.
+  runOverlay.hidden = false;
   startRun();
 });
 
@@ -251,6 +253,9 @@ async function startRun() {
           if (payload.run?.phase === "serve") {
             runState.textContent = "Project running — previewing it on the right.";
             showPreview(); // the whole point: test the app the moment it serves
+            // The panel has done its job: get it out of the way. A click on
+            // Run project toggles it back open for output review / Stop.
+            window.setTimeout(() => { runOverlay.hidden = true; }, 1400);
           }
           if (payload.run?.phase === "exited") runState.textContent = `Project exited (code ${payload.run.code ?? "killed"}).`;
           if (payload.run?.phase === "failed") runState.textContent = `Run failed: ${payload.run.message ?? "unknown"}`;
