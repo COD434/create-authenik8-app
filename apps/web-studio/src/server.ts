@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, readFile, readdir, stat } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -120,14 +120,90 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 /**
- * Why the sandbox cannot be run yet, or null when `npm start` would resolve
- * locally. Fail closed: npm resolves run scripts by walking up the directory
- * tree, so without a package.json IN the sandbox root the runner could
- * execute the nearest ancestor project's scripts instead — the runner must
- * never do that. The error copy teaches the user the fix.
+ * The zero-dependency static server the studio writes into a static sandbox
+ * before a run: `npm start = node server.js` so Run works for every
+ * chat-generated app, deterministic content (no model round-trip).
  */
-async function runBlocker(sandboxRoot: string): Promise<string | null> {
-  let raw: string;
+const BOOTSTRAP_SERVER_JS = `// Written by Authenik8 Studio Web: minimal zero-dependency static server.
+const http = require("node:http");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = __dirname;
+const port = Number(process.env.PORT ?? 3000);
+const types = { ".html": "text/html; charset=utf-8", ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".json": "application/json", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".ico": "image/x-icon", ".woff2": "font/woff2" };
+
+http.createServer((req, res) => {
+  let name;
+  try {
+    name = decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname);
+  } catch {
+    res.writeHead(400); res.end(); return;
+  }
+  if (name === "/") name = "/index.html";
+  if (name.startsWith("/") === false || name.includes("..") || /(^|\\/)\\./.test(name.slice(1))) {
+    res.writeHead(403); res.end(); return;
+  }
+  const file = path.join(root, name);
+  fs.readFile(file, (error, data) => {
+    if (error) { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }); res.end("Not found"); return; }
+    res.writeHead(200, { "content-type": types[path.extname(file).toLowerCase()] ?? "application/octet-stream" });
+    res.end(data);
+  });
+}).listen(port, "127.0.0.1", () => console.log(\`Static app on http://127.0.0.1:\${port}\`));
+`;
+
+const BOOTSTRAP_MANIFEST = {
+  name: "authenik8-static-app",
+  private: true,
+  scripts: { start: "node server.js" },
+};
+
+/**
+ * Provision a runnable project for a STATIC sandbox in place: write only the
+ * files that are missing (never clobber model/user files), then let the run
+ * proceed. Returns null when something usable was already bootstrapped (or
+ * skipped because present), otherwise the 422 copy for a sandless state.
+ */
+async function ensureStaticRunnable(sandboxRoot: string): Promise<{ note: string } | string | null> {
+  let manifestRaw: string | null = null as null | string;
+  try {
+    manifestRaw = await readFile(path.join(sandboxRoot, "package.json"), "utf8");
+  } catch {
+    manifestRaw = null;
+  }
+
+  if (manifestRaw === null) {
+    let hasIndexHtml = true;
+    try {
+      await stat(path.join(sandboxRoot, "index.html"));
+    } catch {
+      hasIndexHtml = false;
+    }
+    if (!hasIndexHtml) {
+      return "Nothing to run yet: the sandbox is empty. Describe the app to build, then Run.";
+    }
+
+    const notes: string[] = [];
+    let serverJs: string | null = null;
+    try {
+      serverJs = await readFile(path.join(sandboxRoot, "server.js"), "utf8");
+    } catch {
+      serverJs = null;
+    }
+    if (serverJs === null) {
+      // Missing → write the deterministic one; a custom server.js is never clobbered.
+      await writeFile(path.join(sandboxRoot, "server.js"), BOOTSTRAP_SERVER_JS, "utf8");
+      notes.push("wrote a zero-dependency server.js");
+    }
+    await writeFile(path.join(sandboxRoot, "package.json"), JSON.stringify(BOOTSTRAP_MANIFEST, null, 2) + "\n", "utf8");
+    notes.push("added package.json with a start script");
+
+    return { note: `Authenik8 bootstrapped the static project for Run: ${notes.join(", ")} (no model call, no dependencies).` };
+  }
+  return null;
+}
+async function runBlocker(sandboxRoot: string): Promise<string | null> {  let raw: string;
   try {
     raw = await readFile(path.join(sandboxRoot, "package.json"), "utf8");
   } catch {
@@ -373,6 +449,13 @@ async function handle(
         sendJson(res, 409, { error: "The project is already running" });
         return;
       }
+      // Static apps get runnable in place first: deterministic local files
+      // (package.json + server.js), never clobbered, then the normal gate.
+      const provisioned = await ensureStaticRunnable(deps.sandboxRoot);
+      if (typeof provisioned === "string") {
+        sendJson(res, 422, { error: provisioned });
+        return;
+      }
       // Fail closed when the sandbox holds no runnable project: npm would
       // otherwise resolve scripts outside the sandbox (it walks up the tree).
       const blocker = await runBlocker(deps.sandboxRoot);
@@ -390,6 +473,9 @@ async function handle(
       });
       res.flushHeaders(); // headers go out even before the runner emits anything
       session.runRes = res;
+      if (provisioned !== null) {
+        sseEvent(res, { runOut: provisioned.note }); // top of the output, before install lines
+      }
       runner.start(deps.sandboxRoot); // fixed commands; events stream via session.runRes
       return;
     }

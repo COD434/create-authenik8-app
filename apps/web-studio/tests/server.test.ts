@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+﻿import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
@@ -564,12 +564,53 @@ describe("run routes", () => {
     expect(text).toContain('"phase":"exited"');
   });
 
-  it("fails closed when the sandbox has no package.json (npm would walk up out of the sandbox)", async () => {
+  it("fails closed when the sandbox has nothing runnable (npm would walk up out of the sandbox)", async () => {
     await rm(path.join(sandbox, "package.json"), { force: true });
+    await rm(path.join(sandbox, "index.html"), { force: true });
     const res = await fetch(`${base}/api/run`, { method: "POST" });
     expect(res.status).toBe(422);
-    expect((await res.json()).error).toContain("package.json");
+    expect((await res.json()).error).toContain("Nothing to run yet");
     expect(fakeRunnerStarted).toBe(0);
+  });
+
+  it("auto-bootstraps a static sandbox in place and runs it â€” no model call needed", async () => {
+    // A chat-generated static app from before the package.json contract.
+    await rm(path.join(sandbox, "package.json"), { force: true });
+    await rm(path.join(sandbox, "server.js"), { force: true });
+    await writeFile(path.join(sandbox, "index.html"), "<h1>static app</h1>", "utf8");
+
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(1);
+
+    // The manifests landed on disk, not just in memory.
+    const manifest = JSON.parse(await readFile(path.join(sandbox, "package.json"), "utf8")) as {
+      scripts?: { start?: string };
+    };
+    expect(manifest.scripts?.start).toBe("node server.js");
+    const serverJs = await readFile(path.join(sandbox, "server.js"), "utf8");
+    expect(serverJs).toContain("node:http");
+    // A custom server.js is never clobbered:
+    await writeFile(path.join(sandbox, "server.js"), "// custom", "utf8");
+    await rm(path.join(sandbox, "package.json"), { force: true });
+    await writeFile(path.join(sandbox, "index.html"), "<h1>static app 2</h1>", "utf8");
+
+    // Drain the first stream, then re-run to verify the clobber-free path.
+    runnerHandlers!.onEvent({ phase: "serve", code: null });
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 });
+    const first = await res.text();
+    expect(first).toContain("bootstrapped");
+    expect(first).toContain("wrote a zero-dependency server.js");
+
+    const second = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(second.status).toBe(200);
+    expect(fakeRunnerStarted).toBe(2);
+    // custom server.js survived the bootstrap.
+    expect(await readFile(path.join(sandbox, "server.js"), "utf8")).toBe("// custom");
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 });
+    const secondText = await second.text();
+    expect(secondText).toContain("added package.json with a start script");
+    expect(secondText).not.toContain("wrote a zero-dependency server.js");
   });
 
   it("fails closed when package.json has no start script", async () => {
