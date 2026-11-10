@@ -579,4 +579,13 @@ body {
 @media (max-width: 980px) {
   .sidebar { width: 260px; }
   .preview-pane { position: fixed; inset: 0 0 0 auto; width: min(560px, 92vw); z-index: 5; box-shadow: var(--shadow-modal); }
+
+/*
+ * Visibility discipline: the hidden attribute is the single source of truth
+ * for every overlay/panel/aside (agent modal, run panel, agent status).
+ * Author display rules below MUST NOT resurrect hidden elements — this guard
+ * restores the UA semantics that author `display` was overriding, which is
+ * how a "closed" modal could stay on screen forever.
+ */
+[hidden] { display: none !important; }
 }
