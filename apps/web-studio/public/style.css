@@ -208,6 +208,12 @@ body {
   gap: 26px;
 }
 
+/* An empty conversation leaves the whole stage to the welcome hero: only
+   one flex:1 region exists at a time, so the hero centers in the full
+   space above the composer instead of splitting it with a phantom
+   half-pane. */
+.messages:empty { display: none; }
+
 .msg-row, .msg {
   width: 100%;
   max-width: var(--column);
@@ -328,17 +334,23 @@ body {
 .welcome {
   flex: 1;
   display: flex;
+  overflow-y: auto;
+  padding: 16px 24px 24px;
+  animation: msg-in 240ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Auto margins center the hero in the middle of the space above the
+   composer (the OpenCode empty screen). When the window is too short the
+   margins collapse to zero, the content starts at the top, and the block
+   scrolls: centered when it fits, never trimmed. */
+.welcome-inner {
+  margin: auto;
+  display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
   gap: 14px;
   text-align: center;
-  /* Centered at the top of the chat column, and top-anchored on purpose:
-     vertical centering plus overflow trims the top of tall content on short
-     windows, and flexbox never lets you scroll back up to it. */
-  padding: clamp(28px, 7vh, 64px) 24px 24px;
-  overflow-y: auto;
-  animation: msg-in 240ms cubic-bezier(0.4, 0, 0.2, 1);
+  padding: 24px 0;
 }
 
 .welcome img {
