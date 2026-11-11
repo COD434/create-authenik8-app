@@ -440,6 +440,26 @@ body {
 
 .agent-warn code { color: var(--color-ink-mid); font-family: var(--mono); font-size: var(--typography-scale-xs); }
 
+/* Template wizard fields (reuses .agent-modal chrome). */
+.template-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: var(--typography-scale-sm);
+  color: var(--color-ink-mid);
+}
+.template-field select {
+  background: var(--color-surface-field);
+  color: var(--color-ink-high);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  font: inherit;
+}
+.template-providers { display: flex; gap: 16px; color: var(--color-ink-mid); font-size: var(--typography-scale-sm); }
+.template-providers label { display: flex; align-items: center; gap: 6px; }
+.template-check { flex-direction: row; align-items: center; gap: 8px; }
+
 #agent-run, #agent-dismiss {
   align-self: flex-start;
   background: var(--color-accent-primary);

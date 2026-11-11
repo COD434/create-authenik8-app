@@ -129,14 +129,17 @@ document.addEventListener("keydown", (event) => {
     if (!agentRunning) agentOverlay.hidden = true;
     return;
   }
+  if (!templateOverlay.hidden) {
+    if (!templateBusy) templateOverlay.hidden = true;
+    return;
+  }
   const runOverlay = document.getElementById("run-overlay");
   if (!runOverlay.hidden) runOverlay.hidden = true;
 });
 
 // Live agent events land here: plain text, capped at the last 300 lines
 // with an ellipsis marker when older lines are trimmed away.
-const MAX_AGENT_LINES = 300;
-function appendAgentLine(line) {
+const MAX_AGENT_LINES = 300;function appendAgentLine(line) {
   const lines = agentOutput.textContent.split("\n");
   lines.push(line);
   const trimmed = lines.slice(-MAX_AGENT_LINES);
@@ -208,6 +211,144 @@ document.getElementById("agent-run").addEventListener("click", async () => {
     agentRunning = false;
     agentRunBtn.disabled = false;
     showPreview(); // refresh the preview pane with whatever the agent built
+  }
+});
+
+// --- New from template (the Authenik8 CLI bridge) ---
+
+const templateOverlay = document.getElementById("template-overlay");
+const templateForm = document.getElementById("template-form");
+const templateStatus = document.getElementById("template-status");
+const templateState = document.getElementById("template-state");
+const templateOutput = document.getElementById("template-output");
+const templateRunBtn = document.getElementById("template-run");
+let templateBusy = false;
+
+const MAX_TEMPLATE_LINES = 300;
+function appendTemplateLine(line) {
+  const lines = templateOutput.textContent.split("\n");
+  if (lines[0] === "…") lines.shift();
+  lines.push(line);
+  if (lines.length > MAX_TEMPLATE_LINES) {
+    lines.splice(0, lines.length - MAX_TEMPLATE_LINES);
+    lines.unshift("…");
+  }
+  templateOutput.textContent = lines.join("\n");
+  templateOutput.scrollTop = templateOutput.scrollHeight;
+}
+
+function syncTemplateRows() {
+  const preset = document.getElementById("template-preset").value;
+  document.getElementById("template-frontend-row").hidden = preset !== "fullstack";
+  document.getElementById("template-providers-row").hidden = preset !== "auth-oauth";
+  if (preset === "fullstack") {
+    // The CLI's own contract: fullstack requires PostgreSQL.
+    document.getElementById("template-database").value = "postgresql";
+  }
+}
+document.getElementById("template-preset").addEventListener("change", syncTemplateRows);
+
+document.getElementById("template-btn").addEventListener("click", () => {
+  if (templateBusy) return;
+  templateOverlay.hidden = false;
+  templateForm.hidden = false;
+  templateStatus.hidden = true;
+  syncTemplateRows();
+});
+document.getElementById("template-close").addEventListener("click", () => {
+  if (!templateBusy) templateOverlay.hidden = true;
+});
+document.getElementById("template-dismiss").addEventListener("click", () => {
+  templateOverlay.hidden = true;
+});
+templateOverlay.addEventListener("mousedown", (event) => {
+  if (event.target === templateOverlay && !templateBusy) templateOverlay.hidden = true;
+});
+
+templateRunBtn.addEventListener("click", async () => {
+  if (templateBusy) return;
+  const preset = document.getElementById("template-preset").value;
+  const spec = {
+    preset,
+    database: document.getElementById("template-database").value,
+    runtime: document.getElementById("template-runtime").value,
+    packageManager: document.getElementById("template-package-manager").value,
+    usePrisma: document.getElementById("template-prisma").checked,
+    confirm: true, // the modal itself is the explicit replacement warning
+  };
+  if (preset === "fullstack") spec.frontend = document.getElementById("template-frontend").value;
+  if (preset === "auth-oauth") {
+    const providers = [];
+    if (document.getElementById("template-oauth-google").checked) providers.push("google");
+    if (document.getElementById("template-oauth-github").checked) providers.push("github");
+    spec.oauthProviders = providers;
+  }
+
+  templateBusy = true;
+  templateRunBtn.disabled = true;
+  templateForm.hidden = true;
+  templateStatus.hidden = false;
+  templateState.textContent = "Generating with the Authenik8 CLI (runs locally — nothing is uploaded)…";
+  templateOutput.textContent = "";
+
+  try {
+    const res = await fetch("/api/template", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(spec),
+    });
+    if (!res.ok && res.headers.get("content-type")?.includes("application/json")) {
+      const body = await res.json();
+      throw new Error(body.error ?? `Request failed (${res.status})`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let seeded = null;
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        boundary = buffer.indexOf("\n\n");
+        const dataLine = rawEvent.split("\n").find((line) => line.startsWith("data: "));
+        if (dataLine === undefined) continue;
+        const payload = JSON.parse(dataLine.slice(6));
+        if (payload.template !== undefined) {
+          const t = payload.template;
+          if (t.phase === "line") appendTemplateLine(t.line);
+          if (t.phase === "seeded") seeded = t;
+        }
+        if (payload.error !== undefined) throw new Error(payload.error);
+        if (payload.done === true && seeded !== null) {
+          messagesEl.innerHTML = "";
+          addMessage(
+            "assistant",
+            `Sandbox seeded from the Authenik8 template (${seeded.files} files). Describe changes in chat, or hit Run project to install and start it.`,
+          );
+          templateOverlay.hidden = true;
+        }
+      }
+    }
+    if (seeded === null && templateState.textContent !== "") {
+      // Stream ended without seeded/error: the server closed early.
+      throw new Error("Template stream ended before seeding completed.");
+    }
+  } catch (error) {
+    templateState.textContent = `Template failed: ${error.message}`;
+  } finally {
+    if (templateState.textContent.startsWith("Template failed") || templateState.textContent === "") {
+      templateState.textContent = templateState.textContent; // keep error visible
+    } else {
+      templateState.textContent = "Seeded.";
+    }
+    templateBusy = false;
+    templateRunBtn.disabled = false;
   }
 });
 

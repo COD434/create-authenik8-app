@@ -31,6 +31,10 @@
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
         Build with agent
       </button>
+      <button id="template-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+        New from template
+      </button>
       <button id="run-btn" class="btn-new" type="button">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
         Run project
@@ -111,6 +115,66 @@
           <p id="agent-state">Agent running…</p>
           <pre id="agent-output"></pre>
           <button id="agent-dismiss" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="template-overlay" class="agent-overlay" hidden>
+      <div class="agent-modal">
+        <div class="agent-head">
+          <span>New project from an Authenik8 template</span>
+          <button id="template-close" type="button" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div id="template-form">
+          <label class="template-field">Preset
+            <select id="template-preset">
+              <option value="auth" selected>auth — identity backend (Express)</option>
+              <option value="base">base — minimal Express</option>
+              <option value="auth-oauth">auth-oauth — identity + OAuth providers</option>
+              <option value="fullstack">fullstack — API + web app (needs PostgreSQL)</option>
+            </select>
+          </label>
+          <label class="template-field" id="template-frontend-row" hidden>Frontend
+            <select id="template-frontend">
+              <option value="react" selected>react</option>
+              <option value="lovable">lovable</option>
+              <option value="next">next</option>
+            </select>
+          </label>
+          <div class="template-field" id="template-providers-row" hidden>OAuth providers
+            <span class="template-providers">
+              <label><input type="checkbox" id="template-oauth-google" checked> google</label>
+              <label><input type="checkbox" id="template-oauth-github"> github</label>
+            </span>
+          </div>
+          <label class="template-field">Database
+            <select id="template-database">
+              <option value="sqlite" selected>sqlite</option>
+              <option value="postgresql">postgresql</option>
+            </select>
+          </label>
+          <label class="template-field">Runtime
+            <select id="template-runtime">
+              <option value="node" selected>node</option>
+              <option value="bun">bun</option>
+            </select>
+          </label>
+          <label class="template-field">Package manager
+            <select id="template-package-manager">
+              <option value="npm" selected>npm</option>
+              <option value="pnpm">pnpm</option>
+              <option value="bun">bun</option>
+            </select>
+          </label>
+          <label class="template-field template-check"><input type="checkbox" id="template-prisma" checked> Prisma</label>
+          <p class="agent-warn">Seeding replaces the entire sandbox — the current chat resets with it. The
+            generator runs locally from the Authenik8 CLI; nothing is uploaded.</p>
+          <button id="template-run" type="button">Generate project</button>
+        </div>
+        <div id="template-status" hidden>
+          <p id="template-state"></p>
+          <pre id="template-output"></pre>
+          <button id="template-dismiss" type="button">Close</button>
         </div>
       </div>
     </div>
