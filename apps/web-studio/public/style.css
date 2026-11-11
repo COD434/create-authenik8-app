@@ -39,6 +39,19 @@
 
 * { box-sizing: border-box; }
 
+input[type="checkbox"] { accent-color: var(--color-accent-primary); }
+
+/*
+ * Visibility discipline: the hidden attribute is the single source of truth
+ * for every overlay/panel/aside (agent modal, template modal, run panel).
+ * Author display rules below MUST NOT resurrect hidden elements — this guard
+ * restores the UA semantics that author `display` overrides. It lives at the
+ * TOP LEVEL on purpose: inside a media query it stops applying on wide
+ * screens, and then "closed" modals stay on screen forever covering the
+ * whole app (that bug shipped once; never again).
+ */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 
 body {
@@ -62,7 +75,7 @@ body {
 
 :focus-visible { outline: 2px solid var(--color-accent-secondary); outline-offset: 2px; border-radius: 4px; }
 
-.shell { display: flex; height: 100vh; }
+.shell { display: flex; height: 100vh; height: 100dvh; }
 
 /* -------- sidebar -------- */
 
@@ -172,7 +185,7 @@ body {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-scale-xl) 10% var(--spacing-scale-lg);
+  padding: var(--spacing-scale-xl) clamp(16px, 8vw, 10%) var(--spacing-scale-lg);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-scale-md);
@@ -261,7 +274,7 @@ body {
 .composer {
   display: flex;
   gap: var(--spacing-scale-sm);
-  padding: var(--spacing-scale-md) 10% calc(var(--spacing-scale-lg) + 4px);
+  padding: var(--spacing-scale-md) clamp(16px, 8vw, 10%) calc(var(--spacing-scale-lg) + 4px);
   background: linear-gradient(180deg, transparent, rgba(3, 5, 10, 0.35) 30%);
   border-top: 1px solid var(--color-surface-line);
   align-items: flex-end;
@@ -460,7 +473,7 @@ body {
 .template-providers label { display: flex; align-items: center; gap: 6px; }
 .template-check { flex-direction: row; align-items: center; gap: 8px; }
 
-#agent-run, #agent-dismiss {
+#agent-run, #agent-dismiss, #template-run, #template-dismiss {
   align-self: flex-start;
   background: var(--color-accent-primary);
   color: var(--color-accent-onPrimary);
@@ -477,10 +490,10 @@ body {
   box-shadow: 0 6px 18px rgba(245, 185, 66, 0.28);
 }
 
-#agent-run:hover:not(:disabled), #agent-dismiss:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(245, 185, 66, 0.36); }
-#agent-run:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
+#agent-run:hover:not(:disabled), #agent-dismiss:hover, #template-run:hover:not(:disabled), #template-dismiss:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(245, 185, 66, 0.36); }
+#agent-run:disabled, #template-run:disabled { opacity: 0.4; cursor: default; box-shadow: none; }
 
-#agent-state {
+#agent-state, #template-state {
   color: var(--color-ink-mid);
   font-size: var(--typography-scale-sm);
   margin: 0;
@@ -504,7 +517,7 @@ body {
   50% { opacity: 0.6; box-shadow: 0 0 0 6px rgba(108, 140, 255, 0); }
 }
 
-#agent-output, #run-output {
+#agent-output, #run-output, #template-output {
   max-height: 280px;
   overflow: auto;
   background: var(--color-surface-field);
@@ -580,9 +593,9 @@ body {
 
 #run-stop:hover { color: var(--color-status-danger); border-color: color-mix(in srgb, var(--color-status-danger) 45%, var(--color-surface-line)); }
 
-#run-state, #agent-state { color: var(--color-ink-low); font-size: var(--typography-scale-sm); margin: 0; }
-#run-state { display: flex; align-items: center; gap: 10px; }
-#run-state::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 999px; background: var(--color-surface-line); }
+#run-state, #agent-state, #template-state { color: var(--color-ink-low); font-size: var(--typography-scale-sm); margin: 0; }
+#run-state, #template-state { display: flex; align-items: center; gap: 10px; }
+#run-state::before, #template-state::before { content: ""; flex: 0 0 auto; width: 9px; height: 9px; border-radius: 999px; background: var(--color-surface-line); }
 #run-output { max-height: 200px; }
 
 /* -------- export link keeps button rhythm -------- */
@@ -599,13 +612,14 @@ body {
 @media (max-width: 980px) {
   .sidebar { width: 260px; }
   .preview-pane { position: fixed; inset: 0 0 0 auto; width: min(560px, 92vw); z-index: 5; box-shadow: var(--shadow-modal); }
+}
 
-/*
- * Visibility discipline: the hidden attribute is the single source of truth
- * for every overlay/panel/aside (agent modal, run panel, agent status).
- * Author display rules below MUST NOT resurrect hidden elements — this guard
- * restores the UA semantics that author `display` was overriding, which is
- * how a "closed" modal could stay on screen forever.
- */
-[hidden] { display: none !important; }
+/* Small screens: stack instead of squeeze. The tool stays usable on a
+   half-snapped window or a tablet in portrait. */
+@media (max-width: 720px) {
+  .shell { flex-direction: column; height: auto; min-height: 100vh; min-height: 100dvh; }
+  .sidebar { width: auto; border-right: none; border-bottom: 1px solid var(--color-surface-line); box-shadow: none; }
+  .sidebar-foot { margin-top: var(--spacing-scale-sm); }
+  .chat { min-height: 65vh; min-height: 65dvh; }
+  .messages, .composer { padding-inline: clamp(14px, 5vw, 32px); }
 }

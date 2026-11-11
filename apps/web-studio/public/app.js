@@ -26,6 +26,17 @@ function addMessage(kind, text) {
   return el;
 }
 
+// Client-side errors must surface in-band: a silently broken UI is the
+// worst failure mode a local tool can have (it is how a stuck modal went
+// undiagnosed for a session).
+window.addEventListener("error", (event) => {
+  addMessage("system-error", `Client error: ${event.message}`);
+});
+window.addEventListener("unhandledrejection", (event) => {
+  const reason = event.reason instanceof Error ? event.reason.message : String(event.reason ?? "unknown");
+  addMessage("system-error", `Client error: ${reason}`);
+});
+
 function addToolLine(name) {
   const el = document.createElement("div");
   el.className = "msg tool-line";
@@ -139,8 +150,10 @@ document.addEventListener("keydown", (event) => {
 
 // Live agent events land here: plain text, capped at the last 300 lines
 // with an ellipsis marker when older lines are trimmed away.
-const MAX_AGENT_LINES = 300;function appendAgentLine(line) {
-  const lines = agentOutput.textContent.split("\n");
+const MAX_AGENT_LINES = 300;
+
+function appendAgentLine(line) {
+  const lines = agentOutput.textContent === "" ? [] : agentOutput.textContent.split("\n");
   lines.push(line);
   const trimmed = lines.slice(-MAX_AGENT_LINES);
   agentOutput.textContent = (lines.length > MAX_AGENT_LINES ? "…\n" : "") + trimmed.join("\n");
@@ -226,7 +239,7 @@ let templateBusy = false;
 
 const MAX_TEMPLATE_LINES = 300;
 function appendTemplateLine(line) {
-  const lines = templateOutput.textContent.split("\n");
+  const lines = templateOutput.textContent === "" ? [] : templateOutput.textContent.split("\n");
   if (lines[0] === "…") lines.shift();
   lines.push(line);
   if (lines.length > MAX_TEMPLATE_LINES) {
@@ -522,4 +535,10 @@ promptEl.addEventListener("keydown", (event) => {
     event.preventDefault();
     composer.requestSubmit();
   }
+});
+
+// Auto-grow the composer with its content (CSS caps it at 180px).
+promptEl.addEventListener("input", () => {
+  promptEl.style.height = "auto";
+  promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
 });

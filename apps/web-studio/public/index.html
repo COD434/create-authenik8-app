@@ -39,7 +39,7 @@
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
         Run project
       </button>
-      <div id="run-overlay" class="run-panel" hidden>
+      <div id="run-overlay" class="run-panel" role="region" aria-label="Project run" hidden>
         <div class="run-head">
           <span>Run</span>
           <button id="run-close" type="button" title="Hide panel (does not stop)" aria-label="Hide run panel">✕</button>
@@ -99,7 +99,7 @@
       <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
     </section>
 
-    <div id="agent-overlay" class="agent-overlay" hidden>
+    <div id="agent-overlay" class="agent-overlay" role="dialog" aria-modal="true" aria-label="Build with the OpenCode agent" hidden>
       <div class="agent-modal">
         <div class="agent-head">
           <span>Build with the OpenCode agent</span>
@@ -119,7 +119,7 @@
       </div>
     </div>
 
-    <div id="template-overlay" class="agent-overlay" hidden>
+    <div id="template-overlay" class="agent-overlay" role="dialog" aria-modal="true" aria-label="New project from an Authenik8 template" hidden>
       <div class="agent-modal">
         <div class="agent-head">
           <span>New project from an Authenik8 template</span>
