@@ -17,7 +17,7 @@ export {
 } from "./retry.js";
 export { UsageTracker } from "./usage.js";
 export { assembleToolCalls } from "./tools.js";
-export { createOpenRouterProvider, type OpenRouterOptions } from "./openrouter.js";
+export { createOpenRouterProvider, listPublicModels, type OpenRouterOptions, type PublicModelsOptions } from "./openrouter.js";
 export {
   createModelsGateway,
   type BudgetOptions,

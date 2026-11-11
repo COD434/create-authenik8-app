@@ -48,10 +48,12 @@ function addToolLine(name) {
 
 async function loadModels() {
   const key = apiKey();
-  if (key.length === 0) return;
   modelSelect.disabled = true;
   try {
-    const res = await fetch("/api/models", { headers: { "X-OpenRouter-Key": key } });
+    // Zero-key browsing: the catalog is public data. A key only upgrades the
+    // request to the entitlement-aware path.
+    const headers = key.length > 0 ? { "X-OpenRouter-Key": key } : {};
+    const res = await fetch("/api/models", { headers });
     if (!res.ok) throw new Error((await res.json()).error ?? "model discovery failed");
     const body = await res.json();
     modelSelect.innerHTML = "";
@@ -66,6 +68,8 @@ async function loadModels() {
     } else {
       modelSelect.disabled = false;
       sendBtn.disabled = false;
+      const note = document.getElementById("model-note");
+      if (note !== null) note.textContent = `${body.models.length} free · no key to browse`;
       // Default to the auto-router when present: some free models behind
       // agents-only providers 403 app traffic — a broken zero-click default
       // must never be the entry experience.
@@ -80,6 +84,8 @@ async function loadModels() {
 }
 
 keyInput.addEventListener("change", loadModels);
+// Browse immediately on load, with no key anywhere in the flow.
+void loadModels();
 
 const previewPane = document.getElementById("preview-pane");
 const previewFrame = document.getElementById("preview-frame");
@@ -448,6 +454,19 @@ document.getElementById("run-stop").addEventListener("click", async () => {
   runState.textContent = "Stop requested…";
 });
 
+function askForKey() {
+  keyInput.classList.add("attention");
+  keyInput.focus();
+  addMessage(
+    "system",
+    "One step to start building: create a free OpenRouter key at openrouter.ai/keys (no card needed — free tier gives you 50 requests a day) and paste it in the sidebar. It stays in this tab's memory only. Then send again.",
+  );
+}
+
+keyInput.addEventListener("input", () => {
+  keyInput.classList.remove("attention");
+});
+
 newChatBtn.addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
   messagesEl.innerHTML = "";
@@ -459,7 +478,13 @@ composer.addEventListener("submit", async (event) => {
   const prompt = promptEl.value.trim();
   const model = modelSelect.value;
   const key = apiKey();
-  if (prompt.length === 0 || key.length === 0 || modelSelect.disabled) return;
+  if (prompt.length === 0 || modelSelect.disabled) return;
+  if (key.length === 0) {
+    // The build is the product; the key is one 30-second step, asked for
+    // exactly when it is needed — never as a gate in front of the app.
+    askForKey();
+    return;
+  }
 
   addMessage("user", prompt);
   promptEl.value = "";

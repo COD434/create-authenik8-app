@@ -244,6 +244,69 @@ function toWireMessages(messages: readonly ChatMessage[]): unknown {
   });
 }
 
+function errorFromResponse(response: Response, bodyText: string): ModelsError {
+  let providerMessage: string | undefined;
+  try {
+    const parsed = errorBodySchema.safeParse(JSON.parse(bodyText));
+    providerMessage = parsed.success ? parsed.data.error?.message : undefined;
+  } catch {
+    providerMessage = undefined;
+  }
+  return new ModelsError({
+    code: codeForStatus(response.status),
+    status: response.status,
+    retryAfterMs: retryAfterMsFromHeader(response.headers.get("retry-after")),
+    message: `Provider responded ${response.status}${providerMessage ? `: ${redactBody(providerMessage)}` : ""}`,
+  });
+}
+
+export type PublicModelsOptions = {
+  /** HTTPS, non-private base URL. Defaults to the OpenRouter public API. */
+  baseUrl?: string;
+  /** Injectable fetch implementation (tests). */
+  fetchImpl?: typeof fetch;
+};
+
+/**
+ * OpenRouter's model catalog is public data: GET /models needs no API key.
+ * Zero-key model browsing in the studio is built on this. BYOK stays intact:
+ * no credentials are involved, and this is the same public payload the keyed
+ * discovery path parses. Parsed with the same defensive schemas.
+ */
+export async function listPublicModels(options: PublicModelsOptions = {}): Promise<ModelInfo[]> {
+  const baseUrl = validateBaseUrl(options.baseUrl ?? DEFAULT_BASE_URL);
+  const fetchImpl = options.fetchImpl ?? fetch;
+
+  let response: Response;
+  try {
+    response = await fetchImpl(new URL("models", baseUrl), {
+      method: "GET",
+      headers: { "content-type": "application/json" },
+    });
+  } catch (error) {
+    const code = codeForNetworkError(error);
+    throw new ModelsError({
+      code,
+      message: code === "aborted" ? "Request aborted" : "Provider request failed before a response arrived",
+    });
+  }
+  if (!response.ok) throw errorFromResponse(response, await response.text());
+
+  const parsed = modelsResponseSchema.safeParse(await response.json());
+  if (!parsed.success) {
+    throw new ModelsError({
+      code: "malformed_response",
+      message: "Model discovery response did not match the expected shape",
+    });
+  }
+  return parsed.data.data
+    .map((entry) => {
+      const checked = modelEntrySchema.safeParse(entry);
+      return checked.success ? toModelInfo(checked.data) : null;
+    })
+    .filter((model): model is ModelInfo => model !== null);
+}
+
 export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAdapter {
   if (typeof options.apiKey !== "string" || options.apiKey.trim() === "") {
     throw new ModelsError({
@@ -287,22 +350,6 @@ export function createOpenRouterProvider(options: OpenRouterOptions): ProviderAd
     const models = discoveryCache;
     if (!models) return null;
     return models.find((model) => model.id === modelId)?.pricing ?? null;
-  }
-
-  function errorFromResponse(response: Response, bodyText: string): ModelsError {
-    let providerMessage: string | undefined;
-    try {
-      const parsed = errorBodySchema.safeParse(JSON.parse(bodyText));
-      providerMessage = parsed.success ? parsed.data.error?.message : undefined;
-    } catch {
-      providerMessage = undefined;
-    }
-    return new ModelsError({
-      code: codeForStatus(response.status),
-      status: response.status,
-      retryAfterMs: retryAfterMsFromHeader(response.headers.get("retry-after")),
-      message: `Provider responded ${response.status}${providerMessage ? `: ${redactBody(providerMessage)}` : ""}`,
-    });
   }
 
   type RawProviderUsage = {

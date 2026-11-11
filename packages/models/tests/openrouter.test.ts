@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ChatUsage, ToolCallDelta } from "../src/types.js";
-import { createOpenRouterProvider } from "../src/openrouter.js";
+import { createOpenRouterProvider, listPublicModels } from "../src/openrouter.js";
 import { assembleToolCalls } from "../src/tools.js";
 import {
   API_KEY,
@@ -287,5 +287,43 @@ describe("openrouter tool support", () => {
     });
     expect(result.content).toBe("");
     expect(result.toolCalls).toEqual([{ id: "call_9", name: "list_files", arguments: "{}" }]);
+  });
+});
+
+describe("listPublicModels (keyless catalog browsing)", () => {
+  it("fetches the public catalog with NO authorization header and parses it identically", async () => {
+    const { fetchImpl, calls } = mockFetch([
+      () =>
+        jsonResponse(
+          modelsPayload([
+            modelRow(),
+            modelRow({ id: "test/paid-model", pricing: { prompt: "0.001", completion: "0.001" } }),
+            { broken: true },
+          ]),
+        ),
+    ]);
+
+    const models = await listPublicModels({ fetchImpl });
+
+    // The raw public catalog: free and paid both parse; malformed rows drop.
+    expect(models).toHaveLength(2);
+    expect(models[0]!.id).toBe("test/free-model");
+    expect(models[0]!.isFree).toBe(true);
+    expect(models[0]!.supportsTools).toBe(true);
+    expect(models[1]!.id).toBe("test/paid-model");
+    expect(models[1]!.isFree).toBe(false);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url).toBe("https://openrouter.ai/api/v1/models");
+    expect(JSON.stringify(calls[0]!.init.headers ?? {})).not.toContain("authorization");
+  });
+
+  it("maps provider errors to the same structured error shape", async () => {
+    const { fetchImpl } = mockFetch([
+      () => jsonResponse({ error: { message: "rate limited" } }, 429),
+    ]);
+    await expect(listPublicModels({ fetchImpl })).rejects.toMatchObject({
+      code: "rate_limited",
+      status: 429,
+    });
   });
 });

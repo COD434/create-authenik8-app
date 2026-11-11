@@ -130,6 +130,7 @@ const deps: WebStudioDeps = {
     capturedKey = apiKey;
     return fakeGateway;
   },
+  publicModels: async () => fakeModels,
   sandboxRoot: "", // filled in beforeAll
   agentRuntime: fakeRuntime,
   createRunner: fakeCreateRunner,
@@ -187,17 +188,22 @@ describe("static UI and auth boundary", () => {
     expect(style.headers.get("cache-control")).toContain("no-store");
   });
 
-  it("rejects model discovery and chat without the key header", async () => {
+  it("browses free models with NO key, and still refuses chat without one", async () => {
     const models = await fetch(`${base}/api/models`);
-    expect(models.status).toBe(401);
+    expect(models.status).toBe(200);
+    const body = await models.json();
+    // Paid and non-tool-capable models are filtered; the app-traffic auto-
+    // router leads so the zero-click default is a working model.
+    expect(body.models.map((m: { id: string }) => m.id)).toEqual(["openrouter/free", "free/model-a"]);
 
     const chatRes = await fetch(`${base}/api/chat`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ model: "free/model-a", message: "hi" }),
+      body: JSON.stringify({ model: "openrouter/free", message: "hi" }),
     });
     expect(chatRes.status).toBe(401);
-    expect(capturedKey).toBeNull();
+    expect((await chatRes.json()).error).toContain("X-OpenRouter-Key");
+    expect(capturedKey).toBeNull(); // a keyless request never builds a gateway
   });
 
   it("lists only free, tool-capable models and never echoes the key", async () => {

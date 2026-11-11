@@ -11,8 +11,10 @@ import {
   createModelsGateway,
   createOpenRouterProvider,
   type ChatMessage,
+  type ModelInfo,
   type ModelsGateway,
   type ToolCallDelta,
+  listPublicModels,
 } from "@authenik8/models";
 import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapter";
 
@@ -95,6 +97,11 @@ const PREVIEW_CONTENT_TYPES: Record<string, string> = {
 export type WebStudioDeps = {
   /** Build a gateway for one request's key; the server stores nothing. */
   gatewayFor(apiKey: string): Pick<ModelsGateway, "listModels" | "chatStream">;
+  /**
+   * Keyless model discovery for zero-key browsing (OpenRouter's public
+   * catalog). Optional for tests; startStudio wires the real one.
+   */
+  publicModels?: () => Promise<ModelInfo[]>;
   /** Sandbox root for tool execution; created on demand. */
   sandboxRoot: string;
   /** The coding-agent runtime (OpenCode). Triggered only by explicit user action. */
@@ -514,12 +521,30 @@ async function handle(
 
     if (url.pathname === "/api/models" && req.method === "GET") {
       const key = apiKeyFrom(req);
-      if (key === null) {
-        sendJson(res, 401, { error: "Missing X-OpenRouter-Key header" });
+      // Zero-key browsing: OpenRouter's catalog is public data, so the list
+      // loads with no key at all. The key is only ever required to SEND —
+      // a developer must be able to come in, look at the models, and start
+      // building before any registration.
+      let all: ModelInfo[];
+      if (key !== null) {
+        try {
+          all = await deps.gatewayFor(key).listModels();
+        } catch (error) {
+          sendJson(res, 502, { error: error instanceof Error ? error.message : "Model discovery failed" });
+          return;
+        }
+      } else if (deps.publicModels === undefined) {
+        sendJson(res, 502, { error: "Keyless model browsing is not available in this deployment; add an OpenRouter key." });
         return;
+      } else {
+        try {
+          all = await deps.publicModels();
+        } catch (error) {
+          sendJson(res, 502, { error: error instanceof Error ? error.message : "Model discovery failed" });
+          return;
+        }
       }
-      const models = (await deps.gatewayFor(key).listModels())
-        .filter((model) => model.isFree && model.supportsTools);
+      const models = all.filter((model) => model.isFree && model.supportsTools);
       // Predictable default: the app-traffic-accepting auto-router first.
       const ranked = [
         ...models.filter((model) => model.id === FALLBACK_MODEL),
@@ -970,6 +995,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
 
   const server = createWebStudioServer({
     gatewayFor,
+    publicModels: () => listPublicModels(),
     sandboxRoot,
     agentRuntime,
     createRunner,
