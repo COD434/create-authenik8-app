@@ -1,4 +1,4 @@
-﻿import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+﻿import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
@@ -11,6 +11,7 @@ import type { AgentRunResult, AgentRuntime } from "@authenik8/agent-adapter";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, startStudio, type WebStudioDeps } from "../src/server.js";
+import { PROJECT_DIR_NAME } from "../src/template-bridge.js";
 import { executeTool } from "../src/tools.js";
 import type { Runner, RunnerEvent, RunnerHandlers } from "../src/runner.js";
 import type { AgentStreamEvent } from "@authenik8/agent-adapter";
@@ -538,6 +539,124 @@ describe("build agent route", () => {
       expect((await pending).status).toBe(200);
     } finally {
       deps.sandboxRoot = sandbox;
+    }
+  });
+});
+
+describe("template bridge route", () => {
+  const validSeed = {
+    preset: "auth",
+    database: "sqlite",
+    runtime: "node",
+    packageManager: "npm",
+    usePrisma: true,
+  };
+
+  it("refuses to replace the sandbox without explicit confirmation", async () => {
+    const res = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, confirm: false }),
+    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("replaces the entire sandbox");
+  });
+
+  it("keeps the CLI's fullstack matrix honest", async () => {
+    const res = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, preset: "fullstack", frontend: "react", database: "sqlite", confirm: true }),
+    });
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toContain("requires PostgreSQL");
+
+    const needsFrontend = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, preset: "fullstack", database: "postgresql", confirm: true }),
+    });
+    expect(needsFrontend.status).toBe(422);
+    expect((await needsFrontend.json()).error).toContain("needs a frontend");
+
+    const strayFrontend = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, frontend: "react", confirm: true }),
+    });
+    expect(strayFrontend.status).toBe(422);
+    expect((await strayFrontend.json()).error).toContain("fullstack preset");
+  });
+
+  it("refuses while a run is active", async () => {
+    fakeRunnerRunning = true;
+    const res = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, confirm: true }),
+    });
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toContain("running");
+  });
+
+  it("seeds through the bridge CLI and resets the chat context", async () => {
+    // Prior sandbox state and a prior conversation turn must not survive.
+    await writeFile(path.join(sandbox, "old-life.txt"), "junk", "utf8");
+    const prior = await chat("build something for the old sandbox");
+    await prior.text();
+
+    const clone = await mkdtemp(path.join(tmpdir(), "a8-route-clone-"));
+    try {
+      await mkdir(path.join(clone, "dist"), { recursive: true });
+      await writeFile(
+        path.join(clone, "package.json"),
+        JSON.stringify({ name: "create-authenik8-app", bin: { "create-authenik8-app": "dist/cli.js" } }),
+        "utf8",
+      );
+      await writeFile(
+        path.join(clone, "dist", "cli.js"),
+        `import { mkdirSync, writeFileSync } from "node:fs";
+const name = process.argv[2];
+console.log("stub: generating", name);
+mkdirSync(name, { recursive: true });
+writeFileSync(name + "/authenik8.json", JSON.stringify({ schemaVersion: 1 }));
+writeFileSync(name + "/package.json", JSON.stringify({ scripts: { start: "node server.js" } }));
+writeFileSync(name + "/stub-argv.json", JSON.stringify(process.argv));
+process.exit(0);
+`,
+        "utf8",
+      );
+      deps.bridge = { kind: "package", binPath: path.join(clone, "dist", "cli.js") };
+
+      const res = await fetch(`${base}/api/template`, {
+        method: "POST",
+        body: JSON.stringify({ ...validSeed, confirm: true }),
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get("content-type")).toContain("text/event-stream");
+      const text = await res.text();
+      expect(text).toContain('"phase":"start"');
+      expect(text).toContain("[out] stub: generating");
+      expect(text).toContain('"phase":"seeded"');
+      expect(text).toContain('"done":true');
+
+      const names = await readdir(sandbox);
+      expect(names).toContain("authenik8.json");
+      expect(names).toContain("package.json");
+      expect(names).not.toContain("old-life.txt");
+
+      // The studio's argv contract reached the CLI untouched.
+      const argv = JSON.parse(await readFile(path.join(sandbox, "stub-argv.json"), "utf8")) as string[];
+      for (const guard of ["--no-git", "--no-install", "--yes"]) {
+        expect(argv).toContain(guard);
+      }
+      await rm(path.join(sandbox, "stub-argv.json"), { force: true });
+
+      // The conversation reset: the next model request carries only system + user.
+      script = [textRound];
+      const afterSeed = await chat("fresh start");
+      await afterSeed.text();
+      expect(capturedRequests.at(-1)!.messages).toHaveLength(2);
+    } finally {
+      delete deps.bridge;
     }
   });
 });

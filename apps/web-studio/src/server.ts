@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -18,6 +18,14 @@ import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapt
 
 import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
 import { resolveOpenCodePath } from "./opencode-path.js";
+import {
+  bridgeArgv,
+  resolveBridge,
+  seedSandboxFrom,
+  spawnTemplateBridge,
+  type Bridge,
+  type TemplateSpec,
+} from "./template-bridge.js";
 import { createRunner, npmCommands, type Runner, type RunnerHandlers } from "./runner.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
@@ -93,10 +101,32 @@ export type WebStudioDeps = {
   agentRuntime: AgentRuntime;
   /** Project runner factory (npm install/start). Fixed commands, user-triggered. */
   createRunner(handlers: RunnerHandlers): Runner;
+  /**
+   * Template bridge override (tests). When absent, the route resolves
+   * AUTHENIK8_CLI_PATH / the host npm against the real environment.
+   */
+  bridge?: Bridge;
 };
 
 const agentBodySchema = z.object({
   prompt: z.string().min(1).max(8_000),
+});
+
+/**
+ * Template seed request. Every field is an enum-constrained flag value the
+ * CLI itself validates ultimately — the studio only narrows the wire shape
+ * so a request can never smuggle unexpected argv tokens through.
+ */
+const templateBodySchema = z.object({
+  preset: z.enum(["base", "auth", "auth-oauth", "fullstack"]),
+  frontend: z.enum(["react", "lovable", "next"]).optional(),
+  oauthProviders: z.array(z.enum(["google", "github"])).optional(),
+  database: z.enum(["sqlite", "postgresql"]),
+  runtime: z.enum(["node", "bun"]),
+  packageManager: z.enum(["npm", "pnpm", "bun"]),
+  usePrisma: z.boolean(),
+  /** Seeding wipes the whole sandbox; without explicit confirmation: refused. */
+  confirm: z.boolean(),
 });
 
 const AGENT_BRIEF_PREAMBLE = [
@@ -563,6 +593,123 @@ async function handle(
     if (url.pathname === "/api/run/stop" && req.method === "POST") {
       runner.stop();
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === "/api/template" && req.method === "POST") {
+      if (session.agentBusy) {
+        sendJson(res, 409, { error: "An agent run is in progress. Wait for it before seeding." });
+        return;
+      }
+      if (runner.isRunning()) {
+        sendJson(res, 409, { error: "A project is running. Stop it before seeding a new template." });
+        return;
+      }
+      const body = await readBody(req);
+      if (body === null) {
+        sendJson(res, 413, { error: "Request body too large" });
+        return;
+      }
+      const raw = parseJsonBody(body);
+      if (raw === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = templateBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+        return;
+      }
+      const spec: TemplateSpec = {
+        preset: parsed.data.preset,
+        ...(parsed.data.frontend !== undefined ? { frontend: parsed.data.frontend } : {}),
+        ...(parsed.data.oauthProviders !== undefined ? { oauthProviders: parsed.data.oauthProviders } : {}),
+        database: parsed.data.database,
+        runtime: parsed.data.runtime,
+        packageManager: parsed.data.packageManager,
+        usePrisma: parsed.data.usePrisma,
+      };
+
+      // Cross-field contracts mirror observed CLI behavior; the CLI remains
+      // the validator of record for everything it accepts.
+      if (spec.preset === "fullstack" && spec.frontend === undefined) {
+        sendJson(res, 422, { error: "The fullstack preset needs a frontend (react, lovable, or next)." });
+        return;
+      }
+      if (spec.frontend !== undefined && spec.preset !== "fullstack") {
+        sendJson(res, 422, { error: "A frontend applies only to the fullstack preset." });
+        return;
+      }
+      if (spec.preset === "fullstack" && spec.database !== "postgresql") {
+        sendJson(res, 422, {
+          error: "The fullstack preset requires PostgreSQL. On a machine without a database server, generate the auth preset with sqlite.",
+        });
+        return;
+      }
+      if (parsed.data.confirm !== true) {
+        sendJson(res, 422, {
+          error: "Seeding replaces the entire sandbox (chat context resets with it). Resend with confirm: true.",
+        });
+        return;
+      }
+
+      const bridge = deps.bridge ?? resolveBridge(process.env);
+      if (bridge === undefined || bridge === null) {
+        sendJson(res, 502, {
+          error: "No template bridge available: set AUTHENIK8_CLI_PATH to a create-authenik8-app clone, or install the CLI.",
+        });
+        return;
+      }
+
+      res.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      const abort = new AbortController();
+      req.on("close", () => abort.abort());
+
+      const stagingRoot = await mkdtemp(path.join(tmpdir(), "authenik8-bridge-"));
+
+      try {
+        sseEvent(res, { template: { phase: "start", via: bridge.kind } });
+        const result = await spawnTemplateBridge({
+          bridge,
+          spec,
+          cwd: stagingRoot,
+          onLine: (line) => {
+            if (!abort.signal.aborted) sseEvent(res, { template: { phase: "line", line } });
+          },
+          shouldAbort: () => abort.signal.aborted,
+        });
+
+        if (result.cancelled) {
+          return; // client is gone; cleanup runs in finally
+        }
+        if (result.code !== 0) {
+          if (!abort.signal.aborted) {
+            sseEvent(res, { error: `Template generation failed (exit code ${result.code ?? "unknown"}). See the CLI output above.` });
+          }
+          return;
+        }
+
+        try {
+          const seeded = await seedSandboxFrom({
+            stagingProjectDir: result.projectDir,
+            sandboxRoot: deps.sandboxRoot,
+          });
+          // The conversation described a sandbox that no longer exists.
+          session.conversation.length = 0;
+          sseEvent(res, { template: { phase: "seeded", files: seeded.files } });
+          sseEvent(res, { done: true });
+        } catch (seedError) {
+          const message = seedError instanceof Error ? seedError.message : "staging validation failed";
+          if (!abort.signal.aborted) sseEvent(res, { error: `Seeding failed: ${message}` });
+        }
+      } finally {
+        await rm(stagingRoot, { recursive: true, force: true }).catch(() => {});
+        if (!res.writableEnded) res.end();
+      }
       return;
     }
 
