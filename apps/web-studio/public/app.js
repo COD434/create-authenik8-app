@@ -271,7 +271,6 @@ templateRunBtn.addEventListener("click", async () => {
   const spec = {
     preset,
     database: document.getElementById("template-database").value,
-    runtime: document.getElementById("template-runtime").value,
     packageManager: document.getElementById("template-package-manager").value,
     usePrisma: document.getElementById("template-prisma").checked,
     confirm: true, // the modal itself is the explicit replacement warning

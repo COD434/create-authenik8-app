@@ -32,7 +32,6 @@ async function makeTemp(prefix: string): Promise<string> {
 const baseSpec: TemplateSpec = {
   preset: "auth",
   database: "sqlite",
-  runtime: "node",
   packageManager: "npm",
   usePrisma: true,
 };
@@ -84,12 +83,22 @@ describe("bridge argv", () => {
       "--frontend=react",
       "--oauth=google,github",
       "--database=sqlite",
-      "--runtime=node",
       "--package-manager=npm",
       "--prisma",
     ]) {
       expect(argv).toContain(flag);
     }
+  });
+
+  it("omits --runtime unless a spec deliberately carries it (the CLI demands --production-ready with it)", () => {
+    const argv = bridgeArgv({ kind: "package", binPath: "bin.js" }, baseSpec);
+    expect(argv.some((flag) => flag.startsWith("--runtime="))).toBe(false);
+
+    const bunArgv = bridgeArgv(
+      { kind: "package", binPath: "bin.js" },
+      { ...baseSpec, runtime: "bun" },
+    );
+    expect(bunArgv).toContain("--runtime=bun");
   });
 
   it("emits --no-oauth when a preset can carry providers but none are chosen", () => {

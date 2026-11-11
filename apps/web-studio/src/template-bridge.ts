@@ -26,7 +26,13 @@ export type TemplateSpec = {
   frontend?: "react" | "lovable" | "next";
   oauthProviders?: Array<"google" | "github">;
   database: "sqlite" | "postgresql";
-  runtime: "node" | "bun";
+  /**
+   * Omitted by default: the CLI refuses `--runtime` without
+   * `--production-ready` for Express presets (observed live), and a dev
+   * sandbox should not generate PM2 configs. Only a deliberate future
+   * production-seeding flow should send it.
+   */
+  runtime?: "node" | "bun";
   packageManager: "npm" | "pnpm" | "bun";
   usePrisma: boolean;
 };
@@ -97,7 +103,7 @@ export function bridgeArgv(bridge: Bridge, spec: TemplateSpec): string[] {
         : ["--no-oauth"]
       : []),
     `--database=${spec.database}`,
-    `--runtime=${spec.runtime}`,
+    ...(spec.runtime !== undefined ? [`--runtime=${spec.runtime}`] : []),
     `--package-manager=${spec.packageManager}`,
     spec.usePrisma ? "--prisma" : "--no-prisma",
     "--no-git",
