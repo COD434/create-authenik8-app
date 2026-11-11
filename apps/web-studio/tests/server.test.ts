@@ -13,7 +13,7 @@ import type { ChatChunk, ChatRequest } from "@authenik8/models";
 import { createWebStudioServer, startStudio, type WebStudioDeps } from "../src/server.js";
 import { PROJECT_DIR_NAME } from "../src/template-bridge.js";
 import { executeTool } from "../src/tools.js";
-import type { Runner, RunnerEvent, RunnerHandlers } from "../src/runner.js";
+import type { Runner, RunnerCommands, RunnerEvent, RunnerHandlers } from "../src/runner.js";
 import type { AgentStreamEvent } from "@authenik8/agent-adapter";
 
 const KEY = "sk-or-test-key-must-never-leak";
@@ -100,15 +100,18 @@ const agentSuccess: AgentRunResult = {
   sessionId: "ses_abc",
 };
 
-// Runner fake: controlled isRunning, captured handlers for event injection.
+// Runner fake: controlled isRunning, captured handlers for event injection,
+// and the last commands handed to start (the route composes them per run).
 let fakeRunnerRunning = false;
 let fakeRunnerStarted = 0;
 let fakeRunnerStopped = 0;
+let fakeRunnerCommands: RunnerCommands = null;
 let runnerHandlers: RunnerHandlers | null = null;
 
 const fakeRunner: Runner = {
-  start: () => {
+  start: (_cwd, commands) => {
     fakeRunnerStarted++;
+    fakeRunnerCommands = commands;
     return true;
   },
   stop: () => {
@@ -151,6 +154,7 @@ beforeEach(() => {
   fakeRunnerRunning = false;
   fakeRunnerStarted = 0;
   fakeRunnerStopped = 0;
+  fakeRunnerCommands = null;
   // runnerHandlers stays: the server captured its handler closures once at
   // module load and they are stateless.
 });
@@ -547,7 +551,6 @@ describe("template bridge route", () => {
   const validSeed = {
     preset: "auth",
     database: "sqlite",
-    runtime: "node",
     packageManager: "npm",
     usePrisma: true,
   };
@@ -727,6 +730,37 @@ describe("run routes", () => {
     expect(text).toContain("added 512 packages");
     expect(text).toContain('"phase":"serve"');
     expect(text).toContain('"phase":"exited"');
+  });
+
+  it("composes a build step for manifests whose start entry is compiled and missing", async () => {
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "sandbox-app", scripts: { build: "tsc", start: "node dist/server.js" } }),
+      "utf8",
+    );
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 }); // end the stream
+    await res.text(); // drain the SSE stream
+    expect(fakeRunnerCommands).not.toBeNull();
+    expect(fakeRunnerCommands!.steps.map((step) => step.phase)).toEqual(["install", "build", "serve"]);
+    expect(fakeRunnerCommands!.steps[1]!.argv.slice(-2)).toEqual(["run", "build"]);
+  });
+
+  it("skips the build step once the compiled entry exists", async () => {
+    await writeFile(
+      path.join(sandbox, "package.json"),
+      JSON.stringify({ name: "sandbox-app", scripts: { build: "tsc", start: "node dist/server.js" } }),
+      "utf8",
+    );
+    await mkdir(path.join(sandbox, "dist"), { recursive: true });
+    await writeFile(path.join(sandbox, "dist", "server.js"), "", "utf8");
+
+    const res = await fetch(`${base}/api/run`, { method: "POST" });
+    expect(res.status).toBe(200);
+    runnerHandlers!.onEvent({ phase: "exited", code: 0 }); // end the stream
+    await res.text(); // drain the SSE stream
+    expect(fakeRunnerCommands!.steps.map((step) => step.phase)).toEqual(["install", "serve"]);
   });
 
   it("fails closed when the sandbox has nothing runnable (npm would walk up out of the sandbox)", async () => {

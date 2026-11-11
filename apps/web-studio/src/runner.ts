@@ -1,18 +1,28 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 /**
  * Project runner for the studio: boots the generated project with FIXED
- * commands (`npm install`, then `npm start`). The studio never executes
- * model-chosen commands — the command shape is ours; only the project's
- * own scripts determine what runs, in the sandbox cwd, user-triggered.
+ * command shapes (`npm install`, an optional `npm run build`, `npm start`).
+ * The studio never executes model-chosen commands — the command shapes are
+ * ours; only the project's own scripts decide what runs, in the sandbox
+ * cwd, user-triggered.
+ *
+ * The optional build step exists for CLI-seeded templates whose start entry
+ * is compiled output (`node dist/server.js`): when the project itself
+ * declares a `build` script and that entry is missing, the run builds
+ * first. This is manifest-declared project work, not studio policy.
  *
  * argv arrays only (no shell), output is untrusted data for display,
  * stop kills the process tree (npm holds children).
  */
 
-export type RunnerPhase = "install" | "serve";
+export type RunnerPhase = "install" | "build" | "serve";
+export type RunnerStep = { phase: RunnerPhase; argv: ReadonlyArray<string> };
+export type RunnerCommands = { steps: ReadonlyArray<RunnerStep> } | null;
+
 export type RunnerEvent =
   | { phase: RunnerPhase; code: null }
   | { phase: "exited"; code: number | null }
@@ -24,27 +34,58 @@ export type RunnerHandlers = {
 };
 
 export type Runner = {
-  start(cwd: string): boolean;
+  start(cwd: string, commands: RunnerCommands): boolean;
   stop(): void;
   isRunning(): boolean;
 };
 
 /** `null` when npm could not be located next to the Node executable. */
-export type RunnerCommands = {
+export type NpmCommands = {
   install: ReadonlyArray<string>;
   start: ReadonlyArray<string>;
 } | null;
 
-export function npmCommands(): RunnerCommands {
+function npmCliPath(): string {
   // Standard Node installs ship npm next to the node executable; invoking
   // `node npm-cli.js` avoids Windows .cmd shims, which no-shell spawn
   // cannot resolve.
-  const npmCli = path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+}
+
+/**
+ * Fixed-shape run commands for a project. `npm run build` is inserted ONLY
+ * when the project declares a build script AND its start entry is a plain
+ * `node <file>` that does not exist yet (compiled-output starts). Existing
+ * entries run as declared.
+ */
+export async function npmRunCommands(cwd: string): Promise<RunnerCommands> {
+  const npmCli = npmCliPath();
   if (!existsSync(npmCli)) return null;
-  return {
-    install: [process.execPath, npmCli, "install", "--no-audit", "--no-fund"],
-    start: [process.execPath, npmCli, "start"],
-  };
+
+  const steps: RunnerStep[] = [
+    { phase: "install", argv: [process.execPath, npmCli, "install", "--no-audit", "--no-fund"] },
+  ];
+
+  const manifest = await readFile(path.join(cwd, "package.json"), "utf8")
+    .then((raw) => JSON.parse(raw) as { scripts?: Record<string, string> })
+    .catch(() => null);
+  if (manifest === null) {
+    // Nothing to install: serve whatever exists. The run route's blocker
+    // normally prevents a manifest-less sandbox from reaching the runner.
+    return { steps: [{ phase: "serve", argv: [process.execPath, npmCli, "start"] }] };
+  }
+  const scripts = manifest.scripts;
+  const start = typeof scripts?.start === "string" ? scripts.start : null;
+  const build = typeof scripts?.build === "string" ? scripts.build : null;
+  if (start !== null && build !== null) {
+    const entry = /^node\s+(\S+)\s*$/.exec(start.trim())?.[1];
+    if (entry !== undefined && !existsSync(path.resolve(cwd, entry))) {
+      steps.push({ phase: "build", argv: [process.execPath, npmCli, "run", "build"] });
+    }
+  }
+
+  steps.push({ phase: "serve", argv: [process.execPath, npmCli, "start"] });
+  return { steps };
 }
 
 function killTree(pid: number): void {
@@ -57,7 +98,7 @@ function killTree(pid: number): void {
   }
 }
 
-export function createRunner(commands: RunnerCommands, handlers: RunnerHandlers): Runner {
+export function createRunner(handlers: RunnerHandlers): Runner {
   let running = false;
   let stopRequested = false;
   let child: ChildProcess | null = null;
@@ -101,7 +142,7 @@ export function createRunner(commands: RunnerCommands, handlers: RunnerHandlers)
   return {
     isRunning: () => running,
 
-    start(cwd: string): boolean {
+    start(cwd: string, commands: RunnerCommands): boolean {
       if (running) return false;
       running = true;
       stopRequested = false;
@@ -112,21 +153,30 @@ export function createRunner(commands: RunnerCommands, handlers: RunnerHandlers)
             handlers.onEvent({ phase: "failed", code: null, message: "npm CLI not found next to the Node executable" });
             return;
           }
-          if (existsSync(path.join(cwd, "package.json"))) {
-            handlers.onEvent({ phase: "install", code: null });
-            const installCode = await runPhase(commands.install, cwd);
-            if (stopRequested) return;
-            if (installCode !== 0) {
-              handlers.onEvent({ phase: "failed", code: installCode, message: "npm install failed" });
+          const serveStep = commands.steps.at(-1);
+          const preSteps = commands.steps.slice(0, -1);
+          for (const step of preSteps) {
+            handlers.onEvent({ phase: step.phase, code: null });
+            const code = await runPhase(step.argv, cwd);
+            if (stopRequested) {
+              // A stop must always end with the terminal event: it is what
+              // closes the run's SSE stream.
+              handlers.onEvent({ phase: "exited", code: null });
+              return;
+            }
+            if (code !== 0) {
+              handlers.onEvent({ phase: "failed", code, message: `${step.phase} failed` });
               return;
             }
           }
-          handlers.onEvent({ phase: "serve", code: null });
-          const serveCode = await runPhase(commands.start, cwd);
-          handlers.onEvent({
-            phase: "exited",
-            code: stopRequested ? null : serveCode,
-          });
+          if (serveStep !== undefined) {
+            handlers.onEvent({ phase: "serve", code: null });
+            const serveCode = await runPhase(serveStep.argv, cwd);
+            handlers.onEvent({
+              phase: "exited",
+              code: stopRequested ? null : serveCode,
+            });
+          }
         } catch (error) {
           handlers.onEvent({
             phase: "failed",

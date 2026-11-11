@@ -26,7 +26,7 @@ import {
   type Bridge,
   type TemplateSpec,
 } from "./template-bridge.js";
-import { createRunner, npmCommands, type Runner, type RunnerHandlers } from "./runner.js";
+import { createRunner, npmRunCommands, type Runner, type RunnerHandlers } from "./runner.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
 /**
@@ -122,7 +122,8 @@ const templateBodySchema = z.object({
   frontend: z.enum(["react", "lovable", "next"]).optional(),
   oauthProviders: z.array(z.enum(["google", "github"])).optional(),
   database: z.enum(["sqlite", "postgresql"]),
-  runtime: z.enum(["node", "bun"]),
+  /** See TemplateSpec: omitted unless a production-seeding flow decides it. */
+  runtime: z.enum(["node", "bun"]).optional(),
   packageManager: z.enum(["npm", "pnpm", "bun"]),
   usePrisma: z.boolean(),
   /** Seeding wipes the whole sandbox; without explicit confirmation: refused. */
@@ -573,6 +574,11 @@ async function handle(
         sendJson(res, 422, { error: blocker });
         return;
       }
+      // Commands are computed per run from the sandbox's own manifest
+      // (install, optional build, start). This await must happen BEFORE the
+      // SSE headers go out: once the headers flush, the route may not yield
+      // again before starting the runner.
+      const commands = await npmRunCommands(deps.sandboxRoot);
       // npm spawn needs a real cwd: bootstrap the sandbox if it does not
       // exist yet (no chat/agent run may have created it).
       await mkdir(deps.sandboxRoot, { recursive: true });
@@ -586,7 +592,7 @@ async function handle(
       if (provisioned !== null) {
         sseEvent(res, { runOut: provisioned.note }); // top of the output, before install lines
       }
-      runner.start(deps.sandboxRoot); // fixed commands; events stream via session.runRes
+      runner.start(deps.sandboxRoot, commands); // synchronous: no yield after flushHeaders
       return;
     }
 
@@ -625,7 +631,7 @@ async function handle(
         ...(parsed.data.frontend !== undefined ? { frontend: parsed.data.frontend } : {}),
         ...(parsed.data.oauthProviders !== undefined ? { oauthProviders: parsed.data.oauthProviders } : {}),
         database: parsed.data.database,
-        runtime: parsed.data.runtime,
+        ...(parsed.data.runtime !== undefined ? { runtime: parsed.data.runtime } : {}),
         packageManager: parsed.data.packageManager,
         usePrisma: parsed.data.usePrisma,
       };
@@ -963,7 +969,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     gatewayFor,
     sandboxRoot,
     agentRuntime,
-    createRunner: (handlers) => createRunner(npmCommands(), handlers),
+    createRunner,
   });
 
   const preferred = options.port ?? Number(process.env.PORT ?? 4870);
