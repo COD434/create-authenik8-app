@@ -1,4 +1,4 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -90,11 +90,52 @@ export async function npmRunCommands(cwd: string): Promise<RunnerCommands> {
 
 function killTree(pid: number): void {
   if (process.platform === "win32") {
+    // Snapshot descendants while the tree is intact. taskkill /T misses
+    // grandchildren when an intermediate (npm's cmd shim) dies mid-walk,
+    // which is how an orphan keeps holding the app's port after a stop.
+    const table = windowsProcessTable();
+    const descendants = new Set<number>();
+    const collect = (parent: number): void => {
+      for (const row of table) {
+        if (row.ppid === parent && !descendants.has(row.pid)) {
+          descendants.add(row.pid);
+          collect(row.pid);
+        }
+      }
+    };
+    collect(pid);
     try {
-      spawn("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore", windowsHide: true });
+      spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore", windowsHide: true });
     } catch {
-      // Best effort; the direct kill already ran.
+      // Best effort; the sweep below still runs.
     }
+    const alive = new Set(windowsProcessTable().map((row) => row.pid));
+    for (const straggler of descendants) {
+      if (!alive.has(straggler)) continue;
+      try {
+        spawnSync("taskkill", ["/F", "/PID", String(straggler)], { stdio: "ignore", windowsHide: true });
+      } catch {
+        // Already dead or already gone.
+      }
+    }
+  }
+}
+
+/** `{pid, ppid}` rows for every process, via CIM (wmic is removed on current Windows). */
+function windowsProcessTable(): Array<{ pid: number; ppid: number }> {
+  try {
+    const out = spawnSync(
+      "powershell",
+      ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | ForEach-Object { \"$($_.ProcessId) $($_.ParentProcessId)\" }"],
+      { windowsHide: true, encoding: "utf8", timeout: 5000 },
+    );
+    return (out.stdout ?? "")
+      .split(/\r?\n/)
+      .map((line) => line.trim().split(/\s+/).map(Number))
+      .filter((pair): pair is [number, number] => pair.length === 2 && pair.every(Number.isFinite))
+      .map(([pid, ppid]) => ({ pid, ppid }));
+  } catch {
+    return [];
   }
 }
 

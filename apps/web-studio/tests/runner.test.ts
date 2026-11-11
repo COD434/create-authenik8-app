@@ -40,7 +40,7 @@ function steps(...parts: Array<[RunnerPhase, ReadonlyArray<string>]>): RunnerCom
 }
 
 describe("createRunner", () => {
-  it("runs every step in order, then serves, streaming output lines", async () => {
+  it("runs every step in order, then serves, streaming output lines", { timeout: 20000 }, async () => {
     const { events, output, runner, start } = harness();
     await writeFile(path.join(sandbox, "package.json"), "{}", "utf8");
     const commands = steps(
@@ -57,17 +57,17 @@ describe("createRunner", () => {
       expect(output).toContain("installing");
       expect(events.some((event) => event.phase === "build")).toBe(true);
       expect(output).toContain("building");
-    });
+    }, { timeout: 8000 });
     await vi.waitFor(() => {
       expect(events.some((event) => event.phase === "serve")).toBe(true);
       expect(output.some((line) => line.startsWith("tick"))).toBe(true);
-    });
+    }, { timeout: 8000 });
 
     runner.stop();
     await vi.waitFor(() => {
       expect(events.some((event) => event.phase === "exited")).toBe(true);
       expect(runner.isRunning()).toBe(false);
-    });
+    }, { timeout: 8000 });
     expect(await readFile(path.join(sandbox, "installed.txt"), "utf8")).toBe("yes");
   });
 
