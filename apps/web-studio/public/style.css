@@ -29,6 +29,7 @@
 /* -------- helpers built on the tokens (edited; tokens above are synced) --- */
 
 :root {
+  color-scheme: dark;
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -43,6 +44,15 @@
 * { box-sizing: border-box; }
 
 input[type="checkbox"] { accent-color: var(--color-accent-primary); }
+
+/* Native dropdown popups render dark. Without this the option list is
+   UA-white while the option text inherits the light ink color: light on
+   white, blinding and unreadable. Chromium derives the popup surface from
+   these, and color-scheme above covers the rest of the control chrome. */
+select option, select optgroup {
+  background-color: var(--color-surface-raised);
+  color: var(--color-ink-high);
+}
 
 /*
  * Visibility discipline: the hidden attribute is the single source of truth
@@ -320,10 +330,13 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 14px;
   text-align: center;
-  padding: 24px;
+  /* Centered at the top of the chat column, and top-anchored on purpose:
+     vertical centering plus overflow trims the top of tall content on short
+     windows, and flexbox never lets you scroll back up to it. */
+  padding: clamp(28px, 7vh, 64px) 24px 24px;
   overflow-y: auto;
   animation: msg-in 240ms cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -410,7 +423,7 @@ body {
 .composer-bar select {
   appearance: none;
   -webkit-appearance: none;
-  background: transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238B94A7' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  background: var(--color-surface-field) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%238B94A7' stroke-width='1.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
   border: 1px solid var(--color-surface-line);
   border-radius: 999px;
   color: var(--color-ink-mid);
