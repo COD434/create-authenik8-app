@@ -67,6 +67,7 @@ const STATIC_FILES: Record<string, { file: string; type: string }> = {
   "/": { file: "index.html", type: "text/html; charset=utf-8" },
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
   "/style.css": { file: "style.css", type: "text/css; charset=utf-8" },
+  "/authenik8-logo.svg": { file: "authenik8-logo.svg", type: "image/svg+xml" },
 };
 
 const chatBodySchema = z.object({
@@ -147,7 +148,7 @@ const AGENT_BRIEF_PREAMBLE = [
 ].join(" ");
 
 const SYSTEM_PROMPT = [
-  "You are Authenik8 Studio Web, a senior product engineer for the Authenik8 ecosystem.",
+  "You are Authenik8, a senior product engineer for the Authenik8 ecosystem.",
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
   "write_file, and design_audit (Authenik8 design checks A8-DS-001..004 over a design",
@@ -1016,7 +1017,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     });
     server.listen(port, "127.0.0.1", () => {
       const url = `http://127.0.0.1:${port}`;
-      console.log(`Authenik8 Studio Web: ${url}`);
+      console.log(`Authenik8: ${url}`);
       console.log(`Sandbox: ${sandboxRoot} (BYOK: your key stays in this tab)`);
       options.onReady?.(url);
     });

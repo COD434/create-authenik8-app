@@ -1,4 +1,4 @@
-# Authenik8 Studio — Design System
+# Authenik8 — Design System
 
 The visual system of the studio's own skin. Applied as CSS custom
 properties generated from `tokens.json` (`renderTokensCss`) — the skin is
@@ -6,11 +6,20 @@ built with the workspace's own tooling and passes every A8-DS check.
 
 ## Brand
 
-**Authenik8 Studio** — a localhost builder with a ChatGPT-style chat.
-Persona: calm, precise, craftsmanlike. Dark, quiet surfaces; one warm
-gold accent for every action; one cool indigo for signal and focus. The
-interface must feel like a workshop, not a billboard: nothing shouts,
-motion only when it confirms state.
+**Authenik8.** Not "Studio Web", nothing appended: the product is the name.
+The real mark is the mint security badge (`public/authenik8-logo.svg`):
+an interlocked A and 8 inside a deep-green disc, ringed in mint. The theme
+follows the mark: quiet dark surfaces, one security-green action color,
+one lighter mint for signal and focus. Persona: calm, precise,
+craftsmanlike, security-first. The interface should feel like a workshop
+with the badge on the wall, not a billboard: nothing shouts, motion only
+when it confirms state.
+
+The chat surface follows the modern AI-chat layout: a centered column with
+generous whitespace, an empty state that greets you (badge, one question,
+starter prompts), a floating composer pill with the model chip inside it,
+assistant replies as plain flowing text beside a small badge avatar, and
+the user's messages as compact right-aligned bubbles.
 
 ## Palette
 
@@ -18,18 +27,18 @@ motion only when it confirms state.
 | --- | --- | --- | --- |
 | surface | base | `#0A0D16` | app background |
 | surface | raised | `#131828` | sidebar, panels, agent cards |
-| surface | field | `#181F32` | inputs, output terminals |
+| surface | field | `#181F32` | inputs, output terminals, composer pill |
 | surface | line | `#232C44` | hairline borders and separators |
 | ink | high | `#F2F5FA` | primary text |
 | ink | mid | `#C2CADA` | secondary text, tool lines |
 | ink | low | `#8B94A7` | labels, hints, timestamp-like text |
-| accent | primary | `#F5B942` | gold — the action color (Send, Run agent) |
-| accent | secondary | `#6C8CFF` | indigo — focus rings, hover signal |
-| accent | onPrimary | `#14171F` | text/icon on gold |
+| accent | primary | `#39C978` | badge green: the action color (Send, Run agent) |
+| accent | secondary | `#7CE8AA` | light mint: focus rings, hover signal, pulse |
+| accent | onPrimary | `#14171F` | text/icon on the green fill |
 | status | danger | `#FF6C6C` | errors |
 
 Contrast pairs (`contrastPairs` in tokens.json) cover text on base,
-raised, field, gold, and error text; all meet WCAG AA at their text size.
+raised, field, green, and error text; all meet WCAG AA at their text size.
 
 ## Typography
 
@@ -42,7 +51,7 @@ the interface native. Scale:
 - `sm` 0.875rem — labels, tool lines, preview bar
 - `md` 1rem — chat text, buttons
 - `lg` 1.25rem — brand name, modal headings
-- `xl` 1.5rem — unused today; reserved
+- `xl` 1.5rem — the greeting on the empty state
 
 Monospace contexts (terminal output, tool lines) use the same stack's
 monospace face (`ui-monospace, 'Cascadia Code', Consolas`).
@@ -51,14 +60,17 @@ monospace face (`ui-monospace, 'Cascadia Code', Consolas`).
 
 Short, declarative, honest about risk. Warnings state what will happen
 ("runs unsupervised with auto-approve") and what the user can do ("close
-this page to abort"). No exclamation marks, no marketing adjectives.
+this page to abort"). No exclamation marks, no marketing adjectives. No
+em dashes anywhere a user can read: prefer periods, colons, and commas.
 
 ## Do
 
-- Use gold `accent.primary` for exactly one primary action per surface.
-- Use indigo `accent.secondary` as a signal (focus, hover), never as a fill.
+- Use green `accent.primary` for exactly one primary action per surface.
+- Use light mint `accent.secondary` as a signal (focus, hover), never as a fill.
 - Keep elevation through the surface ramp (base → raised → field) plus
   soft shadows; borders are `surface.line`, 1px.
+- Use the real badge (`/authenik8-logo.svg`, or the compact inline copy for
+  message avatars); never redraw or recolor the mark.
 - Animate state changes (message entrance, pane slide) in ≤200ms; honor
   `prefers-reduced-motion`.
 

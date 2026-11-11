@@ -110,7 +110,7 @@ export async function boot(argv = []) {
   // process that would strand a stale fallback instance on the next port.
   if (await studioAlreadyRunning(preferred)) {
     const url = `http://127.0.0.1:${preferred}`;
-    console.log(`Authenik8 Studio Web is already running: ${url} — reusing it.`);
+    console.log(`Authenik8 is already running: ${url} (reusing it).`);
     if (openBrowser) openInBrowser(url);
     process.exit(0);
   }
@@ -120,7 +120,7 @@ export async function boot(argv = []) {
     console.error(`Ports ${preferred}-${preferred + 10} are all busy. Free one up, or try again with --port <n>.`);
     process.exit(1);
   }
-  if (port !== preferred) console.log(`Port ${preferred} is busy — starting on ${port} instead.`);
+  if (port !== preferred) console.log(`Port ${preferred} is busy, starting on ${port} instead.`);
 
   try {
     const studio = await import("@authenik8/web-studio");

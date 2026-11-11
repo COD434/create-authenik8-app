@@ -1,8 +1,9 @@
-/* Studio Web client (v1): BYOK key in memory only; SSE agent loop with sandboxed file tools. */
+/* Authenik8 client (v1): BYOK key in memory only; SSE agent loop with sandboxed file tools. */
 
 const keyInput = document.getElementById("key");
 const modelSelect = document.getElementById("model");
 const messagesEl = document.getElementById("messages");
+const welcomeEl = document.getElementById("welcome");
 const composer = document.getElementById("composer");
 const promptEl = document.getElementById("prompt");
 const sendBtn = document.getElementById("send");
@@ -17,13 +18,55 @@ function autoScroll() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+// The compact brand mark for assistant avatars: the real logo geometry,
+// trimmed of the dot grid and glow that only read at large sizes.
+const AVATAR_SVG = '<svg class="avatar" width="26" height="26" viewBox="0 0 680 680" aria-hidden="true"><circle cx="340" cy="340" r="240" fill="#246a43"/><circle cx="340" cy="340" r="240" fill="none" stroke="#39c978" stroke-width="34"/><polygon points="226 490 262 490 342 260 322 260" fill="#f7fff9"/><polygon points="356 260 336 260 418 490 454 490" fill="#f7fff9"/><rect x="270" y="388" width="98" height="32" rx="5" fill="#f7fff9"/><rect x="360" y="262" width="92" height="96" rx="36" fill="#a7dfbf"/><rect x="354" y="362" width="102" height="112" rx="42" fill="#a7dfbf"/><rect x="358" y="349" width="94" height="22" rx="5" fill="#a7dfbf"/></svg>';
+
 function addMessage(kind, text) {
+  welcomeEl.hidden = true; // any message replaces the empty state
+  if (kind === "assistant") {
+    const row = document.createElement("div");
+    row.className = "msg-row assistant-row";
+    row.innerHTML = AVATAR_SVG; // static brand markup, never user data
+    const el = document.createElement("div");
+    el.className = "msg assistant";
+    el.textContent = text;
+    row.appendChild(el);
+    messagesEl.appendChild(row);
+    autoScroll();
+    return el;
+  }
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
   el.textContent = text;
   messagesEl.appendChild(el);
   autoScroll();
   return el;
+}
+
+function showWelcome() {
+  messagesEl.innerHTML = "";
+  welcomeEl.hidden = false;
+}
+
+// Pull code or answers out of a finished reply without selecting text.
+function attachCopyButton(bubble) {
+  const row = bubble.parentElement;
+  if (row === null || !row.classList.contains("msg-row")) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "msg-copy";
+  btn.textContent = "Copy";
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(bubble.textContent);
+      btn.textContent = "Copied";
+    } catch {
+      btn.textContent = "Blocked";
+    }
+    window.setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+  });
+  row.appendChild(btn);
 }
 
 // Client-side errors must surface in-band: a silently broken UI is the
@@ -120,13 +163,15 @@ const agentOutput = document.getElementById("agent-output");
 const agentRunBtn = document.getElementById("agent-run");
 let agentRunning = false;
 
-document.getElementById("agent-btn").addEventListener("click", () => {
+function openAgent() {
   agentOverlay.hidden = false;
   if (agentRunning) return; // a running agent keeps its live status view
   agentForm.hidden = false;
   agentStatus.hidden = true;
   document.getElementById("agent-brief").focus();
-});
+}
+
+document.getElementById("agent-btn").addEventListener("click", openAgent);
 
 document.getElementById("agent-close").addEventListener("click", () => {
   // Closing the dialog is ALWAYS allowed: it never aborts the run (closing
@@ -175,7 +220,7 @@ document.getElementById("agent-run").addEventListener("click", async () => {
   agentRunBtn.disabled = true;
   agentForm.hidden = true;
   agentStatus.hidden = false;
-  agentState.textContent = "Agent running — this can take minutes…";
+  agentState.textContent = "Agent running, this can take minutes…";
   agentOutput.textContent = "";
 
   try {
@@ -221,7 +266,7 @@ document.getElementById("agent-run").addEventListener("click", async () => {
 
     if (doneEvent !== null) {
       agentState.textContent = doneEvent.ok
-        ? `Agent finished in ${(doneEvent.durationMs / 1000).toFixed(0)}s — hit ▶ Preview to see the result.`
+        ? `Agent finished in ${(doneEvent.durationMs / 1000).toFixed(0)}s. Hit Preview to see the result.`
         : doneEvent.errorCode === "runtime_missing"
           ? "Agent failed: no spawnable opencode CLI found. Install it with `npm install -g @opencode/cli` (or set OPENCODE_PATH), then reload this page."
           : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
@@ -269,12 +314,27 @@ function syncTemplateRows() {
 }
 document.getElementById("template-preset").addEventListener("change", syncTemplateRows);
 
-document.getElementById("template-btn").addEventListener("click", () => {
+function openTemplate() {
   templateOverlay.hidden = false;
   if (templateBusy) return; // a running generation keeps its live status view
   templateForm.hidden = false;
   templateStatus.hidden = true;
   syncTemplateRows();
+}
+
+document.getElementById("template-btn").addEventListener("click", openTemplate);
+
+// Starter prompts on the empty state: two fill the composer, two open the
+// real doors (the template wizard and the agent) in one click.
+document.querySelectorAll(".chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    if (chip.dataset.open === "template") { openTemplate(); return; }
+    if (chip.dataset.open === "agent") { openAgent(); return; }
+    promptEl.value = chip.dataset.prompt ?? "";
+    promptEl.style.height = "auto";
+    promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
+    promptEl.focus();
+  });
 });
 document.getElementById("template-close").addEventListener("click", () => {
   // Always allowed: hiding the dialog never cancels the generation, and a
@@ -310,7 +370,7 @@ templateRunBtn.addEventListener("click", async () => {
   templateRunBtn.disabled = true;
   templateForm.hidden = true;
   templateStatus.hidden = false;
-  templateState.textContent = "Generating with the Authenik8 CLI (runs locally — nothing is uploaded)…";
+  templateState.textContent = "Generating with the Authenik8 CLI. Runs locally, nothing is uploaded…";
   templateOutput.textContent = "";
 
   try {
@@ -391,7 +451,7 @@ document.getElementById("run-btn").addEventListener("click", async () => {
     // Toggle instead of shoving the panel back: the user closed it for a
     // reason; a click re-opens it to review output or press Stop.
     runOverlay.hidden = !runOverlay.hidden;
-    if (!runOverlay.hidden) runState.textContent = "The project is running — Stop is right below.";
+    if (!runOverlay.hidden) runState.textContent = "The project is running. Stop is right below.";
     return;
   }
   runOverlay.hidden = false;
@@ -431,7 +491,7 @@ async function startRun() {
           }
           if (payload.run?.phase === "install") runState.textContent = "Installing dependencies…";
           if (payload.run?.phase === "serve") {
-            runState.textContent = "Project running — previewing it on the right.";
+            runState.textContent = "Project running. Previewing it on the right.";
             showPreview(); // the whole point: test the app the moment it serves
             // The panel has done its job: get it out of the way. A click on
             // Run project toggles it back open for output review / Stop.
@@ -459,7 +519,7 @@ function askForKey() {
   keyInput.focus();
   addMessage(
     "system",
-    "One step to start building: create a free OpenRouter key at openrouter.ai/keys (no card needed — free tier gives you 50 requests a day) and paste it in the sidebar. It stays in this tab's memory only. Then send again.",
+    "One step to start building: create a free OpenRouter key at openrouter.ai/keys (no card needed, free tier gives you 50 requests a day) and paste it in the sidebar. It stays in this tab's memory only. Then send again.",
   );
 }
 
@@ -469,8 +529,7 @@ keyInput.addEventListener("input", () => {
 
 newChatBtn.addEventListener("click", async () => {
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
-  messagesEl.innerHTML = "";
-  addMessage("assistant", "New chat. Describe what to build.");
+  showWelcome(); // the greeting IS the new-chat state
 });
 
 composer.addEventListener("submit", async (event) => {
@@ -488,9 +547,11 @@ composer.addEventListener("submit", async (event) => {
 
   addMessage("user", prompt);
   promptEl.value = "";
+  promptEl.style.height = "auto";
   sendBtn.disabled = true;
 
-  const assistantEl = addMessage("assistant", "…");
+  const assistantEl = addMessage("assistant", "");
+  assistantEl.classList.add("thinking"); // three dots until the first token
   let firstDelta = true;
   let usage = null;
   let toolLine = null;
@@ -524,6 +585,7 @@ composer.addEventListener("submit", async (event) => {
           if (payload.delta !== undefined) {
             if (firstDelta) {
               assistantEl.textContent = "";
+              assistantEl.classList.remove("thinking");
               firstDelta = false;
             }
             assistantEl.textContent += payload.delta;
@@ -549,7 +611,12 @@ composer.addEventListener("submit", async (event) => {
       }
     }
 
-    if (firstDelta) assistantEl.textContent = "(empty response)";
+    if (firstDelta) {
+      assistantEl.classList.remove("thinking");
+      assistantEl.textContent = "(empty response)";
+    } else {
+      attachCopyButton(assistantEl);
+    }
   } catch (error) {
     if (firstDelta) assistantEl.remove();
     addMessage("system-error", error.message);

@@ -180,12 +180,18 @@ describe("static UI and auth boundary", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(res.headers.get("cache-control")).toContain("no-store");
-    expect(await res.text()).toContain("Studio Web");
+    expect(await res.text()).toContain("<title>Authenik8</title>");
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
+    // The real brand mark must serve same-origin: favicon, sidebar, hero,
+    // and avatars all point at it (no CDNs, ever).
+    const logo = await fetch(`${base}/authenik8-logo.svg`);
+    expect(logo.status).toBe(200);
+    expect(logo.headers.get("content-type")).toContain("image/svg+xml");
+    expect(logo.headers.get("cache-control")).toContain("no-store");
   });
 
   it("browses free models with NO key, and still refuses chat without one", async () => {

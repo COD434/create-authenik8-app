@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Authenik8 Studio Web</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23F5B942'/%3E%3Ctext x='16' y='21' font-family='system-ui' font-size='13' font-weight='700' text-anchor='middle' fill='%2314171F'%3EA8%3C/text%3E%3C/svg%3E" />
+  <title>Authenik8</title>
+  <link rel="icon" type="image/svg+xml" href="/authenik8-logo.svg" />
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
@@ -12,28 +12,28 @@
 
     <aside class="sidebar">
       <div class="brand">
-        <span class="brand-mark">A8</span>
-        <span class="brand-name">Studio Web</span>
+        <img src="/authenik8-logo.svg" alt="Authenik8" width="34" height="34" />
+        <span class="brand-name">Authenik8</span>
       </div>
 
-      <span class="group-label">Chat</span>
+      <span class="group-label">Build</span>
       <button id="new-chat" class="btn-new" type="button">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>
         New chat
       </button>
-
-      <span class="group-label">Sandbox</span>
-      <button id="preview-btn" class="btn-new" type="button">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.3 8s2.4-4.2 6.7-4.2S14.7 8 14.7 8s-2.4 4.2-6.7 4.2S1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>
-        Preview
+      <button id="template-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+        New from template
       </button>
       <button id="agent-btn" class="btn-new" type="button">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
         Build with agent
       </button>
-      <button id="template-btn" class="btn-new" type="button">
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
-        New from template
+
+      <span class="group-label">Project</span>
+      <button id="preview-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.3 8s2.4-4.2 6.7-4.2S14.7 8 14.7 8s-2.4 4.2-6.7 4.2S1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>
+        Preview
       </button>
       <button id="run-btn" class="btn-new" type="button">
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
@@ -57,17 +57,13 @@
         Export ZIP
       </a>
 
-      <label class="field">
-        <span>Model <em id="model-note">free · no key to browse</em></span>
-        <select id="model" disabled><option>loading free models…</option></select>
-      </label>
-
+      <span class="group-label">Connect</span>
       <label class="field">
         <span>OpenRouter key <em>only needed to send</em></span>
         <input id="key" type="password" autocomplete="off" placeholder="sk-or-…" />
       </label>
-      <p class="key-note">Come in, pick a model, and describe what to build — the key is asked for when you send.
-        Free tier: 50 requests/day. Held in this tab's memory only; never stored, logged, or sent anywhere except OpenRouter.</p>
+      <p class="key-note">Pick a model in the composer and describe what to build. The key is asked for when you send.
+        Free tier: 50 requests a day. Held in this tab's memory only; never stored, logged, or sent anywhere except OpenRouter.</p>
 
       <div class="sidebar-foot">
         <span id="usage-line">local · BYOK · no telemetry</span>
@@ -75,22 +71,38 @@
     </aside>
 
     <main class="chat">
-      <div id="messages" class="messages">
-        <div class="system-intro"><strong>Describe the app you want to build.</strong>
- The assistant writes real files into a sandboxed project on this machine. Authenik8 keeps identity, sessions, and authorization on a backend you own — vibe-code the interface.</div>
+      <div id="messages" class="messages"></div>
+
+      <div id="welcome" class="welcome">
+        <img src="/authenik8-logo.svg" alt="" width="72" height="72" />
+        <h1>What are we building today?</h1>
+        <p class="welcome-sub">Real files in a sandboxed project on this machine. Identity, sessions, and
+          authorization stay on a backend you own. Vibe-code the interface.</p>
+        <div class="chips">
+          <button type="button" class="chip" data-prompt="Build a habit tracker with user accounts, streaks, and a small dashboard.">A habit tracker with accounts</button>
+          <button type="button" class="chip" data-prompt="Build a booking API for a barbershop with owner dashboards.">A barbershop booking API</button>
+          <button type="button" class="chip" data-open="template">Start from an Authenik8 template</button>
+          <button type="button" class="chip" data-open="agent">Build with the agent</button>
+        </div>
       </div>
+
       <form id="composer" class="composer">
-        <textarea id="prompt" rows="1" placeholder="Describe what to build." spellcheck="false"></textarea>
-        <button id="send" type="submit" disabled>
-          Send
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
-        </button>
+        <div class="composer-pill">
+          <textarea id="prompt" rows="1" placeholder="Describe what to build." spellcheck="false"></textarea>
+          <div class="composer-bar">
+            <select id="model" disabled><option>loading free models…</option></select>
+            <em id="model-note">free · no key to browse</em>
+            <button id="send" type="submit" disabled aria-label="Send">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+            </button>
+          </div>
+        </div>
       </form>
     </main>
 
     <section id="preview-pane" class="preview-pane" aria-hidden="true">
       <div class="preview-bar">
-        <span>Preview — sandbox project (isolated)</span>
+        <span>Preview · sandbox project (isolated)</span>
         <div class="preview-actions">
           <button id="preview-reload" type="button" title="Reload">reload</button>
           <a id="preview-open" href="/preview/" target="_blank" rel="noopener" title="Open in a new tab">open ↗</a>
@@ -129,10 +141,10 @@
         <div id="template-form">
           <label class="template-field">Preset
             <select id="template-preset">
-              <option value="auth" selected>auth — identity backend (Express)</option>
-              <option value="base">base — minimal Express</option>
-              <option value="auth-oauth">auth-oauth — identity + OAuth providers</option>
-              <option value="fullstack">fullstack — API + web app (needs PostgreSQL)</option>
+              <option value="auth" selected>auth · identity backend (Express)</option>
+              <option value="base">base · minimal Express</option>
+              <option value="auth-oauth">auth-oauth · identity + OAuth providers</option>
+              <option value="fullstack">fullstack · API + web app (needs PostgreSQL)</option>
             </select>
           </label>
           <label class="template-field" id="template-frontend-row" hidden>Frontend
@@ -162,7 +174,7 @@
             </select>
           </label>
           <label class="template-field template-check"><input type="checkbox" id="template-prisma" checked> Prisma</label>
-          <p class="agent-warn">Seeding replaces the entire sandbox — the current chat resets with it. The
+          <p class="agent-warn">Seeding replaces the entire sandbox: the current chat resets with it. The
             generator runs locally from the Authenik8 CLI; nothing is uploaded.</p>
           <button id="template-run" type="button">Generate project</button>
         </div>
