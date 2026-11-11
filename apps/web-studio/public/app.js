@@ -115,15 +115,17 @@ const agentRunBtn = document.getElementById("agent-run");
 let agentRunning = false;
 
 document.getElementById("agent-btn").addEventListener("click", () => {
-  if (agentRunning) return;
   agentOverlay.hidden = false;
+  if (agentRunning) return; // a running agent keeps its live status view
   agentForm.hidden = false;
   agentStatus.hidden = true;
   document.getElementById("agent-brief").focus();
 });
 
 document.getElementById("agent-close").addEventListener("click", () => {
-  if (!agentRunning) agentOverlay.hidden = true;
+  // Closing the dialog is ALWAYS allowed: it never aborts the run (closing
+  // the page does), and a stuck busy-flag must never trap the user.
+  agentOverlay.hidden = true;
 });
 document.getElementById("agent-dismiss").addEventListener("click", () => {
   agentOverlay.hidden = true;
@@ -132,16 +134,16 @@ document.getElementById("agent-dismiss").addEventListener("click", () => {
 // The modal must be dismissible in every conventional way: clicking the
 // backdrop outside the dialog, and Escape (agent first, then run panel).
 agentOverlay.addEventListener("mousedown", (event) => {
-  if (event.target === agentOverlay && !agentRunning) agentOverlay.hidden = true;
+  if (event.target === agentOverlay) agentOverlay.hidden = true;
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!agentOverlay.hidden) {
-    if (!agentRunning) agentOverlay.hidden = true;
+    agentOverlay.hidden = true;
     return;
   }
   if (!templateOverlay.hidden) {
-    if (!templateBusy) templateOverlay.hidden = true;
+    templateOverlay.hidden = true;
     return;
   }
   const runOverlay = document.getElementById("run-overlay");
@@ -262,20 +264,22 @@ function syncTemplateRows() {
 document.getElementById("template-preset").addEventListener("change", syncTemplateRows);
 
 document.getElementById("template-btn").addEventListener("click", () => {
-  if (templateBusy) return;
   templateOverlay.hidden = false;
+  if (templateBusy) return; // a running generation keeps its live status view
   templateForm.hidden = false;
   templateStatus.hidden = true;
   syncTemplateRows();
 });
 document.getElementById("template-close").addEventListener("click", () => {
-  if (!templateBusy) templateOverlay.hidden = true;
+  // Always allowed: hiding the dialog never cancels the generation, and a
+  // stuck busy-flag must never trap the user.
+  templateOverlay.hidden = true;
 });
 document.getElementById("template-dismiss").addEventListener("click", () => {
   templateOverlay.hidden = true;
 });
 templateOverlay.addEventListener("mousedown", (event) => {
-  if (event.target === templateOverlay && !templateBusy) templateOverlay.hidden = true;
+  if (event.target === templateOverlay) templateOverlay.hidden = true;
 });
 
 templateRunBtn.addEventListener("click", async () => {

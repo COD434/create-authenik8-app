@@ -174,11 +174,17 @@ function chat(message: string, model = "free/model-a"): Promise<Response> {
 }
 
 describe("static UI and auth boundary", () => {
-  it("serves the chat shell", async () => {
+  it("serves the chat shell, never cacheable (a stale tab must not outlive a fix)", async () => {
     const res = await fetch(`${base}/`);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("cache-control")).toContain("no-store");
     expect(await res.text()).toContain("Studio Web");
+
+    const appJs = await fetch(`${base}/app.js`);
+    expect(appJs.headers.get("cache-control")).toContain("no-store");
+    const style = await fetch(`${base}/style.css`);
+    expect(style.headers.get("cache-control")).toContain("no-store");
   });
 
   it("rejects model discovery and chat without the key header", async () => {

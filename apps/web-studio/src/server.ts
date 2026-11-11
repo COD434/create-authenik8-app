@@ -504,7 +504,10 @@ async function handle(
     if (req.method === "GET" && url.pathname in STATIC_FILES) {
       const entry = STATIC_FILES[url.pathname]!;
       const content = await readFile(path.join(PUBLIC_DIR, entry.file), "utf8");
-      res.writeHead(200, { "content-type": entry.type });
+      // The studio's own files must never be heuristically cached: a stale
+      // app.js/style.css in the tab's cache makes every shipped fix look
+      // like it did nothing (exactly the "the X button is dead" report).
+      res.writeHead(200, { "content-type": entry.type, "cache-control": "no-store" });
       res.end(content);
       return;
     }
