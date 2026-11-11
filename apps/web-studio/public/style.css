@@ -97,23 +97,31 @@ body {
   flex: 0 0 auto;
   background: linear-gradient(180deg, var(--color-surface-raised), color-mix(in srgb, var(--color-surface-raised) 88%, var(--color-surface-base)));
   border-right: 1px solid var(--color-surface-line);
-  padding: var(--spacing-scale-md);
+  padding: 14px 12px 12px;
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-scale-sm);
+  /* Tight stack: buttons rhythm 2px apart; group labels carry the section
+     air themselves so the nav reads as Build / Project / Connect blocks. */
+  gap: 2px;
   box-shadow: var(--shadow-panel);
+  /* A short window scrolls the nav; it never clips mid-button. */
+  overflow-y: auto;
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--spacing-scale-sm);
-  padding: var(--spacing-scale-xs) var(--spacing-scale-xs) var(--spacing-scale-sm);
+  gap: 10px;
+  padding: 4px 8px 2px;
 }
 
+/* The mark, not the poster art: the badge fills its box, the shadow hugs
+   the circle, and no stray dots survive at 36px. */
 .brand img {
-  border-radius: 10px;
-  box-shadow: 0 6px 18px rgba(57, 201, 120, 0.22);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  box-shadow: 0 4px 16px rgba(57, 201, 120, 0.28);
 }
 
 .brand-name {
@@ -123,12 +131,13 @@ body {
 }
 
 .group-label {
+  margin: 14px 8px 6px;
+  padding: 0;
   color: var(--color-ink-low);
   font-size: var(--typography-scale-xs);
-  font-weight: 600;
-  letter-spacing: 0.8px;
+  font-weight: 650;
+  letter-spacing: 1.1px;
   text-transform: uppercase;
-  padding: var(--spacing-scale-sm) var(--spacing-scale-xs) 0;
 }
 
 .btn-new {
@@ -184,7 +193,7 @@ body {
   50% { box-shadow: 0 0 0 7px rgba(57, 201, 120, 0.07); }
 }
 
-.key-note { color: var(--color-ink-low); font-size: var(--typography-scale-xs); line-height: 1.55; margin: 0; padding-inline: 2px; }
+.key-note { color: var(--color-ink-low); font-size: var(--typography-scale-xs); line-height: 1.55; margin: 6px 2px 0; padding-inline: 2px; }
 
 .sidebar-foot {
   margin-top: auto;
@@ -690,6 +699,7 @@ body {
   border: 1px solid var(--color-surface-line);
   border-radius: 14px;
   padding: var(--spacing-scale-md);
+  margin: 6px 0 10px;
   display: flex;
   flex-direction: column;
   gap: 10px;

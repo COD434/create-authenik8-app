@@ -192,6 +192,11 @@ describe("static UI and auth boundary", () => {
     expect(logo.status).toBe(200);
     expect(logo.headers.get("content-type")).toContain("image/svg+xml");
     expect(logo.headers.get("cache-control")).toContain("no-store");
+    // The trimmed mark fills the frame: it is what the sidebar, favicon,
+    // and small surfaces use (the poster art dies at 36px).
+    const mark = await fetch(`${base}/authenik8-mark.svg`);
+    expect(mark.status).toBe(200);
+    expect(mark.headers.get("content-type")).toContain("image/svg+xml");
   });
 
   it("browses free models with NO key, and still refuses chat without one", async () => {

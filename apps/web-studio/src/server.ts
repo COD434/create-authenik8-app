@@ -68,6 +68,7 @@ const STATIC_FILES: Record<string, { file: string; type: string }> = {
   "/app.js": { file: "app.js", type: "text/javascript; charset=utf-8" },
   "/style.css": { file: "style.css", type: "text/css; charset=utf-8" },
   "/authenik8-logo.svg": { file: "authenik8-logo.svg", type: "image/svg+xml" },
+  "/authenik8-mark.svg": { file: "authenik8-mark.svg", type: "image/svg+xml" },
 };
 
 const chatBodySchema = z.object({
