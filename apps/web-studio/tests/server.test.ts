@@ -11,7 +11,8 @@ import type { AgentRunResult, AgentRuntime } from "@authenik8/agent-adapter";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, startStudio, type WebStudioDeps } from "../src/server.js";
-import { SessionLog } from "../src/session-log.js";
+import { SESSION_DIR, SessionLog } from "../src/session-log.js";
+import { SUBAGENT_DIR } from "../src/subagent.js";
 import { PROJECT_DIR_NAME } from "../src/template-bridge.js";
 import { executeTool } from "../src/tools.js";
 import type { Runner, RunnerCommands, RunnerEvent, RunnerHandlers } from "../src/runner.js";
@@ -401,6 +402,157 @@ describe("build plan", () => {
 
     const history = await (await fetch(`${base}/api/history`)).json() as { plan: unknown };
     expect(history.plan).toBeNull();
+  });
+});
+
+describe("explorer subagent", () => {
+  function toolRound(
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+  ): ChatChunk[] {
+    return [
+      {
+        delta: null,
+        toolCalls: [{ index: 0, id, name, argumentsDelta: JSON.stringify(args) }],
+        finishReason: null,
+        usage: null,
+      },
+      { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+    ];
+  }
+
+  it("runs one read-only child and returns its report as a parent tool result", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await writeFile(path.join(sandbox, "README.md"), "Hello from README.\n", "utf8");
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+
+    script = [
+      toolRound("call_explore", "explore_project", {
+        task: "Read README.md and report what the project is.",
+      }),
+      toolRound("child_read", "read_file", { path: "README.md" }),
+      [
+        {
+          delta: "Answer: the project has a README. Evidence: README.md.",
+          toolCalls: null,
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "stop", usage: null },
+      ],
+      textRound,
+    ];
+
+    const text = await (await chat("explore the project")).text();
+    expect(text).toContain('"name":"explore_project"');
+    expect(text).toContain("Explorer report (read-only, 2 rounds):");
+    expect(text).not.toContain(KEY);
+
+    // Parent round 1, child read, child report, parent round 2.
+    expect(capturedRequests).toHaveLength(4);
+    const parentTools = capturedRequests[0]!.tools?.map((tool) => tool.name) ?? [];
+    expect(parentTools).toContain("explore_project");
+    const childTools = capturedRequests[1]!.tools?.map((tool) => tool.name) ?? [];
+    expect(childTools).toEqual(["list_files", "read_file", "design_audit"]);
+    // Fresh child context: system + task only, not the parent conversation.
+    expect(capturedRequests[1]!.messages).toHaveLength(2);
+    expect(capturedRequests[1]!.messages[0]?.role).toBe("system");
+    expect(capturedRequests[1]!.messages[1]).toEqual({
+      role: "user",
+      content: "Read README.md and report what the project is.",
+    });
+
+    // The parent saw the report, not the raw file output.
+    const parentSecond = capturedRequests[3]!;
+    const explorerResult = parentSecond.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_explore",
+    );
+    expect(explorerResult?.content).toContain("Explorer report (read-only, 2 rounds):");
+    expect(explorerResult?.content).toContain("Answer: the project has a README.");
+    expect(explorerResult?.content).not.toContain("Hello from README.");
+
+    const parentHistory = await (await fetch(`${base}/api/history`)).json() as {
+      messages: Array<{ content: string }>;
+    };
+    expect(
+      parentHistory.messages.some((message) => message.content.includes("Hello from README.")),
+    ).toBe(false);
+
+    const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
+    expect(childFiles).toHaveLength(1);
+    const childHistory = await new SessionLog(
+      path.join(sandbox, SESSION_DIR, SUBAGENT_DIR, childFiles[0]!),
+    ).history();
+    expect(
+      childHistory.some((message) => message.content.includes("Hello from README.")),
+    ).toBe(true);
+    expect(
+      childHistory.some(
+        (message) => message.role === "assistant" && message.content.includes("Answer:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("allows only one explorer per turn", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+
+    script = [
+      [
+        {
+          delta: null,
+          toolCalls: [
+            {
+              index: 0,
+              id: "call_e1",
+              name: "explore_project",
+              argumentsDelta: JSON.stringify({ task: "First look." }),
+            },
+            {
+              index: 1,
+              id: "call_e2",
+              name: "explore_project",
+              argumentsDelta: JSON.stringify({ task: "Second look." }),
+            },
+          ],
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+      ],
+      [
+        {
+          delta: "Answer: first look done.",
+          toolCalls: null,
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "stop", usage: null },
+      ],
+      textRound,
+    ];
+
+    const text = await (await chat("explore twice")).text();
+    expect(text).toContain("only one explore_project call is allowed per turn");
+    expect(text).not.toContain(KEY);
+
+    // The first call ran a child; the second never reached the gateway.
+    expect(capturedRequests).toHaveLength(3);
+    const history = await (await fetch(`${base}/api/history`)).json() as {
+      messages: Array<{ role: string; content: string; toolCallId?: string }>;
+    };
+    const first = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_e1",
+    );
+    expect(first?.content).toContain("Answer: first look done.");
+    const second = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_e2",
+    );
+    expect(second?.content).toContain("only one explore_project call is allowed per turn");
+
+    const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
+    expect(childFiles).toHaveLength(1);
   });
 });
 

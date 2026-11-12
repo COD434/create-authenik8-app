@@ -17,7 +17,18 @@ import {
 } from "@authenik8/models";
 import { createOpenCodeRuntime, type AgentRuntime } from "@authenik8/agent-adapter";
 
-import { executeTool, resolveInsideSandbox, toolDefinitions } from "./tools.js";
+import {
+  executeTool,
+  resolveInsideSandbox,
+  toolDefinitions,
+  type ToolOutcome,
+} from "./tools.js";
+import {
+  exploreTaskSchema,
+  exploreToolDefinition,
+  runExplorer,
+  SUBAGENT_MAX_TASK_CHARS,
+} from "./subagent.js";
 import { resolveOpenCodePath } from "./opencode-path.js";
 import {
   bridgeArgv,
@@ -166,12 +177,15 @@ const SYSTEM_PROMPT = [
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
   "write_file, design_audit (Authenik8 design checks A8-DS-001..004 over a design",
-  "directory with tokens.json + DESIGN.md), and update_plan. Build real files in small,",
-  "verifiable steps: list the project, write complete runnable files, and say what you",
-  "did in one short line before each tool call. For a multi-file build, call update_plan",
-  "once with 3 to 8 short steps, then update it when a step starts or finishes. After",
-  "writing or changing design tokens, run design_audit and fix every failed check",
-  "before moving on.",
+  "directory with tokens.json + DESIGN.md), update_plan, and explore_project. Build real",
+  "files in small, verifiable steps: list the project, write complete runnable files, and",
+  "say what you did in one short line before each tool call. For a multi-file build, call",
+  "update_plan once with 3 to 8 short steps, then update it when a step starts or finishes.",
+  "For a focused read-only investigation that would flood this conversation with file",
+  "output, call explore_project with a self-contained task. The child does not see this",
+  "conversation, cannot write files, and returns a report. Use it at most once per turn,",
+  "and verify its findings before changing files. After writing or changing design",
+  "tokens, run design_audit and fix every failed check before moving on.",
   "The user previews your work live: the sandbox's index.html is served at /preview/.",
   "For web output, create index.html at the project root and keep asset paths relative.",
   "Every project root must include a package.json whose scripts.start boots the app.",
@@ -181,8 +195,11 @@ const SYSTEM_PROMPT = [
   "Redis-backed sessions, Prisma, strict cookies, CSRF, and server-side authorization.",
   "Never suggest client-held secrets, tokens in browser storage, frontend route guards",
   "as authorization, or disabling CSRF/origin checks. Prefer free-tier OpenRouter models",
-  "and plain, reviewable code.",
+  "and plain, reviewable code. Use plain punctuation, no em dashes.",
 ].join(" ");
+
+/** Tools offered to the parent model: studio tools plus delegation. */
+const PARENT_TOOL_DEFINITIONS = [...toolDefinitions, exploreToolDefinition];
 
 /**
  * The zero-dependency static server the studio writes into a static sandbox
@@ -919,6 +936,7 @@ async function handle(
 
         const generate = async (model: string): Promise<void> => {
           let rounds = 0;
+          let explorerUsed = false;
 
           while (rounds < MAX_TOOL_ROUNDS) {
             rounds++;
@@ -954,7 +972,7 @@ async function handle(
               for await (const chunk of gateway.chatStream({
                 model,
                 messages: [{ role: "system", content: SYSTEM_PROMPT }, ...compacted.messages],
-                tools: toolDefinitions,
+                tools: PARENT_TOOL_DEFINITIONS,
                 signal: abort.signal,
               })) {
                 if (chunk.delta !== null) {
@@ -995,7 +1013,47 @@ async function handle(
                 continue;
               }
               sseEvent(res, { tool: { name: call.name, phase: "start" } });
-              const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
+              let outcome: ToolOutcome;
+              if (call.name === "explore_project") {
+                if (explorerUsed) {
+                  outcome = {
+                    ok: false,
+                    result:
+                      "Error: only one explore_project call is allowed per turn. Use the report you already have.",
+                  };
+                } else {
+                  let task: string | null = null;
+                  try {
+                    const parsedArgs = exploreTaskSchema.safeParse(JSON.parse(call.arguments));
+                    if (parsedArgs.success) task = parsedArgs.data.task;
+                  } catch {
+                    // The schema error below covers invalid JSON too.
+                  }
+                  if (task === null) {
+                    outcome = {
+                      ok: false,
+                      result: `Error: explore_project needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
+                    };
+                  } else {
+                    explorerUsed = true;
+                    try {
+                      const explorer = await runExplorer({
+                        gateway,
+                        model,
+                        sandboxRoot: deps.sandboxRoot,
+                        task,
+                        signal: abort.signal,
+                      });
+                      outcome = { ok: explorer.ok, result: explorer.result };
+                    } catch (error) {
+                      const message = error instanceof Error ? error.message : "explorer failed";
+                      outcome = { ok: false, result: `Error: explorer failed: ${message}` };
+                    }
+                  }
+                }
+              } else {
+                outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
+              }
               await log.append({ role: "tool", content: outcome.result, toolCallId: call.id });
               sseEvent(res, {
                 tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },

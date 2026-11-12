@@ -46,6 +46,23 @@ and audit trails instead of a second users table.
 | v4.4 | Request-view compaction: the oldest large tool results are summarized above a configurable character budget (`AUTHENIK8_CONTEXT_CHARS`); the log stays complete; the SSE stream announces compaction | done |
 | v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
 | v4.6 | Build plan: the `update_plan` tool records a short step list in the logged assistant tool call; the sidebar shows a read-only trajectory with live SSE updates; `/api/history` derives the latest successful plan, so refresh and restart restore it; rejected or interrupted plans are ignored | done |
+| v4.7 | Read-only explorer subagent: `explore_project` starts a fresh child session with only `list_files`, `read_file`, and `design_audit`; one child per turn, max 4 tool rounds, 60s timeout, 32k read budget, 6k report cap; the child transcript is append-only at `.authenik8/subagents/` and the parent receives only the report; no writes, commands, network, recursion, or key access; synchronous, so background children remain a later slice | done |
+
+### Read-only explorer contract (v4.7)
+
+- `explore_project` is the only delegation tool. One child per parent turn.
+- The child gets a fresh context (system prompt + task), never the parent log.
+- Its tool allowlist is `list_files`, `read_file`, and `design_audit`; every
+  other call is rejected before execution.
+- It cannot read `.env` files or other environment secrets, write, run
+  commands, reach the network, or spawn another child.
+- Budgets: 4 tool rounds, 60s wall clock, 32k tool-result chars, 6k report
+  chars. The full transcript stays in
+  `.authenik8/subagents/explore-<id>.jsonl`.
+- The parent receives the report as a tool result; raw child output never
+  enters the parent context. The report is evidence, not instructions.
+- Background children, builder children, and parallel delegation are not in
+  this slice: the chat route is still one request-scoped SSE stream.
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 
