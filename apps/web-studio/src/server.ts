@@ -10,7 +10,6 @@ import {
   assembleToolCalls,
   createModelsGateway,
   createOpenRouterProvider,
-  type ChatMessage,
   type ModelInfo,
   type ModelsGateway,
   type ToolCallDelta,
@@ -29,6 +28,7 @@ import {
   type TemplateSpec,
 } from "./template-bridge.js";
 import { createRunner, npmRunCommands, type Runner, type RunnerHandlers } from "./runner.js";
+import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
 /**
@@ -41,7 +41,9 @@ import { createZip, type ZipEntry } from "./zip.js";
  * - the OpenRouter key arrives per request in the X-OpenRouter-Key header
  *   and is never stored, logged, or echoed;
  * - tool execution is confined to the sandbox root (path-guarded);
- * - conversation history lives in server memory only; reset wipes it;
+ * - the conversation is an append-only JSONL log inside the sandbox
+ *   (.authenik8/session.jsonl): local-only, excluded from preview, export,
+ *   and the file tools; reset starts a new conversation;
  * - the OpenCode agent is triggered ONLY by explicit user action and always
  *   runs with auto-approve scoped to the sandbox cwd; its output is
  *   untrusted data and is never treated as instructions;
@@ -472,14 +474,24 @@ function parseJsonBody(text: string): unknown {
 }
 
 type StudioSession = {
-  conversation: ChatMessage[];
+  /**
+   * Durable conversation log, created on first use so a caller may set the
+   * sandbox root after the server object exists (the tests do exactly that).
+   */
+  log: SessionLog | null;
   agentBusy: boolean;
   runRes: ServerResponse | null;
 };
 
+function sessionLog(deps: WebStudioDeps, session: StudioSession): SessionLog {
+  session.log ??= new SessionLog(path.join(deps.sandboxRoot, SESSION_DIR, SESSION_FILE));
+  return session.log;
+}
+
 export function createWebStudioServer(deps: WebStudioDeps): Server {
-  // Single-user localhost tool: one conversation in memory; /api/reset wipes it.
-  const session: StudioSession = { conversation: [], agentBusy: false, runRes: null };
+  // Single-user localhost tool: one durable conversation per sandbox;
+  // /api/reset starts a new one.
+  const session: StudioSession = { log: null, agentBusy: false, runRes: null };
 
   // Project runner wiring: run output streams to whoever holds the SSE.
   const runner = deps.createRunner({
@@ -559,8 +571,16 @@ async function handle(
     }
 
     if (url.pathname === "/api/reset" && req.method === "POST") {
-      session.conversation.length = 0;
+      await sessionLog(deps, session).reset();
       sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (url.pathname === "/api/history" && req.method === "GET") {
+      // The client restores from the same derived conversation the model
+      // sees: one source of truth, no parallel UI state.
+      const messages = await sessionLog(deps, session).history();
+      sendJson(res, 200, { messages });
       return;
     }
 
@@ -735,7 +755,7 @@ async function handle(
             sandboxRoot: deps.sandboxRoot,
           });
           // The conversation described a sandbox that no longer exists.
-          session.conversation.length = 0;
+          await sessionLog(deps, session).reset();
           sseEvent(res, { template: { phase: "seeded", files: seeded.files } });
           sseEvent(res, { done: true });
         } catch (seedError) {
@@ -841,6 +861,12 @@ async function handle(
         return;
       }
 
+      // The user turn is committed to the log before any stream starts: a
+      // request that dies mid-flight leaves a valid, replayable history.
+      const log = sessionLog(deps, session);
+      await log.append({ role: "user", content: parsed.data.message });
+      const turnStart = (await log.history()).length;
+
       res.writeHead(200, {
         "content-type": "text/event-stream",
         "cache-control": "no-cache",
@@ -849,8 +875,6 @@ async function handle(
 
       const abort = new AbortController();
       req.on("close", () => abort.abort());
-
-      session.conversation.push({ role: "user", content: parsed.data.message });
 
       try {
         const gateway = deps.gatewayFor(key);
@@ -861,40 +885,63 @@ async function handle(
           while (rounds < MAX_TOOL_ROUNDS) {
             rounds++;
             let text = "";
+            let streamError: unknown = null;
             const fragments: ToolCallDelta[] = [];
+            const history = await log.history();
 
-            for await (const chunk of gateway.chatStream({
-              model,
-              messages: [{ role: "system", content: SYSTEM_PROMPT }, ...session.conversation],
-              tools: toolDefinitions,
-              signal: abort.signal,
-            })) {
-              if (chunk.delta !== null) {
-                text += chunk.delta;
-                sseEvent(res, { delta: chunk.delta });
+            try {
+              for await (const chunk of gateway.chatStream({
+                model,
+                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
+                tools: toolDefinitions,
+                signal: abort.signal,
+              })) {
+                if (chunk.delta !== null) {
+                  text += chunk.delta;
+                  sseEvent(res, { delta: chunk.delta });
+                }
+                if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
+                if (chunk.usage !== null) sseEvent(res, { usage: chunk.usage });
+                if (chunk.finishReason !== null) sseEvent(res, { finishReason: chunk.finishReason });
               }
-              if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
-              if (chunk.usage !== null) sseEvent(res, { usage: chunk.usage });
-              if (chunk.finishReason !== null) sseEvent(res, { finishReason: chunk.finishReason });
+            } catch (error) {
+              streamError = error;
+            }
+
+            if (streamError !== null) {
+              // Cancellation keeps what the user already saw, exactly as the
+              // harness finalizes a cancelled stream. Other failures record no
+              // assistant message, so the next turn starts from a valid log.
+              if (abort.signal.aborted && text.length > 0) {
+                await log.append({ role: "assistant", content: text });
+              }
+              throw streamError;
             }
 
             const calls = assembleToolCalls(fragments);
             if (calls.length === 0) {
-              session.conversation.push({ role: "assistant", content: text });
+              await log.append({ role: "assistant", content: text });
               sseEvent(res, { done: true, rounds });
               return;
             }
 
-            session.conversation.push({ role: "assistant", content: text, toolCalls: calls });
+            await log.append({ role: "assistant", content: text, toolCalls: calls });
             for (const call of calls) {
+              if (abort.signal.aborted) {
+                // An assistant tool call must never reach a later request
+                // without a result: record undispatched calls as unknowns.
+                await log.append({ role: "tool", toolCallId: call.id, content: TOOL_OUTCOME_UNKNOWN });
+                continue;
+              }
               sseEvent(res, { tool: { name: call.name, phase: "start" } });
               const outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
-              session.conversation.push({ role: "tool", content: outcome.result, toolCallId: call.id });
+              await log.append({ role: "tool", content: outcome.result, toolCallId: call.id });
               sseEvent(res, {
                 tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
               });
             }
 
+            if (abort.signal.aborted) return;
             if (rounds >= MAX_TOOL_ROUNDS) {
               sseEvent(res, { error: `Stopped: tool round budget (${MAX_TOOL_ROUNDS}) exhausted. Send another message to continue.` });
               return;
@@ -906,10 +953,12 @@ async function handle(
           await generate(parsed.data.model);
         } catch (error) {
           const message = error instanceof Error ? error.message : "stream failed";
+          const after = (await log.history()).length;
           if (
             message.includes("agentic harnesses")
             && parsed.data.model !== FALLBACK_MODEL
             && !abort.signal.aborted
+            && after === turnStart
           ) {
             // Agent-only providers 403 the whole product: complete this
             // message with the app-traffic router instead of dead-ending.

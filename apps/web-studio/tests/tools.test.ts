@@ -39,6 +39,12 @@ describe("resolveInsideSandbox", () => {
     expect(resolveInsideSandbox(sandbox, "/etc/passwd")).toBeNull();
     expect(resolveInsideSandbox(sandbox, ".")).toBeNull();
   });
+
+  it("reserves the studio session log", () => {
+    expect(resolveInsideSandbox(sandbox, ".authenik8")).toBeNull();
+    expect(resolveInsideSandbox(sandbox, ".authenik8/session.jsonl")).toBeNull();
+    expect(resolveInsideSandbox(sandbox, ".authenik8\\session.jsonl")).toBeNull();
+  });
 });
 
 describe("executeTool", () => {
@@ -64,6 +70,19 @@ describe("executeTool", () => {
     const parsed = JSON.parse(list.result) as { files: string[] };
     expect(parsed.files).toContain(path.join("src", "app.ts"));
     expect(parsed.files.some((file) => file.includes("node_modules"))).toBe(false);
+  });
+
+  it("keeps studio-owned state out of listings and reads", async () => {
+    await mkdir(path.join(sandbox, ".authenik8"), { recursive: true });
+    await writeFile(path.join(sandbox, ".authenik8", "session.jsonl"), "{}", "utf8");
+
+    const list = await executeTool("list_files", "{}", sandbox);
+    expect(list.ok).toBe(true);
+    expect(list.result).not.toContain(".authenik8");
+
+    const read = await executeTool("read_file", JSON.stringify({ path: ".authenik8/session.jsonl" }), sandbox);
+    expect(read.ok).toBe(false);
+    expect(read.result).toContain("escapes the project sandbox");
   });
 
   it("refuses to write outside the sandbox", async () => {

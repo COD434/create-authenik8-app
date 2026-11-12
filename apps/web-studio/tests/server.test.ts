@@ -380,6 +380,32 @@ describe("conversation state", () => {
     expect(capturedRequests[2]!.messages).toHaveLength(2); // wiped
   });
 
+  it("restores the conversation from the sandbox log after a restart", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    script = [textRound];
+    await (await chat("durable hello")).text();
+
+    // A fresh server over the same sandbox derives the same conversation:
+    // the log, not process memory, is the source of truth.
+    const second = createWebStudioServer({
+      ...deps,
+      createRunner: () => fakeRunner, // do not steal the primary server's runner handlers
+    });
+    await new Promise<void>((resolve) => second.listen(0, "127.0.0.1", resolve));
+    const secondPort = (second.address() as AddressInfo).port;
+    try {
+      const res = await fetch(`http://127.0.0.1:${secondPort}/api/history`);
+      expect(res.status).toBe(200);
+      const body = await res.json() as { messages: Array<{ role: string; content: string }> };
+      expect(body.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
+      expect(body.messages[0]?.content).toBe("durable hello");
+      expect(body.messages[1]?.content).toBe("Done.");
+    } finally {
+      second.closeAllConnections();
+      second.close();
+    }
+  });
+
   it("rejects invalid bodies with 400", async () => {
     const res = await chat("");
     expect(res.status).toBe(400);

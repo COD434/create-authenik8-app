@@ -130,6 +130,35 @@ keyInput.addEventListener("change", loadModels);
 // Browse immediately on load, with no key anywhere in the flow.
 void loadModels();
 
+// The conversation is derived from the sandbox's durable session log, so a
+// refresh or a studio restart does not erase the build. The epoch guard keeps
+// a slow restore from repainting over a new chat or a freshly sent message.
+let historyEpoch = 0;
+async function restoreHistory() {
+  const epoch = ++historyEpoch;
+  try {
+    const res = await fetch("/api/history");
+    if (!res.ok) return;
+    const body = await res.json();
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const visible = messages.filter(
+      (message) =>
+        (message.role === "user" || message.role === "assistant")
+        && typeof message.content === "string"
+        && message.content.length > 0,
+    );
+    if (epoch !== historyEpoch || visible.length === 0) return;
+    for (const message of visible) {
+      const bubble = addMessage(message.role, message.content);
+      if (message.role === "assistant") attachCopyButton(bubble);
+    }
+    autoScroll();
+  } catch {
+    // History is an enhancement: a failed read must never block the composer.
+  }
+}
+void restoreHistory();
+
 const previewPane = document.getElementById("preview-pane");
 const previewFrame = document.getElementById("preview-frame");
 
@@ -408,6 +437,7 @@ templateRunBtn.addEventListener("click", async () => {
         }
         if (payload.error !== undefined) throw new Error(payload.error);
         if (payload.done === true && seeded !== null) {
+          historyEpoch++;
           messagesEl.innerHTML = "";
           addMessage(
             "assistant",
@@ -528,6 +558,7 @@ keyInput.addEventListener("input", () => {
 });
 
 newChatBtn.addEventListener("click", async () => {
+  historyEpoch++; // a restore already in flight must not repaint this state
   await fetch("/api/reset", { method: "POST" }).catch(() => {});
   showWelcome(); // the greeting IS the new-chat state
 });
@@ -545,6 +576,7 @@ composer.addEventListener("submit", async (event) => {
     return;
   }
 
+  historyEpoch++; // the live turn owns the transcript from here
   addMessage("user", prompt);
   promptEl.value = "";
   promptEl.style.height = "auto";

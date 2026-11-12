@@ -20,6 +20,11 @@ import type { ToolDefinition } from "@authenik8/models";
 export const MAX_FILE_BYTES = 256 * 1024;
 export const MAX_TOOL_RESULT_CHARS = 16_000;
 export const MAX_LIST_ENTRIES = 500;
+/**
+ * Studio-owned state (the durable session log) is not part of the project:
+ * the model may neither read nor overwrite it, and listings skip it.
+ */
+export const RESERVED_DIR = ".authenik8";
 
 export type ToolOutcome = {
   ok: boolean;
@@ -94,6 +99,8 @@ export function resolveInsideSandbox(sandboxRoot: string, requested: string): st
   const resolved = path.resolve(sandboxRoot, trimmed);
   const relative = path.relative(sandboxRoot, resolved);
   if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) return null;
+  const first = relative.split(path.sep)[0];
+  if (first !== undefined && first.toLowerCase() === RESERVED_DIR) return null;
   return resolved;
 }
 
@@ -107,7 +114,8 @@ async function walk(root: string, dir: string, out: string[], depth: number): Pr
   const entries = await readdir(dir, { withFileTypes: true });
   for (const entry of entries) {
     if (out.length >= MAX_LIST_ENTRIES) return;
-    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const name = entry.name.toLowerCase();
+    if (name === "node_modules" || name === ".git" || name === RESERVED_DIR) continue;
     const full = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       await walk(root, full, out, depth + 1);
