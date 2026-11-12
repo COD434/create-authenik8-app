@@ -27,6 +27,7 @@ import {
   type Bridge,
   type TemplateSpec,
 } from "./template-bridge.js";
+import { DEFAULT_CONTEXT_BUDGET_CHARS, compactForRequest } from "./compaction.js";
 import { createRunner, npmRunCommands, type Runner, type RunnerHandlers } from "./runner.js";
 import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
@@ -108,6 +109,12 @@ export type WebStudioDeps = {
   publicModels?: () => Promise<ModelInfo[]>;
   /** Sandbox root for tool execution; created on demand. */
   sandboxRoot: string;
+  /**
+   * Character budget for the model-visible history. Older tool results are
+   * summarized above it; the durable log is never rewritten. Defaults to
+   * DEFAULT_CONTEXT_BUDGET_CHARS.
+   */
+  contextBudgetChars?: number;
   /** The coding-agent runtime (OpenCode). Triggered only by explicit user action. */
   agentRuntime: AgentRuntime;
   /** Project runner factory (npm install/start). Fixed commands, user-triggered. */
@@ -878,6 +885,7 @@ async function handle(
 
       try {
         const gateway = deps.gatewayFor(key);
+        let lastCompaction = "";
 
         const generate = async (model: string): Promise<void> => {
           let rounds = 0;
@@ -888,11 +896,25 @@ async function handle(
             let streamError: unknown = null;
             const fragments: ToolCallDelta[] = [];
             const history = await log.history();
+            const compacted = compactForRequest(
+              history,
+              deps.contextBudgetChars ?? DEFAULT_CONTEXT_BUDGET_CHARS,
+            );
+            if (compacted.pruned > 0) {
+              // One notice per distinct compaction per turn, not once per round.
+              const signature = `${compacted.pruned}:${compacted.savedChars}`;
+              if (signature !== lastCompaction) {
+                lastCompaction = signature;
+                sseEvent(res, {
+                  compaction: { pruned: compacted.pruned, savedChars: compacted.savedChars },
+                });
+              }
+            }
 
             try {
               for await (const chunk of gateway.chatStream({
                 model,
-                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...history],
+                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...compacted.messages],
                 tools: toolDefinitions,
                 signal: abort.signal,
               })) {
@@ -1014,6 +1036,15 @@ export type StudioStartOptions = {
   onReady?: (url: string) => void;
 };
 
+/** Optional character budget override, clamped to a sane local range. */
+function contextBudgetFromEnv(): number | undefined {
+  const raw = process.env.AUTHENIK8_CONTEXT_CHARS;
+  if (raw === undefined || raw.trim() === "") return undefined;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return undefined;
+  return Math.min(400_000, Math.max(4_000, Math.trunc(parsed)));
+}
+
 /**
  * Boot the studio with port discipline: a busy preferred port falls back to
  * the next ten before giving up with a clear message — a first-run developer
@@ -1033,6 +1064,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
   const sandboxRoot = process.env.SANDBOX_DIR
     ? path.resolve(process.env.SANDBOX_DIR)
     : path.join(process.cwd(), ".studio-sandbox");
+  const contextBudgetChars = contextBudgetFromEnv();
 
   // The agent runtime spawns opencode directly (no shell), so npm's .cmd
   // shims never resolve on Windows — resolve the underlying executable the
@@ -1048,6 +1080,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     gatewayFor,
     publicModels: () => listPublicModels(),
     sandboxRoot,
+    ...(contextBudgetChars !== undefined ? { contextBudgetChars } : {}),
     agentRuntime,
     createRunner,
   });

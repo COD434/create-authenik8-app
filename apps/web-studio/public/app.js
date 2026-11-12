@@ -638,6 +638,13 @@ composer.addEventListener("submit", async (event) => {
               : model;
           }
           if (payload.note !== undefined) addMessage("system", payload.note);
+          if (payload.compaction !== undefined) {
+            const count = payload.compaction.pruned;
+            addMessage(
+              "system",
+              `Context compacted: ${count} older tool result${count === 1 ? "" : "s"} summarized to stay within the model budget.`,
+            );
+          }
           if (payload.error !== undefined) throw new Error(payload.error);
         }
       }

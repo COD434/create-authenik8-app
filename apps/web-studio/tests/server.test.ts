@@ -11,6 +11,7 @@ import type { AgentRunResult, AgentRuntime } from "@authenik8/agent-adapter";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import { createWebStudioServer, startStudio, type WebStudioDeps } from "../src/server.js";
+import { SessionLog } from "../src/session-log.js";
 import { PROJECT_DIR_NAME } from "../src/template-bridge.js";
 import { executeTool } from "../src/tools.js";
 import type { Runner, RunnerCommands, RunnerEvent, RunnerHandlers } from "../src/runner.js";
@@ -409,6 +410,73 @@ describe("conversation state", () => {
   it("rejects invalid bodies with 400", async () => {
     const res = await chat("");
     expect(res.status).toBe(400);
+  });
+});
+
+describe("context compaction", () => {
+  it("compacts the request view while the durable log keeps the full result", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "a8-compact-test-"));
+    try {
+      const seed = new SessionLog(path.join(dir, ".authenik8", "session.jsonl"));
+      await seed.append({ role: "user", content: "earlier build" });
+      await seed.append({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "old_call", name: "read_file", arguments: "{}" }],
+      });
+      await seed.append({ role: "tool", toolCallId: "old_call", content: "x".repeat(6_000) });
+      await seed.append({ role: "assistant", content: "that file is large" });
+      await seed.append({ role: "user", content: "now add auth" });
+      await seed.append({
+        role: "assistant",
+        content: "",
+        toolCalls: [{ id: "new_call", name: "list_files", arguments: "{}" }],
+      });
+      await seed.append({ role: "tool", toolCallId: "new_call", content: "src/\npackage.json" });
+      await seed.append({ role: "assistant", content: "ready" });
+
+      const compactServer = createWebStudioServer({
+        ...deps,
+        sandboxRoot: dir,
+        contextBudgetChars: 2_000,
+        createRunner: () => fakeRunner,
+      });
+      await new Promise<void>((resolve) => compactServer.listen(0, "127.0.0.1", resolve));
+      const compactPort = (compactServer.address() as AddressInfo).port;
+      try {
+        capturedRequests.length = 0;
+        roundIndex = 0;
+        script = [textRound];
+        const res = await fetch(`http://127.0.0.1:${compactPort}/api/chat`, {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-openrouter-key": KEY },
+          body: JSON.stringify({ message: "continue", model: "free/model-a" }),
+        });
+        const text = await res.text();
+        expect(text).toContain('"compaction"');
+
+        const sent = capturedRequests[0]!.messages;
+        const compacted = sent.find(
+          (message) => message.role === "tool" && message.toolCallId === "old_call",
+        );
+        expect(compacted?.content).toContain("[compacted tool result] read_file");
+        expect(compacted?.content).not.toContain("x".repeat(1_000));
+
+        const historyRes = await fetch(`http://127.0.0.1:${compactPort}/api/history`);
+        const history = await historyRes.json() as {
+          messages: Array<{ role: string; toolCallId?: string; content: string }>;
+        };
+        const full = history.messages.find(
+          (message) => message.role === "tool" && message.toolCallId === "old_call",
+        );
+        expect(full?.content).toHaveLength(6_000);
+      } finally {
+        compactServer.closeAllConnections();
+        compactServer.close();
+      }
+    } finally {
+      await rm(dir, { recursive: true, force: true }).catch(() => {});
+    }
   });
 });
 
