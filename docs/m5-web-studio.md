@@ -45,6 +45,7 @@ and audit trails instead of a second users table.
 | v4.3 | Durable session log: append-only JSONL at `.authenik8/session.jsonl`; the model-visible conversation is derived from it; `/api/history` restores the transcript; crash repair records unknown tool outcomes; cancellation keeps streamed text | done |
 | v4.4 | Request-view compaction: the oldest large tool results are summarized above a configurable character budget (`AUTHENIK8_CONTEXT_CHARS`); the log stays complete; the SSE stream announces compaction | done |
 | v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
+| v4.6 | Build plan: the `update_plan` tool records a short step list in the logged assistant tool call; the sidebar shows a read-only trajectory with live SSE updates; `/api/history` derives the latest successful plan, so refresh and restart restore it; rejected or interrupted plans are ignored | done |
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 

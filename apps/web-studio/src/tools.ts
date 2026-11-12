@@ -6,6 +6,8 @@ import { z } from "zod";
 import { formatFindings, runDesignChecks } from "@authenik8/design";
 import type { ToolDefinition } from "@authenik8/models";
 
+import { PLAN_MAX_STEPS, PLAN_MAX_TITLE_CHARS, planArgsSchema, summarizePlan } from "./plan.js";
+
 /**
  * Sandboxed file tools for the studio agent loop.
  *
@@ -86,6 +88,40 @@ export const toolDefinitions: ToolDefinition[] = [
       },
     },
   },
+  {
+    name: "update_plan",
+    description:
+      "Record or update a short plan for a multi-step build. Call this once before writing a multi-file project, then again when a step starts or completes. Keep 3 to 8 outcome-focused steps. The plan is shown to the user; this tool does not execute anything.",
+    parameters: {
+      type: "object",
+      properties: {
+        steps: {
+          type: "array",
+          description: "Ordered plan steps, at most 8.",
+          minItems: 1,
+          maxItems: PLAN_MAX_STEPS,
+          items: {
+            type: "object",
+            properties: {
+              title: {
+                type: "string",
+                description: "Short step title, at most 120 characters.",
+                minLength: 1,
+                maxLength: PLAN_MAX_TITLE_CHARS,
+              },
+              status: {
+                type: "string",
+                enum: ["pending", "in_progress", "completed"],
+                description: "Current state of the step.",
+              },
+            },
+            required: ["title", "status"],
+          },
+        },
+      },
+      required: ["steps"],
+    },
+  },
 ];
 
 /**
@@ -139,6 +175,11 @@ export async function executeTool(
   }
 
   try {
+    if (name === "update_plan") {
+      const args = planArgsSchema.parse(parsedArguments);
+      return { ok: true, result: summarizePlan({ steps: args.steps }) };
+    }
+
     if (name === "list_files") {
       const args = listArgsSchema.parse(parsedArguments ?? {});
       const dir = args.path === undefined || args.path === "." || args.path === ""

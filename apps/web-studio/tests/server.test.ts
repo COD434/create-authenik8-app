@@ -181,7 +181,10 @@ describe("static UI and auth boundary", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toContain("text/html");
     expect(res.headers.get("cache-control")).toContain("no-store");
-    expect(await res.text()).toContain("<title>Authenik8</title>");
+    const html = await res.text();
+    expect(html).toContain("<title>Authenik8</title>");
+    expect(html).toContain('id="plan-panel"');
+    expect(html).toContain('id="plan-steps"');
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
@@ -328,6 +331,76 @@ describe("agent loop", () => {
 
     expect(text).toContain("budget");
     expect(capturedRequests).toHaveLength(6); // MAX_TOOL_ROUNDS
+  });
+});
+
+describe("build plan", () => {
+  function planRound(
+    id: string,
+    steps: Array<{ title: string; status: string }>,
+  ): ChatChunk[] {
+    return [
+      {
+        delta: null,
+        toolCalls: [{
+          index: 0,
+          id,
+          name: "update_plan",
+          argumentsDelta: JSON.stringify({ steps }),
+        }],
+        finishReason: null,
+        usage: null,
+      },
+      { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+    ];
+  }
+
+  it("publishes the plan over SSE and derives it from the log", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    const steps = [
+      { title: "Scaffold the app", status: "completed" },
+      { title: "Add authentication", status: "in_progress" },
+      { title: "Run the design audit", status: "pending" },
+    ];
+    script = [planRound("call_plan", steps), textRound];
+
+    const text = await (await chat("plan the build")).text();
+    expect(text).toContain('"plan":{"steps":[');
+    expect(text).toContain('"title":"Add authentication"');
+    expect(text).toContain('"status":"in_progress"');
+    expect(text).not.toContain(KEY);
+
+    // The model saw its own plan call and the accepted result in round 2.
+    expect(capturedRequests).toHaveLength(2);
+    const second = capturedRequests[1]!;
+    const planCall = second.messages.find(
+      (message) => message.role === "assistant" && message.toolCalls?.some((call) => call.name === "update_plan"),
+    );
+    expect(planCall).toBeDefined();
+    const planResult = second.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_plan",
+    );
+    expect(planResult?.content).toContain("Plan updated: 3 steps");
+
+    const history = await (await fetch(`${base}/api/history`)).json() as {
+      plan: { steps: Array<{ title: string; status: string }> } | null;
+    };
+    expect(history.plan).toEqual({ steps });
+  });
+
+  it("does not publish a plan that the tool rejected", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    script = [
+      planRound("bad_plan", [{ title: "Broken", status: "done" }]),
+      textRound,
+    ];
+
+    const text = await (await chat("bad plan")).text();
+    expect(text).toContain('"ok":false');
+    expect(text).not.toContain('"plan":');
+
+    const history = await (await fetch(`${base}/api/history`)).json() as { plan: unknown };
+    expect(history.plan).toBeNull();
   });
 });
 

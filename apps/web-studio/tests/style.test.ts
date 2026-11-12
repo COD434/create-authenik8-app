@@ -52,6 +52,8 @@ describe("style.css structure", () => {
     expect(/#agent-output, #run-output, #template-output \{/.test(css)).toBe(true);
     expect(/#run-state::before, #template-state::before \{/.test(css)).toBe(true);
     expect(/#agent-run, #agent-dismiss, #template-run, #template-dismiss \{/.test(css)).toBe(true);
+    expect(css).toContain(".plan-panel");
+    expect(css).toContain(".plan-step.completed .plan-mark");
   });
 
   it("keeps a stacked small-screen layout", () => {

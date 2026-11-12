@@ -195,6 +195,95 @@ body {
 
 .key-note { color: var(--color-ink-low); font-size: var(--typography-scale-xs); line-height: 1.55; margin: 6px 2px 0; padding-inline: 2px; }
 
+/* Build plan: a thin, read-only trajectory. Hidden until the model records
+   one, so the empty screen keeps its full stage. */
+.plan-panel {
+  margin: 12px 2px 2px;
+  padding: 10px 10px 9px;
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface-field) 55%, transparent);
+}
+
+.plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-xs);
+  font-weight: 650;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.plan-count {
+  color: var(--color-ink-low);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.plan-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.plan-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  color: var(--color-ink-mid);
+  font-size: var(--typography-scale-xs);
+  line-height: 1.4;
+}
+
+.plan-mark {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  margin-top: 1px;
+  border: 1.5px solid var(--color-surface-line);
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: transparent;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.plan-step.in_progress .plan-mark {
+  border-color: var(--color-accent-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-accent-primary) 14%, transparent);
+}
+
+.plan-step.in_progress .plan-mark::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-accent-primary);
+}
+
+.plan-step.completed .plan-mark {
+  border-color: var(--color-accent-primary);
+  background: var(--color-accent-primary);
+  color: var(--color-accent-onPrimary);
+}
+
+.plan-step.completed .plan-title { color: var(--color-ink-low); }
+.plan-step.in_progress .plan-title { color: var(--color-ink-high); font-weight: 600; }
+.plan-title { min-width: 0; overflow-wrap: anywhere; }
+
 .sidebar-foot {
   margin-top: auto;
   color: var(--color-ink-low);

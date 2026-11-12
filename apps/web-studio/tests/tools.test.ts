@@ -122,6 +122,40 @@ describe("executeTool", () => {
   });
 });
 
+describe("update_plan tool", () => {
+  it("accepts a plan and reports status counts", async () => {
+    const outcome = await executeTool(
+      "update_plan",
+      JSON.stringify({
+        steps: [
+          { title: "Scaffold the app", status: "completed" },
+          { title: "Add authentication", status: "in_progress" },
+          { title: "Run the design audit", status: "pending" },
+        ],
+      }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result).toContain("3 steps");
+    expect(outcome.result).toContain("1 completed");
+    expect(outcome.result).toContain("1 in progress");
+    expect(outcome.result).toContain("1 pending");
+  });
+
+  it("rejects empty or malformed plans as tool errors", async () => {
+    const empty = await executeTool("update_plan", JSON.stringify({ steps: [] }), sandbox);
+    expect(empty.ok).toBe(false);
+    expect(empty.result).toContain("invalid tool arguments");
+
+    const badStatus = await executeTool(
+      "update_plan",
+      JSON.stringify({ steps: [{ title: "x", status: "done" }] }),
+      sandbox,
+    );
+    expect(badStatus.ok).toBe(false);
+  });
+});
+
 describe("design_audit tool", () => {
   it("passes a valid bundle and reports the A8-DS checks", async () => {
     await mkdir(path.join(sandbox, "design"), { recursive: true });

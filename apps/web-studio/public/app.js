@@ -9,6 +9,9 @@ const promptEl = document.getElementById("prompt");
 const sendBtn = document.getElementById("send");
 const newChatBtn = document.getElementById("new-chat");
 const usageLine = document.getElementById("usage-line");
+const planPanel = document.getElementById("plan-panel");
+const planSteps = document.getElementById("plan-steps");
+const planCount = document.getElementById("plan-count");
 
 function apiKey() {
   return keyInput.value.trim();
@@ -46,7 +49,43 @@ function addMessage(kind, text) {
 
 function showWelcome() {
   messagesEl.innerHTML = "";
+  renderPlan(null);
   welcomeEl.hidden = false;
+}
+
+// The build plan is a projection of the logged update_plan tool call. It is
+// read-only and rendered with textContent: model output is never HTML.
+const PLAN_STATUSES = ["pending", "in_progress", "completed"];
+function renderPlan(plan) {
+  const steps = Array.isArray(plan?.steps) ? plan.steps : [];
+  planSteps.textContent = "";
+  let completed = 0;
+  for (const step of steps) {
+    const title = typeof step?.title === "string" ? step.title.trim() : "";
+    if (title === "") continue;
+    const status = PLAN_STATUSES.includes(step?.status) ? step.status : "pending";
+    if (status === "completed") completed++;
+    const item = document.createElement("li");
+    item.className = `plan-step ${status}`;
+    item.setAttribute("aria-label", `${title} (${status.replace("_", " ")})`);
+    const mark = document.createElement("span");
+    mark.className = "plan-mark";
+    mark.setAttribute("aria-hidden", "true");
+    mark.textContent = status === "completed" ? "✓" : "";
+    const label = document.createElement("span");
+    label.className = "plan-title";
+    label.textContent = title;
+    item.append(mark, label);
+    planSteps.appendChild(item);
+  }
+  const total = planSteps.childElementCount;
+  if (total === 0) {
+    planPanel.hidden = true;
+    planCount.textContent = "";
+    return;
+  }
+  planCount.textContent = `${completed}/${total}`;
+  planPanel.hidden = false;
 }
 
 // Pull code or answers out of a finished reply without selecting text.
@@ -147,7 +186,9 @@ async function restoreHistory() {
         && typeof message.content === "string"
         && message.content.length > 0,
     );
-    if (epoch !== historyEpoch || visible.length === 0) return;
+    if (epoch !== historyEpoch) return;
+    renderPlan(body.plan ?? null);
+    if (visible.length === 0) return;
     for (const message of visible) {
       const bubble = addMessage(message.role, message.content);
       if (message.role === "assistant") attachCopyButton(bubble);
@@ -439,6 +480,7 @@ templateRunBtn.addEventListener("click", async () => {
         if (payload.done === true && seeded !== null) {
           historyEpoch++;
           messagesEl.innerHTML = "";
+          renderPlan(null);
           addMessage(
             "assistant",
             `Sandbox seeded from the Authenik8 template (${seeded.files} files). Describe changes in chat, or hit Run project to install and start it.`,
@@ -631,6 +673,7 @@ composer.addEventListener("submit", async (event) => {
               toolLine = null;
             }
           }
+          if (payload.plan !== undefined) renderPlan(payload.plan);
           if (payload.usage !== undefined) usage = payload.usage;
           if (payload.done === true) {
             usageLine.textContent = usage

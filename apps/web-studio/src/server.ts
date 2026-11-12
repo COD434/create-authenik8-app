@@ -30,6 +30,7 @@ import {
 import { DEFAULT_CONTEXT_BUDGET_CHARS, compactForRequest } from "./compaction.js";
 import { createRunner, npmRunCommands, type Runner, type RunnerHandlers } from "./runner.js";
 import { RUNTIME_CONTEXT_PREFIX, buildRuntimeContext } from "./runtime-context.js";
+import { planFromMessages, parsePlanArgs } from "./plan.js";
 import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
@@ -164,11 +165,13 @@ const SYSTEM_PROMPT = [
   "You are Authenik8, a senior product engineer for the Authenik8 ecosystem.",
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
-  "write_file, and design_audit (Authenik8 design checks A8-DS-001..004 over a design",
-  "directory with tokens.json + DESIGN.md). Build real files in small, verifiable steps:",
-  "list the project, write complete runnable files, and say what you did in one short",
-  "line before each tool call. After writing or changing design tokens, run design_audit",
-  "and fix every failed check before moving on.",
+  "write_file, design_audit (Authenik8 design checks A8-DS-001..004 over a design",
+  "directory with tokens.json + DESIGN.md), and update_plan. Build real files in small,",
+  "verifiable steps: list the project, write complete runnable files, and say what you",
+  "did in one short line before each tool call. For a multi-file build, call update_plan",
+  "once with 3 to 8 short steps, then update it when a step starts or finishes. After",
+  "writing or changing design tokens, run design_audit and fix every failed check",
+  "before moving on.",
   "The user previews your work live: the sandbox's index.html is served at /preview/.",
   "For web output, create index.html at the project root and keep asset paths relative.",
   "Every project root must include a package.json whose scripts.start boots the app.",
@@ -607,7 +610,7 @@ async function handle(
       // The client restores from the same derived conversation the model
       // sees: one source of truth, no parallel UI state.
       const messages = await sessionLog(deps, session).history();
-      sendJson(res, 200, { messages });
+      sendJson(res, 200, { messages, plan: planFromMessages(messages) });
       return;
     }
 
@@ -997,6 +1000,10 @@ async function handle(
               sseEvent(res, {
                 tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
               });
+              if (call.name === "update_plan" && outcome.ok) {
+                const plan = parsePlanArgs(call.arguments);
+                if (plan !== null) sseEvent(res, { plan });
+              }
             }
 
             if (abort.signal.aborted) return;
