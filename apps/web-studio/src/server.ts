@@ -29,6 +29,7 @@ import {
 } from "./template-bridge.js";
 import { DEFAULT_CONTEXT_BUDGET_CHARS, compactForRequest } from "./compaction.js";
 import { createRunner, npmRunCommands, type Runner, type RunnerHandlers } from "./runner.js";
+import { RUNTIME_CONTEXT_PREFIX, buildRuntimeContext } from "./runtime-context.js";
 import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
 
@@ -45,6 +46,8 @@ import { createZip, type ZipEntry } from "./zip.js";
  * - the conversation is an append-only JSONL log inside the sandbox
  *   (.authenik8/session.jsonl): local-only, excluded from preview, export,
  *   and the file tools; reset starts a new conversation;
+ * - runtime context is a generated, logged system snapshot of project names
+ *   and package metadata; `.env` values and absolute paths are never read;
  * - the OpenCode agent is triggered ONLY by explicit user action and always
  *   runs with auto-approve scoped to the sandbox cwd; its output is
  *   untrusted data and is never treated as instructions;
@@ -495,6 +498,23 @@ function sessionLog(deps: WebStudioDeps, session: StudioSession): SessionLog {
   return session.log;
 }
 
+/**
+ * Append the runtime context only when it differs from the last one in the
+ * log. The reminder is a logged system message, not UI state, so a replay
+ * sees exactly what the model saw.
+ */
+async function ensureRuntimeContext(log: SessionLog, content: string): Promise<void> {
+  const history = await log.history();
+  for (let index = history.length - 1; index >= 0; index--) {
+    const message = history[index];
+    if (message === undefined || message.role !== "system") continue;
+    if (!message.content.startsWith(RUNTIME_CONTEXT_PREFIX)) continue;
+    if (message.content === content) return;
+    break;
+  }
+  await log.append({ role: "system", content });
+}
+
 export function createWebStudioServer(deps: WebStudioDeps): Server {
   // Single-user localhost tool: one durable conversation per sandbox;
   // /api/reset starts a new one.
@@ -871,6 +891,13 @@ async function handle(
       // The user turn is committed to the log before any stream starts: a
       // request that dies mid-flight leaves a valid, replayable history.
       const log = sessionLog(deps, session);
+      const runtimeContext = await buildRuntimeContext({
+        sandboxRoot: deps.sandboxRoot,
+        running: runner.isRunning(),
+      }).catch(() => null);
+      if (runtimeContext !== null) {
+        await ensureRuntimeContext(log, runtimeContext);
+      }
       await log.append({ role: "user", content: parsed.data.message });
       const turnStart = (await log.history()).length;
 
@@ -892,6 +919,15 @@ async function handle(
 
           while (rounds < MAX_TOOL_ROUNDS) {
             rounds++;
+            if (rounds > 1) {
+              // Tool rounds can change the project: refresh the snapshot before
+              // the next model request. Unchanged snapshots are deduplicated.
+              const refreshed = await buildRuntimeContext({
+                sandboxRoot: deps.sandboxRoot,
+                running: runner.isRunning(),
+              }).catch(() => null);
+              if (refreshed !== null) await ensureRuntimeContext(log, refreshed);
+            }
             let text = "";
             let streamError: unknown = null;
             const fragments: ToolCallDelta[] = [];

@@ -268,7 +268,8 @@ describe("agent loop", () => {
     // The tool really wrote the file inside the sandbox.
     expect(await readFile(path.join(sandbox, "hello.txt"), "utf8")).toBe("hello from the loop");
 
-    // Round 2 saw the assistant tool call and the tool result in history.
+    // Round 2 saw the assistant tool call, the tool result, and a refreshed
+    // runtime context that now includes the file the tool created.
     expect(capturedRequests).toHaveLength(2);
     const second = capturedRequests[1]!;
     const toolMessage = second.messages.find((message) => message.role === "tool");
@@ -276,6 +277,11 @@ describe("agent loop", () => {
     expect(toolMessage?.content).toContain("wrote hello.txt");
     const assistantMessage = second.messages.find((message) => message.role === "assistant");
     expect(assistantMessage?.toolCalls?.[0]?.name).toBe("write_file");
+    const contexts = second.messages.filter(
+      (message) => message.role === "system" && message.content.startsWith("<runtime-context>"),
+    );
+    expect(contexts).toHaveLength(2);
+    expect(contexts.at(-1)?.content).toContain("hello.txt");
   });
 
   it("feeds tool failures back to the model instead of crashing", async () => {
@@ -367,18 +373,21 @@ describe("conversation state", () => {
     await fetch(`${base}/api/reset`, { method: "POST" }); // tests above share the server conversation
     script = [textRound];
     await (await chat("first message")).text(); // drain: server finishes the turn
-    expect(capturedRequests[0]!.messages).toHaveLength(2); // system + user
+    expect(capturedRequests[0]!.messages).toHaveLength(3); // system + runtime context + user
+    expect(capturedRequests[0]!.messages.some(
+      (message) => message.role === "system" && message.content.startsWith("<runtime-context>"),
+    )).toBe(true);
 
     script = [textRound];
     await (await chat("second message")).text();
-    expect(capturedRequests[1]!.messages).toHaveLength(4); // system + user + assistant + user
+    expect(capturedRequests[1]!.messages).toHaveLength(5); // + assistant + user; context deduped
 
     const reset = await fetch(`${base}/api/reset`, { method: "POST" });
     expect(reset.status).toBe(200);
 
     script = [textRound];
     await (await chat("third message")).text();
-    expect(capturedRequests[2]!.messages).toHaveLength(2); // wiped
+    expect(capturedRequests[2]!.messages).toHaveLength(3); // fresh context + user
   });
 
   it("restores the conversation from the sandbox log after a restart", async () => {
@@ -398,9 +407,13 @@ describe("conversation state", () => {
       const res = await fetch(`http://127.0.0.1:${secondPort}/api/history`);
       expect(res.status).toBe(200);
       const body = await res.json() as { messages: Array<{ role: string; content: string }> };
-      expect(body.messages.map((message) => message.role)).toEqual(["user", "assistant"]);
-      expect(body.messages[0]?.content).toBe("durable hello");
-      expect(body.messages[1]?.content).toBe("Done.");
+      const visible = body.messages.filter((message) => message.role !== "system");
+      expect(visible.map((message) => message.role)).toEqual(["user", "assistant"]);
+      expect(visible[0]?.content).toBe("durable hello");
+      expect(visible[1]?.content).toBe("Done.");
+      expect(body.messages.some(
+        (message) => message.role === "system" && message.content.startsWith("<runtime-context>"),
+      )).toBe(true);
     } finally {
       second.closeAllConnections();
       second.close();
@@ -770,11 +783,12 @@ process.exit(0);
       }
       await rm(path.join(sandbox, "stub-argv.json"), { force: true });
 
-      // The conversation reset: the next model request carries only system + user.
+      // The conversation reset: the next model request carries a fresh runtime
+      // context plus the user turn.
       script = [textRound];
       const afterSeed = await chat("fresh start");
       await afterSeed.text();
-      expect(capturedRequests.at(-1)!.messages).toHaveLength(2);
+      expect(capturedRequests.at(-1)!.messages).toHaveLength(3);
     } finally {
       delete deps.bridge;
     }

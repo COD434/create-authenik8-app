@@ -42,6 +42,9 @@ and audit trails instead of a second users table.
 | v4 | Export + run: `GET /api/export` streams the sandbox as a ZIP (hand-rolled STORE-method writer, OS-verified; dotfiles and node_modules excluded); `POST /api/run` boots the project with FIXED commands (`node npm-cli.js install` → `start`, no shell, argv-only) with SSE output and `POST /api/run/stop` process-tree kill | done (`3e54c27`) |
 | v4.1 | Live agent events: M4 NDJSON pass-through (`AgentRunRequest.onEvent`, parsed per line with drop-malformed/oversized + flood cap) relayed as SSE `agentEvent` — the Build modal shows runtime progress in real time instead of freezing | done (`0e68d03`) |
 | v4.2 | The studio's own skin built with the workspace's own design system: `apps/web-studio/design/tokens.json` + `DESIGN.md` (validated by `runDesignChecks`; all declared contrast pairs WCAG AA), CSS generated with `renderTokensCss`, inline-SVG icons (no CDN), surface-elevation restyle with motion honoring `prefers-reduced-motion` — plus the first-run export fix: `/api/export` bootstraps a missing sandbox and returns a valid empty ZIP instead of a 500 | done |
+| v4.3 | Durable session log: append-only JSONL at `.authenik8/session.jsonl`; the model-visible conversation is derived from it; `/api/history` restores the transcript; crash repair records unknown tool outcomes; cancellation keeps streamed text | done |
+| v4.4 | Request-view compaction: the oldest large tool results are summarized above a configurable character budget (`AUTHENIK8_CONTEXT_CHARS`); the log stays complete; the SSE stream announces compaction | done |
+| v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 
