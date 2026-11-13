@@ -23,6 +23,7 @@ import {
   toolDefinitions,
   type ToolOutcome,
 } from "./tools.js";
+import { executeToolBatch, planToolBatches } from "./tool-loop.js";
 import {
   exploreTaskSchema,
   exploreToolDefinition,
@@ -44,6 +45,9 @@ import { RUNTIME_CONTEXT_PREFIX, buildRuntimeContext } from "./runtime-context.j
 import { planFromMessages, parsePlanArgs } from "./plan.js";
 import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
+
+/** One assembled parent tool call, as returned by the models gateway. */
+type ParentToolCall = ReturnType<typeof assembleToolCalls>[number];
 
 /**
  * Studio Web (M5 v1): a localhost ChatGPT-style builder chat with a sandboxed
@@ -177,8 +181,10 @@ const SYSTEM_PROMPT = [
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
   "write_file, design_audit (Authenik8 design checks A8-DS-001..004 over a design",
-  "directory with tokens.json + DESIGN.md), update_plan, and explore_project. Build real",
-  "files in small, verifiable steps: list the project, write complete runnable files, and",
+  "directory with tokens.json + DESIGN.md), update_plan, and explore_project. Independent",
+  "read-only calls can be batched in one message and run together; writes, plans, and the",
+  "explorer are barriers that run alone in order. Build real files in small, verifiable",
+  "steps: list the project, write complete runnable files, and",
   "say what you did in one short line before each tool call. For a multi-file build, call",
   "update_plan once with 3 to 8 short steps, then update it when a step starts or finishes.",
   "For a focused read-only investigation that would flood this conversation with file",
@@ -1005,62 +1011,80 @@ async function handle(
             }
 
             await log.append({ role: "assistant", content: text, toolCalls: calls });
-            for (const call of calls) {
+
+            const executeCall = async (call: ParentToolCall): Promise<ToolOutcome> => {
+              if (call.name !== "explore_project") {
+                return executeTool(call.name, call.arguments, deps.sandboxRoot);
+              }
+              if (explorerUsed) {
+                return {
+                  ok: false,
+                  result:
+                    "Error: only one explore_project call is allowed per turn. Use the report you already have.",
+                };
+              }
+              let task: string | null = null;
+              try {
+                const parsedArgs = exploreTaskSchema.safeParse(JSON.parse(call.arguments));
+                if (parsedArgs.success) task = parsedArgs.data.task;
+              } catch {
+                // The schema error below covers invalid JSON too.
+              }
+              if (task === null) {
+                return {
+                  ok: false,
+                  result: `Error: explore_project needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
+                };
+              }
+              explorerUsed = true;
+              try {
+                const explorer = await runExplorer({
+                  gateway,
+                  model,
+                  sandboxRoot: deps.sandboxRoot,
+                  task,
+                  signal: abort.signal,
+                });
+                return { ok: explorer.ok, result: explorer.result };
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "explorer failed";
+                return { ok: false, result: `Error: explorer failed: ${message}` };
+              }
+            };
+
+            for (const batch of planToolBatches(calls)) {
               if (abort.signal.aborted) {
                 // An assistant tool call must never reach a later request
                 // without a result: record undispatched calls as unknowns.
-                await log.append({ role: "tool", toolCallId: call.id, content: TOOL_OUTCOME_UNKNOWN });
+                for (const call of batch.calls) {
+                  await log.append({ role: "tool", toolCallId: call.id, content: TOOL_OUTCOME_UNKNOWN });
+                }
                 continue;
               }
-              sseEvent(res, { tool: { name: call.name, phase: "start" } });
-              let outcome: ToolOutcome;
-              if (call.name === "explore_project") {
-                if (explorerUsed) {
-                  outcome = {
-                    ok: false,
-                    result:
-                      "Error: only one explore_project call is allowed per turn. Use the report you already have.",
-                  };
-                } else {
-                  let task: string | null = null;
-                  try {
-                    const parsedArgs = exploreTaskSchema.safeParse(JSON.parse(call.arguments));
-                    if (parsedArgs.success) task = parsedArgs.data.task;
-                  } catch {
-                    // The schema error below covers invalid JSON too.
-                  }
-                  if (task === null) {
-                    outcome = {
-                      ok: false,
-                      result: `Error: explore_project needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
-                    };
-                  } else {
-                    explorerUsed = true;
-                    try {
-                      const explorer = await runExplorer({
-                        gateway,
-                        model,
-                        sandboxRoot: deps.sandboxRoot,
-                        task,
-                        signal: abort.signal,
-                      });
-                      outcome = { ok: explorer.ok, result: explorer.result };
-                    } catch (error) {
-                      const message = error instanceof Error ? error.message : "explorer failed";
-                      outcome = { ok: false, result: `Error: explorer failed: ${message}` };
-                    }
-                  }
-                }
-              } else {
-                outcome = await executeTool(call.name, call.arguments, deps.sandboxRoot);
+
+              // Start every call in the batch before awaiting any result:
+              // read-only calls overlap, a barrier batch is a single call.
+              for (const call of batch.calls) {
+                sseEvent(res, { tool: { id: call.id, name: call.name, phase: "start" } });
               }
-              await log.append({ role: "tool", content: outcome.result, toolCallId: call.id });
-              sseEvent(res, {
-                tool: { name: call.name, phase: "done", ok: outcome.ok, summary: outcome.result.split("\n")[0] ?? "" },
-              });
-              if (call.name === "update_plan" && outcome.ok) {
-                const plan = parsePlanArgs(call.arguments);
-                if (plan !== null) sseEvent(res, { plan });
+              const outcomes = await executeToolBatch(batch, executeCall);
+              for (let index = 0; index < batch.calls.length; index++) {
+                const call = batch.calls[index]!;
+                const outcome = outcomes[index]!;
+                await log.append({ role: "tool", content: outcome.result, toolCallId: call.id });
+                sseEvent(res, {
+                  tool: {
+                    id: call.id,
+                    name: call.name,
+                    phase: "done",
+                    ok: outcome.ok,
+                    summary: outcome.result.split("\n")[0] ?? "",
+                  },
+                });
+                if (call.name === "update_plan" && outcome.ok) {
+                  const plan = parsePlanArgs(call.arguments);
+                  if (plan !== null) sseEvent(res, { plan });
+                }
               }
             }
 

@@ -335,6 +335,74 @@ describe("agent loop", () => {
   });
 });
 
+describe("parallel tool calls", () => {
+  function multiToolRound(
+    calls: Array<{ id: string; name: string; args: Record<string, unknown> }>,
+  ): ChatChunk[] {
+    return [
+      {
+        delta: null,
+        toolCalls: calls.map((call, index) => ({
+          index,
+          id: call.id,
+          name: call.name,
+          argumentsDelta: JSON.stringify(call.args),
+        })),
+        finishReason: null,
+        usage: null,
+      },
+      { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+    ];
+  }
+
+  it("executes independent reads from one message and logs them in call order", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await writeFile(path.join(sandbox, "read-a.txt"), "alpha", "utf8");
+    await writeFile(path.join(sandbox, "read-b.txt"), "beta", "utf8");
+    script = [
+      multiToolRound([
+        { id: "read_a", name: "read_file", args: { path: "read-a.txt" } },
+        { id: "read_b", name: "read_file", args: { path: "read-b.txt" } },
+      ]),
+      textRound,
+    ];
+
+    const text = await (await chat("read both files")).text();
+    expect(text).toContain('"id":"read_a"');
+    expect(text).toContain('"id":"read_b"');
+    expect(text).toContain('"name":"read_file"');
+    expect(text).toContain('"done":true');
+    expect(text).not.toContain(KEY);
+
+    expect(capturedRequests).toHaveLength(2);
+    const toolMessages = capturedRequests[1]!.messages.filter((message) => message.role === "tool");
+    expect(toolMessages.map((message) => message.toolCallId)).toEqual(["read_a", "read_b"]);
+    expect(toolMessages[0]?.content).toBe("alpha");
+    expect(toolMessages[1]?.content).toBe("beta");
+  });
+
+  it("runs a write before a read in the same message", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await rm(path.join(sandbox, "order.txt"), { force: true });
+    script = [
+      multiToolRound([
+        { id: "write_order", name: "write_file", args: { path: "order.txt", content: "written first" } },
+        { id: "read_order", name: "read_file", args: { path: "order.txt" } },
+      ]),
+      textRound,
+    ];
+
+    const text = await (await chat("write then read")).text();
+    expect(text).toContain('"ok":true');
+    expect(text).not.toContain(KEY);
+
+    expect(capturedRequests).toHaveLength(2);
+    const toolMessages = capturedRequests[1]!.messages.filter((message) => message.role === "tool");
+    expect(toolMessages.map((message) => message.toolCallId)).toEqual(["write_order", "read_order"]);
+    expect(toolMessages[1]?.content).toBe("written first");
+  });
+});
+
 describe("build plan", () => {
   function planRound(
     id: string,

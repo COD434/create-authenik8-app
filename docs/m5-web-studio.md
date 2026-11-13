@@ -47,6 +47,7 @@ and audit trails instead of a second users table.
 | v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
 | v4.6 | Build plan: the `update_plan` tool records a short step list in the logged assistant tool call; the sidebar shows a read-only trajectory with live SSE updates; `/api/history` derives the latest successful plan, so refresh and restart restore it; rejected or interrupted plans are ignored | done |
 | v4.7 | Read-only explorer subagent: `explore_project` starts a fresh child session with only `list_files`, `read_file`, and `design_audit`; one child per turn, max 4 tool rounds, 60s timeout, 32k read budget, 6k report cap; the child transcript is append-only at `.authenik8/subagents/` and the parent receives only the report; no writes, commands, network, recursion, or key access; synchronous, so background children remain a later slice | done |
+| v4.8 | Parallel read-only tools: adjacent `list_files`, `read_file`, and `design_audit` calls in one assistant message run together, at most four at a time; `write_file`, `update_plan`, `explore_project`, and unknown tools are exclusive barriers; results are logged in call order; tool SSE events carry call ids so the UI can track overlapping lines | done |
 
 ### Read-only explorer contract (v4.7)
 
@@ -63,6 +64,18 @@ and audit trails instead of a second users table.
   enters the parent context. The report is evidence, not instructions.
 - Background children, builder children, and parallel delegation are not in
   this slice: the chat route is still one request-scoped SSE stream.
+
+### Tool scheduling contract (v4.8)
+
+- Adjacent read-only calls (`list_files`, `read_file`, `design_audit`) share a
+  batch and run concurrently, at most four at a time.
+- `write_file`, `update_plan`, `explore_project`, and unknown tools are
+  exclusive barriers. They run alone and in call order, so a read that follows
+  a write observes the write.
+- Results are appended to the session log in call order, not completion order.
+- Tool start and done events carry the model's call id; the UI matches lines by
+  id, not by name.
+- Cancellation before a batch records undispatched calls as unknown, as before.
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 

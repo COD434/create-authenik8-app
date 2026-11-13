@@ -119,9 +119,10 @@ window.addEventListener("unhandledrejection", (event) => {
   addMessage("system-error", `Client error: ${reason}`);
 });
 
-function addToolLine(name) {
+function addToolLine(name, id) {
   const el = document.createElement("div");
   el.className = "msg tool-line";
+  if (typeof id === "string" && id.length > 0) el.dataset.toolId = id;
   el.textContent = `⚙ ${name} …`;
   messagesEl.appendChild(el);
   autoScroll();
@@ -628,7 +629,8 @@ composer.addEventListener("submit", async (event) => {
   assistantEl.classList.add("thinking"); // three dots until the first token
   let firstDelta = true;
   let usage = null;
-  let toolLine = null;
+  let lastToolLine = null;
+  const toolLines = new Map();
 
   try {
     const res = await fetch("/api/chat", {
@@ -667,10 +669,20 @@ composer.addEventListener("submit", async (event) => {
           }
           if (payload.tool !== undefined) {
             if (payload.tool.phase === "start") {
-              toolLine = addToolLine(payload.tool.name);
-            } else if (toolLine !== null) {
-              toolLine.textContent = `⚙ ${payload.tool.name} ${payload.tool.ok ? "✓" : "✗"} ${payload.tool.summary}`;
-              toolLine = null;
+              const line = addToolLine(payload.tool.name, payload.tool.id);
+              lastToolLine = line;
+              if (typeof payload.tool.id === "string" && payload.tool.id.length > 0) {
+                toolLines.set(payload.tool.id, line);
+              }
+            } else {
+              const line = typeof payload.tool.id === "string"
+                ? toolLines.get(payload.tool.id) ?? lastToolLine
+                : lastToolLine;
+              if (line !== null) {
+                line.textContent = `⚙ ${payload.tool.name} ${payload.tool.ok ? "✓" : "✗"} ${payload.tool.summary}`;
+                if (typeof payload.tool.id === "string") toolLines.delete(payload.tool.id);
+                if (line === lastToolLine) lastToolLine = null;
+              }
             }
           }
           if (payload.plan !== undefined) renderPlan(payload.plan);
