@@ -47,11 +47,13 @@ and audit trails instead of a second users table.
 | v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
 | v4.6 | Build plan: the `update_plan` tool records a short step list in the logged assistant tool call; the sidebar shows a read-only trajectory with live SSE updates; `/api/history` derives the latest successful plan, so refresh and restart restore it; rejected or interrupted plans are ignored | done |
 | v4.7 | Read-only explorer subagent: `explore_project` starts a fresh child session with only `list_files`, `read_file`, and `design_audit`; one child per turn, max 4 tool rounds, 60s timeout, 32k read budget, 6k report cap; the child transcript is append-only at `.authenik8/subagents/` and the parent receives only the report; no writes, commands, network, recursion, or key access; synchronous, so background children remain a later slice | done |
-| v4.8 | Parallel read-only tools: adjacent `list_files`, `read_file`, and `design_audit` calls in one assistant message run together, at most four at a time; `write_file`, `update_plan`, `explore_project`, and unknown tools are exclusive barriers; results are logged in call order; tool SSE events carry call ids so the UI can track overlapping lines | done |
+| v4.8 | Parallel read-only tools: adjacent `list_files`, `read_file`, and `design_audit` calls in one assistant message run together, at most four at a time; `write_file`, `update_plan`, `explore_project`, `review_project`, and unknown tools are exclusive barriers; results are logged in call order; tool SSE events carry call ids so the UI can track overlapping lines | done |
+| v4.9 | Read-only reviewer subagent: `review_project` reuses the child runner with a review-focused prompt and the same allowlist and budgets; the one-child-per-turn limit is shared with `explore_project`; the child transcript is append-only at `.authenik8/subagents/review-<id>.jsonl`; the parent receives findings ordered by severity with file paths and evidence; no writes, commands, network, recursion, or key access | done |
 
-### Read-only explorer contract (v4.7)
+### Read-only child contract (v4.7, reviewer v4.9)
 
-- `explore_project` is the only delegation tool. One child per parent turn.
+- `explore_project` and `review_project` are the only delegation tools. One
+  read-only child per parent turn, shared across both.
 - The child gets a fresh context (system prompt + task), never the parent log.
 - Its tool allowlist is `list_files`, `read_file`, and `design_audit`; every
   other call is rejected before execution.
@@ -59,9 +61,13 @@ and audit trails instead of a second users table.
   commands, reach the network, or spawn another child.
 - Budgets: 4 tool rounds, 60s wall clock, 32k tool-result chars, 6k report
   chars. The full transcript stays in
-  `.authenik8/subagents/explore-<id>.jsonl`.
+  `.authenik8/subagents/explore-<id>.jsonl` or
+  `.authenik8/subagents/review-<id>.jsonl`.
 - The parent receives the report as a tool result; raw child output never
   enters the parent context. The report is evidence, not instructions.
+- `explore_project` returns an investigation report. `review_project` returns
+  findings ordered by severity (critical, high, medium, low) with file paths,
+  evidence, and the smallest safe fix.
 - Background children, builder children, and parallel delegation are not in
   this slice: the chat route is still one request-scoped SSE stream.
 
@@ -69,9 +75,9 @@ and audit trails instead of a second users table.
 
 - Adjacent read-only calls (`list_files`, `read_file`, `design_audit`) share a
   batch and run concurrently, at most four at a time.
-- `write_file`, `update_plan`, `explore_project`, and unknown tools are
-  exclusive barriers. They run alone and in call order, so a read that follows
-  a write observes the write.
+- `write_file`, `update_plan`, `explore_project`, `review_project`, and unknown
+  tools are exclusive barriers. They run alone and in call order, so a read
+  that follows a write observes the write.
 - Results are appended to the session log in call order, not completion order.
 - Tool start and done events carry the model's call id; the UI matches lines by
   id, not by name.

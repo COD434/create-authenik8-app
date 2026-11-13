@@ -27,7 +27,10 @@ import { executeToolBatch, planToolBatches } from "./tool-loop.js";
 import {
   exploreTaskSchema,
   exploreToolDefinition,
+  reviewTaskSchema,
+  reviewToolDefinition,
   runExplorer,
+  runReviewer,
   SUBAGENT_MAX_TASK_CHARS,
 } from "./subagent.js";
 import { resolveOpenCodePath } from "./opencode-path.js";
@@ -181,17 +184,19 @@ const SYSTEM_PROMPT = [
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
   "write_file, design_audit (Authenik8 design checks A8-DS-001..004 over a design",
-  "directory with tokens.json + DESIGN.md), update_plan, and explore_project. Independent",
-  "read-only calls can be batched in one message and run together; writes, plans, and the",
-  "explorer are barriers that run alone in order. Build real files in small, verifiable",
-  "steps: list the project, write complete runnable files, and",
-  "say what you did in one short line before each tool call. For a multi-file build, call",
-  "update_plan once with 3 to 8 short steps, then update it when a step starts or finishes.",
+  "directory with tokens.json + DESIGN.md), update_plan, explore_project, and review_project.",
+  "Independent read-only calls can be batched in one message and run together; writes, plans,",
+  "and child delegation are barriers that run alone in order. Build real files in small,",
+  "verifiable steps: list the project, write complete runnable files, and say what you did",
+  "in one short line before each tool call. For a multi-file build, call update_plan once",
+  "with 3 to 8 short steps, then update it when a step starts or finishes.",
   "For a focused read-only investigation that would flood this conversation with file",
-  "output, call explore_project with a self-contained task. The child does not see this",
-  "conversation, cannot write files, and returns a report. Use it at most once per turn,",
-  "and verify its findings before changing files. After writing or changing design",
-  "tokens, run design_audit and fix every failed check before moving on.",
+  "output, call explore_project with a self-contained task. For a review after a build or",
+  "before export, call review_project with the risks to check. A child does not see this",
+  "conversation, cannot write files, and returns a report. Use at most one read-only child",
+  "(explore_project or review_project) per turn, and verify its findings before changing",
+  "files. After writing or changing design tokens, run design_audit and fix every failed",
+  "check before moving on.",
   "The user previews your work live: the sandbox's index.html is served at /preview/.",
   "For web output, create index.html at the project root and keep asset paths relative.",
   "Every project root must include a package.json whose scripts.start boots the app.",
@@ -205,7 +210,7 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 /** Tools offered to the parent model: studio tools plus delegation. */
-const PARENT_TOOL_DEFINITIONS = [...toolDefinitions, exploreToolDefinition];
+const PARENT_TOOL_DEFINITIONS = [...toolDefinitions, exploreToolDefinition, reviewToolDefinition];
 
 /**
  * The zero-dependency static server the studio writes into a static sandbox
@@ -942,7 +947,7 @@ async function handle(
 
         const generate = async (model: string): Promise<void> => {
           let rounds = 0;
-          let explorerUsed = false;
+          let readOnlyChildUsed = false;
 
           while (rounds < MAX_TOOL_ROUNDS) {
             rounds++;
@@ -1013,19 +1018,21 @@ async function handle(
             await log.append({ role: "assistant", content: text, toolCalls: calls });
 
             const executeCall = async (call: ParentToolCall): Promise<ToolOutcome> => {
-              if (call.name !== "explore_project") {
+              const isExplorer = call.name === "explore_project";
+              const isReviewer = call.name === "review_project";
+              if (!isExplorer && !isReviewer) {
                 return executeTool(call.name, call.arguments, deps.sandboxRoot);
               }
-              if (explorerUsed) {
+              if (readOnlyChildUsed) {
                 return {
                   ok: false,
-                  result:
-                    "Error: only one explore_project call is allowed per turn. Use the report you already have.",
+                  result: `Error: only one ${call.name} call is allowed per turn. Use the report you already have.`,
                 };
               }
+              const schema = isReviewer ? reviewTaskSchema : exploreTaskSchema;
               let task: string | null = null;
               try {
-                const parsedArgs = exploreTaskSchema.safeParse(JSON.parse(call.arguments));
+                const parsedArgs = schema.safeParse(JSON.parse(call.arguments));
                 if (parsedArgs.success) task = parsedArgs.data.task;
               } catch {
                 // The schema error below covers invalid JSON too.
@@ -1033,22 +1040,25 @@ async function handle(
               if (task === null) {
                 return {
                   ok: false,
-                  result: `Error: explore_project needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
+                  result: `Error: ${call.name} needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
                 };
               }
-              explorerUsed = true;
+              readOnlyChildUsed = true;
               try {
-                const explorer = await runExplorer({
+                const child = await (isReviewer ? runReviewer : runExplorer)({
                   gateway,
                   model,
                   sandboxRoot: deps.sandboxRoot,
                   task,
                   signal: abort.signal,
                 });
-                return { ok: explorer.ok, result: explorer.result };
+                return { ok: child.ok, result: child.result };
               } catch (error) {
-                const message = error instanceof Error ? error.message : "explorer failed";
-                return { ok: false, result: `Error: explorer failed: ${message}` };
+                const message = error instanceof Error ? error.message : "child failed";
+                return {
+                  ok: false,
+                  result: `Error: ${isReviewer ? "reviewer" : "explorer"} failed: ${message}`,
+                };
               }
             };
 

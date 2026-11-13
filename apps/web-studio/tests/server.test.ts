@@ -624,6 +624,201 @@ describe("explorer subagent", () => {
   });
 });
 
+describe("reviewer subagent", () => {
+  function toolRound(
+    id: string,
+    name: string,
+    args: Record<string, unknown>,
+  ): ChatChunk[] {
+    return [
+      {
+        delta: null,
+        toolCalls: [{ index: 0, id, name, argumentsDelta: JSON.stringify(args) }],
+        finishReason: null,
+        usage: null,
+      },
+      { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+    ];
+  }
+
+  function multiToolRound(
+    calls: Array<{ id: string; name: string; args: Record<string, unknown> }>,
+  ): ChatChunk[] {
+    return [
+      {
+        delta: null,
+        toolCalls: calls.map((call, index) => ({
+          index,
+          id: call.id,
+          name: call.name,
+          argumentsDelta: JSON.stringify(call.args),
+        })),
+        finishReason: null,
+        usage: null,
+      },
+      { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
+    ];
+  }
+
+  it("runs one read-only reviewer and returns findings as a parent tool result", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await writeFile(path.join(sandbox, "README.md"), "Hello from README.\n", "utf8");
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+
+    script = [
+      toolRound("call_review", "review_project", {
+        task: "Review README.md for missing setup steps.",
+      }),
+      toolRound("child_read", "read_file", { path: "README.md" }),
+      [
+        {
+          delta: "High: README has no setup steps. Evidence: README.md.",
+          toolCalls: null,
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "stop", usage: null },
+      ],
+      textRound,
+    ];
+
+    const text = await (await chat("review the project")).text();
+    expect(text).toContain('"name":"review_project"');
+    expect(text).toContain("Reviewer report (read-only, 2 rounds):");
+    expect(text).not.toContain(KEY);
+
+    expect(capturedRequests).toHaveLength(4);
+    const parentTools = capturedRequests[0]!.tools?.map((tool) => tool.name) ?? [];
+    expect(parentTools).toContain("explore_project");
+    expect(parentTools).toContain("review_project");
+    const childTools = capturedRequests[1]!.tools?.map((tool) => tool.name) ?? [];
+    expect(childTools).toEqual(["list_files", "read_file", "design_audit"]);
+    expect(capturedRequests[1]!.messages).toHaveLength(2);
+    expect(capturedRequests[1]!.messages[0]?.role).toBe("system");
+    expect(capturedRequests[1]!.messages[0]?.content).toContain("read-only reviewer");
+    expect(capturedRequests[1]!.messages[0]?.content).toContain("findings ordered by severity");
+    expect(capturedRequests[1]!.messages[1]).toEqual({
+      role: "user",
+      content: "Review README.md for missing setup steps.",
+    });
+
+    const parentSecond = capturedRequests[3]!;
+    const reviewResult = parentSecond.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_review",
+    );
+    expect(reviewResult?.content).toContain("Reviewer report (read-only, 2 rounds):");
+    expect(reviewResult?.content).toContain("High: README has no setup steps.");
+    expect(reviewResult?.content).not.toContain("Hello from README.");
+
+    const parentHistory = await (await fetch(`${base}/api/history`)).json() as {
+      messages: Array<{ content: string }>;
+    };
+    expect(
+      parentHistory.messages.some((message) => message.content.includes("Hello from README.")),
+    ).toBe(false);
+
+    const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
+    expect(childFiles).toHaveLength(1);
+    expect(childFiles[0]).toMatch(/^review-/);
+    const childHistory = await new SessionLog(
+      path.join(sandbox, SESSION_DIR, SUBAGENT_DIR, childFiles[0]!),
+    ).history();
+    expect(
+      childHistory.some((message) => message.content.includes("Hello from README.")),
+    ).toBe(true);
+  });
+
+  it("shares the one-child-per-turn limit with the explorer", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await writeFile(path.join(sandbox, "README.md"), "Hello from README.\n", "utf8");
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+
+    script = [
+      multiToolRound([
+        { id: "call_e1", name: "explore_project", args: { task: "First look." } },
+        { id: "call_r2", name: "review_project", args: { task: "Review it." } },
+      ]),
+      [
+        {
+          delta: "Answer: first look done.",
+          toolCalls: null,
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "stop", usage: null },
+      ],
+      textRound,
+    ];
+
+    const text = await (await chat("explore then review")).text();
+    expect(text).toContain("only one review_project call is allowed per turn");
+    expect(text).not.toContain(KEY);
+
+    expect(capturedRequests).toHaveLength(3);
+    const history = await (await fetch(`${base}/api/history`)).json() as {
+      messages: Array<{ role: string; content: string; toolCallId?: string }>;
+    };
+    const first = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_e1",
+    );
+    expect(first?.content).toContain("Answer: first look done.");
+    const second = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_r2",
+    );
+    expect(second?.content).toContain("only one review_project call is allowed per turn");
+
+    const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
+    expect(childFiles).toHaveLength(1);
+    expect(childFiles[0]).toMatch(/^explore-/);
+  });
+
+  it("does not consume the turn when the review task is invalid", async () => {
+    await fetch(`${base}/api/reset`, { method: "POST" });
+    await writeFile(path.join(sandbox, "README.md"), "Hello from README.\n", "utf8");
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+
+    script = [
+      multiToolRound([
+        { id: "call_bad_review", name: "review_project", args: { task: "   " } },
+        { id: "call_good_explore", name: "explore_project", args: { task: "Look at README." } },
+      ]),
+      toolRound("child_read", "read_file", { path: "README.md" }),
+      [
+        {
+          delta: "Answer: README exists. Evidence: README.md.",
+          toolCalls: null,
+          finishReason: null,
+          usage: null,
+        },
+        { delta: null, toolCalls: null, finishReason: "stop", usage: null },
+      ],
+      textRound,
+    ];
+
+    const text = await (await chat("review with an empty task then explore")).text();
+    expect(text).toContain("review_project needs a JSON object");
+    expect(text).toContain("Explorer report (read-only, 2 rounds):");
+    expect(text).not.toContain(KEY);
+
+    expect(capturedRequests).toHaveLength(4);
+    const history = await (await fetch(`${base}/api/history`)).json() as {
+      messages: Array<{ role: string; content: string; toolCallId?: string }>;
+    };
+    const bad = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_bad_review",
+    );
+    expect(bad?.content).toContain("review_project needs a JSON object");
+    const good = history.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_good_explore",
+    );
+    expect(good?.content).toContain("Explorer report (read-only, 2 rounds):");
+
+    const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
+    expect(childFiles).toHaveLength(1);
+    expect(childFiles[0]).toMatch(/^explore-/);
+  });
+});
+
 describe("model fallback", () => {
   const agentsOnly = "Provider responded 403: unsupported/model:free is only available on agentic harnesses. Try plugging it into a coding agent or productivity app listed on https://openrouter.ai/apps";
 
