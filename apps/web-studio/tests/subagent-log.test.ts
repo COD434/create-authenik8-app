@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -120,17 +120,64 @@ describe("subagent transcript logs", () => {
 
   it("returns only metadata for a log above the viewer cap", async () => {
     const id = `build-${randomUUID()}`;
+    const filePath = path.join(subagentDir(), `${id}.jsonl`);
     await mkdir(subagentDir(), { recursive: true });
-    await writeFile(
-      path.join(subagentDir(), `${id}.jsonl`),
-      "x".repeat(CHILD_LOG_MAX_BYTES + 1),
-      "utf8",
-    );
+    await writeFile(filePath, "", "utf8");
+    await truncate(filePath, CHILD_LOG_MAX_BYTES + 1);
 
     const transcript = await readChildLog(sandbox, id);
     expect(transcript).not.toBeNull();
     expect(transcript?.truncated).toBe(true);
     expect(transcript?.messages).toEqual([]);
+  });
+
+  it("parses a builder-sized log and projects write_file bodies", async () => {
+    const content = "x".repeat(250_000);
+    const messages: ChatMessage[] = [
+      { role: "system", content: "builder system" },
+      { role: "user", content: "Write five files" },
+    ];
+    for (let index = 0; index < 5; index += 1) {
+      const callId = `call_${index}`;
+      messages.push({
+        role: "assistant",
+        content: "",
+        toolCalls: [
+          {
+            id: callId,
+            name: "write_file",
+            arguments: JSON.stringify({ path: `src/file-${index}.ts`, content }),
+          },
+        ],
+      });
+      messages.push({
+        role: "tool",
+        toolCallId: callId,
+        content: `wrote src/file-${index}.ts (250000 bytes)`,
+      });
+    }
+    messages.push({ role: "assistant", content: "Builder report: wrote 5 files." });
+
+    const id = await writeChildLog("build", messages);
+    const filePath = path.join(subagentDir(), `${id}.jsonl`);
+    const rawBefore = await readFile(filePath, "utf8");
+    expect(rawBefore.length).toBeGreaterThan(1024 * 1024);
+
+    const transcript = await readChildLog(sandbox, id);
+    expect(transcript).not.toBeNull();
+    expect(transcript?.truncated).toBe(false);
+    expect(transcript?.preview).toBe("Write five files");
+    expect(transcript?.messages).toHaveLength(messages.length);
+
+    const writeCalls = transcript?.messages.flatMap((message) => message.toolCalls ?? []) ?? [];
+    const firstWrite = writeCalls.find((call) => call.name === "write_file");
+    expect(firstWrite?.arguments).toContain("src/file-0.ts");
+    expect(firstWrite?.arguments).toContain("content omitted: 250000 chars");
+    expect(firstWrite?.arguments.length).toBeLessThan(200);
+    expect(JSON.stringify(transcript).length).toBeLessThan(50_000);
+
+    // Projection is response-only; the append-only log keeps the full bodies.
+    expect(await readFile(filePath, "utf8")).toBe(rawBefore);
   });
 
   it("caps the task preview without reading the whole log", async () => {

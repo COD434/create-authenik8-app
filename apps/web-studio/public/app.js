@@ -681,7 +681,7 @@ function renderSubagentTranscript(body) {
   if (body.truncated === true) {
     const note = document.createElement("p");
     note.className = "subagent-note";
-    note.textContent = "This transcript is larger than the 1 MB viewer limit, so only its metadata is shown. The full log remains on disk.";
+    note.textContent = "This transcript is larger than the viewer limit, so only its metadata is shown. The full log remains on disk.";
     subagentsTranscriptEl.appendChild(note);
     return;
   }

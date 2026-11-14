@@ -2,7 +2,7 @@ import type { Dirent, Stats } from "node:fs";
 import { open, readdir, realpath, stat } from "node:fs/promises";
 import path from "node:path";
 
-import type { ChatMessage } from "@authenik8/models";
+import type { ChatMessage, ToolCall } from "@authenik8/models";
 
 import { SESSION_DIR, readSessionMessages } from "./session-log.js";
 import { SUBAGENT_DIR } from "./subagent.js";
@@ -16,10 +16,17 @@ import { SUBAGENT_DIR } from "./subagent.js";
  * the resolved file is re-checked against the real subagent directory.
  */
 
-export const CHILD_LOG_MAX_BYTES = 1024 * 1024;
+/**
+ * Builder-safe parse cap. The builder may write 16 files of 256 KiB, and JSON
+ * escaping in the append-only log can inflate that. Bodies are projected out
+ * of the response, so this cap only bounds what the server reads and parses.
+ */
+export const CHILD_LOG_MAX_BYTES = 32 * 1024 * 1024;
 export const CHILD_LOG_LIST_LIMIT = 50;
 export const CHILD_LOG_PREVIEW_CHARS = 120;
 const CHILD_LOG_HEAD_BYTES = 8 * 1024;
+/** Leave room for the truncation marker under the client's 12,000-char cap. */
+const CHILD_LOG_ARGUMENT_MAX_CHARS = 11_000;
 
 const CHILD_LOG_ID =
   /^(explore|review|build)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -70,6 +77,51 @@ function previewText(content: string): string {
 function previewFromMessages(messages: ChatMessage[]): string {
   const task = messages.find((message) => message.role === "user");
   return task === undefined ? "" : previewText(task.content);
+}
+
+function capArgumentText(value: string): string {
+  if (value.length <= CHILD_LOG_ARGUMENT_MAX_CHARS) return value;
+  return `${value.slice(0, CHILD_LOG_ARGUMENT_MAX_CHARS)}\n... [truncated]`;
+}
+
+/**
+ * Tool-call arguments are display data. A write body can be hundreds of
+ * kilobytes; the viewer only needs the path and size, and the raw log keeps
+ * the full body. Other arguments are capped as a fallback for malformed calls.
+ */
+function projectToolArguments(call: ToolCall): string {
+  if (call.name === "write_file") {
+    try {
+      const parsed: unknown = JSON.parse(call.arguments);
+      if (typeof parsed === "object" && parsed !== null) {
+        const record = parsed as { path?: unknown; content?: unknown };
+        if (typeof record.path === "string" && typeof record.content === "string") {
+          return capArgumentText(
+            JSON.stringify({
+              path: record.path,
+              content: `[content omitted: ${record.content.length} chars]`,
+            }),
+          );
+        }
+      }
+    } catch {
+      // Fall through to the generic cap.
+    }
+  }
+  return capArgumentText(call.arguments);
+}
+
+function projectMessages(messages: ChatMessage[]): ChatMessage[] {
+  return messages.map((message) => {
+    if (message.role !== "assistant" || message.toolCalls === undefined) return message;
+    return {
+      ...message,
+      toolCalls: message.toolCalls.map((call) => ({
+        ...call,
+        arguments: projectToolArguments(call),
+      })),
+    };
+  });
 }
 
 async function readHead(filePath: string): Promise<string> {
@@ -214,11 +266,11 @@ export async function readChildLog(
     };
   }
 
-  const messages = await readSessionMessages(filePath);
+  const storedMessages = await readSessionMessages(filePath);
   return {
     ...summary,
-    preview: previewFromMessages(messages),
-    messages,
+    preview: previewFromMessages(storedMessages),
+    messages: projectMessages(storedMessages),
     truncated: false,
   };
 }

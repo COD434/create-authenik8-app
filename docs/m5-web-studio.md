@@ -50,7 +50,7 @@ and audit trails instead of a second users table.
 | v4.8 | Parallel read-only tools: adjacent `list_files`, `read_file`, and `design_audit` calls in one assistant message run together, at most four at a time; `write_file`, `update_plan`, `explore_project`, `review_project`, `build_project`, and unknown tools are exclusive barriers; results are logged in call order; tool SSE events carry call ids so the UI can track overlapping lines | done |
 | v4.9 | Read-only reviewer subagent: `review_project` reuses the child runner with a review-focused prompt and the same allowlist and budgets; the one-child-per-turn limit is shared with `explore_project`; the child transcript is append-only at `.authenik8/subagents/review-<id>.jsonl`; the parent receives findings ordered by severity with file paths and evidence; no writes, commands, network, recursion, or key access | done |
 | v5.0 | Write-capable builder subagent: `build_project` leases a sandbox-relative directory and writes only inside it; writes outside the lease, `.env*` (except `.env.example`), `.authenik8`, `.git`, and `node_modules` are rejected; the report lists the files written; the one-child-per-turn limit is shared with the explorer and reviewer; the transcript is append-only at `.authenik8/subagents/build-<id>.jsonl`; max 6 rounds, 90s, 48k tool-result chars, 16 files, 6k report; no commands, network, recursion, diff/merge, or background | done |
-| v5.1 | Read-only subagent transcript viewer: the sidebar "Subagent runs" door lists explorer, reviewer, and builder logs newest first; `GET /api/subagents` returns metadata and the first task line, and `GET /api/subagents/<kind>-<uuid>` returns the parsed transcript; ids are restricted to the exact runner shape and re-checked against the real subagent directory; reads never repair or write the log; 1 MB cap; API responses are no-store; the viewer shows the system prompt collapsed, the task, assistant text, tool calls, and tool results, with long payloads capped for display | done |
+| v5.1 | Read-only subagent transcript viewer: the sidebar "Subagent runs" door lists explorer, reviewer, and builder logs newest first; `GET /api/subagents` returns metadata and the first task line, and `GET /api/subagents/<kind>-<uuid>` returns the parsed transcript; ids are restricted to the exact runner shape and re-checked against the real subagent directory; reads never repair or write the log; 32 MB cap; builder-sized logs are parsed and `write_file` bodies are projected to a size marker; API responses are no-store; the viewer shows the system prompt collapsed, the task, assistant text, tool calls, and tool results, with long payloads capped for display | done |
 
 ### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1)
 
@@ -101,9 +101,11 @@ and audit trails instead of a second users table.
   path traversal cannot turn a request into an arbitrary read.
 - Transcript reads use a separate read-only parser. Unlike the parent session
   log, they never append synthetic repair results for interrupted tool calls.
-- Logs larger than 1 MB return metadata with `truncated: true` instead of being
-  parsed into the response. The UI caps long tool payloads at 12,000 displayed
-  characters; the full log remains on disk.
+- Logs larger than 32 MB return metadata with `truncated: true` instead of
+  being parsed into the response. Builder-sized logs are parsed; `write_file`
+  bodies are projected out of the response as a size marker, so the viewer
+  stays small while the full body remains in the raw log. The UI caps other
+  long tool payloads at 12,000 displayed characters.
 - API responses are `cache-control: no-store`, matching the static shell. The
   viewer is same-origin and localhost-only; it does not add a new network
   boundary or expose logs to the project preview or export.
