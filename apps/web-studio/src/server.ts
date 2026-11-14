@@ -38,6 +38,7 @@ import {
   runReviewer,
   SUBAGENT_MAX_TASK_CHARS,
 } from "./subagent.js";
+import { listChildLogs, readChildLog } from "./subagent-log.js";
 import { resolveOpenCodePath } from "./opencode-path.js";
 import {
   bridgeArgv,
@@ -395,7 +396,12 @@ async function runBlocker(sandboxRoot: string): Promise<string | null> {
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+  // API responses can contain conversation and project evidence. Keep them
+  // out of the browser's disk cache, matching the static shell's no-store.
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+  });
   res.end(JSON.stringify(body));
 }
 
@@ -656,6 +662,26 @@ async function handle(
       // sees: one source of truth, no parallel UI state.
       const messages = await sessionLog(deps, session).history();
       sendJson(res, 200, { messages, plan: planFromMessages(messages) });
+      return;
+    }
+
+    if (url.pathname === "/api/subagents" && req.method === "GET") {
+      // Child transcripts are local project evidence, not project files: the
+      // list is metadata only, newest first, and never exposes an arbitrary
+      // path. The transcript route below applies the same id discipline.
+      const logs = await listChildLogs(deps.sandboxRoot);
+      sendJson(res, 200, { logs });
+      return;
+    }
+
+    const subagentMatch = /^\/api\/subagents\/([^/]+)$/.exec(url.pathname);
+    if (subagentMatch !== null && req.method === "GET") {
+      const transcript = await readChildLog(deps.sandboxRoot, subagentMatch[1]!);
+      if (transcript === null) {
+        sendJson(res, 404, { error: "Subagent transcript not found" });
+        return;
+      }
+      sendJson(res, 200, transcript);
       return;
     }
 

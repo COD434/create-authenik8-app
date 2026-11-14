@@ -722,6 +722,175 @@ body {
 .template-providers label { display: flex; align-items: center; gap: 6px; }
 .template-check { flex-direction: row; align-items: center; gap: 8px; }
 
+/* Subagent transcript viewer: list and transcript scroll inside a bounded
+   modal, so a long child run never pushes the close control off screen. */
+.subagents-modal {
+  width: min(760px, 94vw);
+  max-height: min(84vh, 760px);
+  overflow: hidden;
+}
+
+#subagents-list-view, #subagents-transcript-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-scale-sm);
+  flex: 1;
+  min-height: 0;
+}
+
+.subagents-hint {
+  margin: 0;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.6;
+}
+
+.subagents-hint code { color: var(--color-ink-mid); font-family: var(--mono); font-size: var(--typography-scale-xs); }
+
+.subagents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.subagent-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: var(--color-surface-field);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  padding: 11px 12px;
+  color: var(--color-ink-mid);
+  cursor: pointer;
+  transition: border-color var(--ease), background-color var(--ease);
+}
+
+.subagent-row:hover, .subagent-row:focus-visible {
+  border-color: color-mix(in srgb, var(--color-accent-primary) 45%, var(--color-surface-line));
+  background: color-mix(in srgb, var(--color-surface-field) 78%, var(--color-surface-raised));
+}
+
+.subagent-badge {
+  flex: 0 0 auto;
+  border: 1px solid var(--color-surface-line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.subagent-badge.build { color: var(--color-accent-primary); border-color: color-mix(in srgb, var(--color-accent-primary) 40%, var(--color-surface-line)); }
+.subagent-badge.review { color: var(--color-accent-secondary); border-color: color-mix(in srgb, var(--color-accent-secondary) 35%, var(--color-surface-line)); }
+
+.subagent-row-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.subagent-preview { color: var(--color-ink-high); font-size: var(--typography-scale-sm); line-height: 1.45; overflow-wrap: anywhere; }
+.subagent-meta { color: var(--color-ink-low); font-family: var(--mono); font-size: var(--typography-scale-xs); }
+
+.subagents-empty {
+  margin: 0;
+  padding: 18px 4px;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.6;
+}
+
+.subagents-transcript-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+#subagents-back {
+  font: inherit;
+  font-size: var(--typography-scale-xs);
+  color: var(--color-ink-mid);
+  background: var(--color-surface-field);
+  border: 1px solid var(--color-surface-line);
+  border-radius: 999px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: color var(--ease), border-color var(--ease);
+}
+
+#subagents-back:hover { color: var(--color-accent-primary); border-color: color-mix(in srgb, var(--color-accent-primary) 40%, var(--color-surface-line)); }
+
+.subagents-meta { color: var(--color-ink-low); font-family: var(--mono); font-size: var(--typography-scale-xs); overflow-wrap: anywhere; }
+
+.subagents-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 4px;
+}
+
+.subagent-message {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-surface-field) 55%, transparent);
+}
+
+.subagent-message.user {
+  border-color: color-mix(in srgb, var(--color-accent-primary) 24%, var(--color-surface-line));
+  background: var(--color-surface-field);
+}
+
+.subagent-role { color: var(--color-ink-low); font-size: var(--typography-scale-xs); font-weight: 650; letter-spacing: 0.8px; text-transform: uppercase; }
+.subagent-text { color: var(--color-ink-high); font-size: var(--typography-scale-sm); line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+.subagent-system, .subagent-call, .subagent-tool {
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--color-surface-field) 55%, transparent);
+}
+
+.subagent-system summary, .subagent-call summary, .subagent-tool summary {
+  color: var(--color-ink-mid);
+  font-family: var(--mono);
+  font-size: var(--typography-scale-xs);
+  cursor: pointer;
+}
+
+.subagent-system summary:hover, .subagent-call summary:hover, .subagent-tool summary:hover { color: var(--color-accent-primary); }
+
+.subagent-system pre, .subagent-call pre, .subagent-tool pre {
+  margin: 9px 0 0;
+  max-height: 280px;
+  overflow: auto;
+  padding: 10px;
+  background: var(--color-surface-base);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-sm);
+  color: var(--color-ink-mid);
+  font-family: var(--mono);
+  font-size: var(--typography-scale-xs);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.subagent-note {
+  margin: 0;
+  color: var(--color-status-danger);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.6;
+  background: color-mix(in srgb, var(--color-status-danger) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-status-danger) 30%, transparent);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+}
+
 #agent-run, #agent-dismiss, #template-run, #template-dismiss {
   align-self: flex-start;
   background: var(--color-accent-primary);

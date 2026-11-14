@@ -29,6 +29,10 @@
         <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
         Build with agent
       </button>
+      <button id="subagents-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4" cy="3.5" r="1.6"/><circle cx="12" cy="3.5" r="1.6"/><circle cx="8" cy="12.5" r="1.6"/><path d="M4 5.1v1.4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V5.1M8 8.5v2.4"/></svg>
+        Subagent runs
+      </button>
 
       <section id="plan-panel" class="plan-panel" aria-label="Build plan" hidden>
         <div class="plan-head">
@@ -192,6 +196,26 @@
           <p id="template-state"></p>
           <pre id="template-output"></pre>
           <button id="template-dismiss" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="subagents-overlay" class="agent-overlay" role="dialog" aria-modal="true" aria-label="Subagent runs" hidden>
+      <div class="agent-modal subagents-modal">
+        <div class="agent-head">
+          <span id="subagents-title">Subagent runs</span>
+          <button id="subagents-close" type="button" title="Close" aria-label="Close">&times;</button>
+        </div>
+        <div id="subagents-list-view">
+          <p class="subagents-hint">Read-only transcripts from explorer, reviewer, and builder children. Stored locally under <code>.authenik8/subagents</code>.</p>
+          <div id="subagents-list" class="subagents-list"></div>
+        </div>
+        <div id="subagents-transcript-view" hidden>
+          <div class="subagents-transcript-head">
+            <button id="subagents-back" type="button">Back to list</button>
+            <span id="subagents-meta" class="subagents-meta"></span>
+          </div>
+          <div id="subagents-transcript" class="subagents-transcript"></div>
         </div>
       </div>
     </div>

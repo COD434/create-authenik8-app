@@ -57,6 +57,38 @@ function isStoredEvent(value: unknown): value is StoredEvent {
   return typeof message.role === "string" && typeof message.content === "string";
 }
 
+function parseStoredLog(raw: string): { messages: ChatMessage[]; seq: number } {
+  const messages: ChatMessage[] = [];
+  let seq = 0;
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue; // A torn tail line from a crash is ignored, not fatal.
+    }
+    if (!isStoredEvent(parsed)) continue;
+    seq = Math.max(seq, parsed.seq);
+    if (parsed.type === "reset") {
+      messages.length = 0;
+    } else {
+      messages.push(parsed.message);
+    }
+  }
+  return { messages, seq };
+}
+
+/**
+ * Read a log without repairing it. A transcript viewer must be able to inspect
+ * an interrupted child without writing a synthetic result into that child's
+ * append-only log.
+ */
+export async function readSessionMessages(filePath: string): Promise<ChatMessage[]> {
+  const raw = await readFile(filePath, "utf8");
+  return parseStoredLog(raw).messages;
+}
+
 export class SessionLog {
   private messages: ChatMessage[] = [];
   private seq = 0;
@@ -97,9 +129,6 @@ export class SessionLog {
   }
 
   private async load(): Promise<void> {
-    this.messages.length = 0;
-    this.seq = 0;
-
     let raw = "";
     try {
       raw = await readFile(this.filePath, "utf8");
@@ -108,22 +137,9 @@ export class SessionLog {
       if (code !== "ENOENT") throw error;
     }
 
-    for (const line of raw.split("\n")) {
-      if (line.trim() === "") continue;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(line);
-      } catch {
-        continue; // A torn tail line from a crash is ignored, not fatal.
-      }
-      if (!isStoredEvent(parsed)) continue;
-      this.seq = Math.max(this.seq, parsed.seq);
-      if (parsed.type === "reset") {
-        this.messages.length = 0;
-      } else {
-        this.messages.push(parsed.message);
-      }
-    }
+    const parsed = parseStoredLog(raw);
+    this.messages = parsed.messages;
+    this.seq = parsed.seq;
 
     // Repair at the storage boundary, as the harness does: an assistant tool
     // call with no result would make every later request invalid, so the

@@ -1,4 +1,5 @@
-﻿import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+﻿import { randomUUID } from "node:crypto";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import type { AddressInfo } from "node:net";
@@ -186,9 +187,12 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain("<title>Authenik8</title>");
     expect(html).toContain('id="plan-panel"');
     expect(html).toContain('id="plan-steps"');
+    expect(html).toContain('id="subagents-btn"');
+    expect(html).toContain('id="subagents-overlay"');
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
+    expect(await appJs.text()).toContain("/api/subagents");
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
@@ -1014,6 +1018,53 @@ describe("builder subagent", () => {
     const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
     expect(childFiles).toHaveLength(1);
     expect(childFiles[0]).toMatch(/^explore-/);
+  });
+});
+
+describe("subagent transcript viewer", () => {
+  it("lists and reads a child transcript with no-store", async () => {
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+    const id = `build-${randomUUID()}`;
+    const log = new SessionLog(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR, `${id}.jsonl`));
+    await log.append({ role: "system", content: "builder system" });
+    await log.append({ role: "user", content: "Build the settings page" });
+    await log.append({ role: "assistant", content: "Files written: src/settings.ts" });
+
+    const listRes = await fetch(`${base}/api/subagents`);
+    expect(listRes.status).toBe(200);
+    expect(listRes.headers.get("cache-control")).toContain("no-store");
+    const list = await listRes.json() as {
+      logs: Array<{ id: string; kind: string; preview: string; label: string }>;
+    };
+    expect(list.logs).toHaveLength(1);
+    expect(list.logs[0]).toMatchObject({
+      id,
+      kind: "build",
+      label: "Builder",
+      preview: "Build the settings page",
+    });
+
+    const transcriptRes = await fetch(`${base}/api/subagents/${id}`);
+    expect(transcriptRes.status).toBe(200);
+    expect(transcriptRes.headers.get("cache-control")).toContain("no-store");
+    const transcript = await transcriptRes.json() as {
+      messages: Array<{ role: string; content: string }>;
+      truncated: boolean;
+    };
+    expect(transcript.truncated).toBe(false);
+    expect(transcript.messages.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+      "assistant",
+    ]);
+    expect(transcript.messages[1]?.content).toBe("Build the settings page");
+  });
+
+  it("rejects unknown and traversal ids without reading another file", async () => {
+    await rm(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR), { recursive: true, force: true });
+    expect((await fetch(`${base}/api/subagents/explore-${randomUUID()}`)).status).toBe(404);
+    expect((await fetch(`${base}/api/subagents/..%2F..%2Fsession.jsonl`)).status).toBe(404);
+    expect((await fetch(`${base}/api/subagents/explore-not-a-uuid`)).status).toBe(404);
   });
 });
 

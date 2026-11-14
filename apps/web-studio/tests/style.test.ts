@@ -54,6 +54,11 @@ describe("style.css structure", () => {
     expect(/#agent-run, #agent-dismiss, #template-run, #template-dismiss \{/.test(css)).toBe(true);
     expect(css).toContain(".plan-panel");
     expect(css).toContain(".plan-step.completed .plan-mark");
+    // The transcript viewer must keep its own bounded scroll surface; a
+    // long child run must not push the close control off screen.
+    expect(css).toContain(".subagents-modal");
+    expect(/#subagents-list-view, #subagents-transcript-view \{/.test(css)).toBe(true);
+    expect(css).toContain(".subagent-badge.build");
   });
 
   it("keeps a stacked small-screen layout", () => {
