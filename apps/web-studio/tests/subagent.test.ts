@@ -599,6 +599,39 @@ describe("runBuilder", () => {
     }
   });
 
+  it("allows a dot-prefixed directory inside the lease", async () => {
+    const acquired = leases.acquire(sandbox, "src");
+    if (!acquired.ok) throw new Error(acquired.error);
+    const { gateway } = scriptedGateway([
+      toolRound([
+        {
+          id: "write_1",
+          name: "write_file",
+          args: { path: "src/..data/hello.ts", content: "export const dotdot = 1;\n" },
+        },
+      ]),
+      textRound("Created src/..data/hello.ts."),
+    ]);
+    try {
+      const outcome = await runBuilder({
+        gateway,
+        model: "free/model-a",
+        sandboxRoot: sandbox,
+        task: "Create src/..data/hello.ts.",
+        signal: new AbortController().signal,
+        lease: acquired.lease,
+      });
+
+      expect(outcome.ok).toBe(true);
+      expect(outcome.result).toContain("Files written: src/..data/hello.ts");
+      expect(
+        await readFile(path.join(sandbox, "src", "..data", "hello.ts"), "utf8"),
+      ).toBe("export const dotdot = 1;\n");
+    } finally {
+      leases.release(acquired.lease);
+    }
+  });
+
   it("rejects tools outside the builder allowlist", async () => {
     const acquired = leases.acquire(sandbox, "src");
     if (!acquired.ok) throw new Error(acquired.error);
