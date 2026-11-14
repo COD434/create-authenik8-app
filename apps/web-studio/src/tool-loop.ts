@@ -5,8 +5,9 @@ import type { ToolOutcome } from "./tools.js";
  *
  * Read-only calls can overlap because they never change the sandbox. Every
  * other tool is an exclusive barrier: write_file, update_plan, explore_project,
- * review_project, and unknown tools run alone and in call order. A read that follows a write
- * therefore observes the write, and plan events stay deterministic.
+ * review_project, build_project, and unknown tools run alone and in call order.
+ * A read that follows a write therefore observes the write, and plan events stay
+ * deterministic.
  *
  * Results always come back in call order, even when reads complete out of
  * order, so the session log and the model request stay stable.

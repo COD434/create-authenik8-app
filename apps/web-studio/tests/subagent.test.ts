@@ -7,17 +7,22 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatChunk, ChatRequest } from "@authenik8/models";
 
 import {
+  BUILDER_MAX_DIRECTORY_CHARS,
   READ_ONLY_TOOL_NAMES,
   SUBAGENT_DIR,
   SUBAGENT_MAX_REPORT_CHARS,
   SUBAGENT_MAX_TASK_CHARS,
+  buildTaskSchema,
+  buildToolDefinition,
   exploreTaskSchema,
   exploreToolDefinition,
   reviewTaskSchema,
   reviewToolDefinition,
+  runBuilder,
   runExplorer,
   runReviewer,
 } from "../src/subagent.js";
+import { createLeaseManager } from "../src/directory-lease.js";
 import { SESSION_DIR, SessionLog } from "../src/session-log.js";
 
 type ScriptEntry = ChatChunk[] | { throw: string };
@@ -96,13 +101,33 @@ describe("reviewTaskSchema", () => {
   });
 });
 
-describe("read-only child tool definitions", () => {
-  it("offers explorer and reviewer with a shared one-per-turn limit", () => {
+describe("buildTaskSchema", () => {
+  it("trims and bounds the task and directory", () => {
+    expect(buildTaskSchema.parse({ directory: "  src  ", task: "  build it  " })).toEqual({
+      directory: "src",
+      task: "build it",
+    });
+    expect(buildTaskSchema.safeParse({ directory: "", task: "build" }).success).toBe(false);
+    expect(buildTaskSchema.safeParse({ directory: "src", task: "   " }).success).toBe(false);
+    expect(
+      buildTaskSchema.safeParse({
+        directory: "x".repeat(BUILDER_MAX_DIRECTORY_CHARS + 1),
+        task: "build",
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe("child tool definitions", () => {
+  it("offers explorer, reviewer, and builder with a shared one-per-turn limit", () => {
     expect(exploreToolDefinition.name).toBe("explore_project");
     expect(reviewToolDefinition.name).toBe("review_project");
-    expect(exploreToolDefinition.description).toContain("at most one read-only child");
-    expect(reviewToolDefinition.description).toContain("at most one read-only child");
+    expect(buildToolDefinition.name).toBe("build_project");
+    expect(exploreToolDefinition.description).toContain("at most one child");
+    expect(reviewToolDefinition.description).toContain("at most one child");
+    expect(buildToolDefinition.description).toContain("at most one child");
     expect(reviewToolDefinition.description).toContain("findings ordered by severity");
+    expect(buildToolDefinition.description).toContain("write only inside the leased directory");
   });
 });
 
@@ -437,5 +462,184 @@ describe("runReviewer", () => {
     expect(toolText).toContain("cannot use review_project");
     expect(toolText).toContain("the reviewer cannot read environment files");
     expect(toolText).not.toContain("do-not-read");
+  });
+});
+
+describe("runBuilder", () => {
+  let sandbox: string;
+  let leases: ReturnType<typeof createLeaseManager>;
+
+  beforeEach(async () => {
+    sandbox = await mkdtemp(path.join(tmpdir(), "authenik8-builder-"));
+    await writeFile(path.join(sandbox, "README.md"), "Hello from README.\n", "utf8");
+    await writeFile(path.join(sandbox, ".env"), "BUILDER_SECRET=do-not-read\n", "utf8");
+    leases = createLeaseManager();
+  });
+
+  afterEach(async () => {
+    await rm(sandbox, { recursive: true, force: true });
+  });
+
+  it("writes inside the lease and reports the files", async () => {
+    const acquired = leases.acquire(sandbox, "src");
+    if (!acquired.ok) throw new Error(acquired.error);
+    const { gateway, requests } = scriptedGateway([
+      toolRound([
+        {
+          id: "write_1",
+          name: "write_file",
+          args: { path: "src/hello.ts", content: "export const hello = 1;\n" },
+        },
+      ]),
+      textRound("Created src/hello.ts."),
+    ]);
+    try {
+      const outcome = await runBuilder({
+        gateway,
+        model: "free/model-a",
+        sandboxRoot: sandbox,
+        task: "Create src/hello.ts.",
+        signal: new AbortController().signal,
+        lease: acquired.lease,
+      });
+
+      expect(outcome.ok).toBe(true);
+      expect(outcome.rounds).toBe(2);
+      expect(outcome.result).toContain("Builder report (write, 2 rounds):");
+      expect(outcome.result).toContain("Created src/hello.ts.");
+      expect(outcome.result).toContain("Files written: src/hello.ts");
+      expect(outcome.result).toContain(`Child: ${outcome.childId}`);
+
+      expect(requests).toHaveLength(2);
+      expect(requests[0]!.messages).toHaveLength(2);
+      expect(requests[0]!.messages[0]?.content).toContain("write-capable builder");
+      expect(requests[0]!.messages[0]?.content).toContain('leased directory "src"');
+      expect(requests[0]!.messages[0]?.content).toContain("Never write .env");
+      expect(requests[0]!.tools?.map((tool) => tool.name)).toEqual([
+        "list_files",
+        "read_file",
+        "write_file",
+        "design_audit",
+      ]);
+
+      expect(await readFile(path.join(sandbox, "src", "hello.ts"), "utf8")).toBe(
+        "export const hello = 1;\n",
+      );
+      const logPath = path.join(
+        sandbox,
+        SESSION_DIR,
+        SUBAGENT_DIR,
+        `build-${outcome.childId}.jsonl`,
+      );
+      const raw = await readFile(logPath, "utf8");
+      expect(raw).toContain("export const hello = 1;");
+      expect(raw).not.toContain("BUILDER_SECRET");
+    } finally {
+      leases.release(acquired.lease);
+    }
+  });
+
+  it("rejects writes outside the lease and sensitive paths", async () => {
+    const acquired = leases.acquire(sandbox, "src");
+    if (!acquired.ok) throw new Error(acquired.error);
+    const { gateway } = scriptedGateway([
+      toolRound([
+        { id: "outside_1", name: "write_file", args: { path: "README.md", content: "overwritten" } },
+        { id: "env_1", name: "write_file", args: { path: "src/.env", content: "SECRET=1" } },
+        { id: "git_1", name: "write_file", args: { path: "src/.git/config", content: "nope" } },
+        {
+          id: "write_1",
+          name: "write_file",
+          args: { path: "src/hello.ts", content: "export const hello = 1;\n" },
+        },
+      ]),
+      textRound("Wrote only src/hello.ts."),
+    ]);
+    try {
+      const outcome = await runBuilder({
+        gateway,
+        model: "free/model-a",
+        sandboxRoot: sandbox,
+        task: "Try unsafe writes, then write src/hello.ts.",
+        signal: new AbortController().signal,
+        lease: acquired.lease,
+      });
+
+      expect(outcome.ok).toBe(true);
+      expect(outcome.result).toContain("Files written: src/hello.ts");
+      expect(outcome.result).not.toContain("Files written: README.md");
+      expect(await readFile(path.join(sandbox, "README.md"), "utf8")).toBe(
+        "Hello from README.\n",
+      );
+      await expect(readFile(path.join(sandbox, "src", ".env"), "utf8")).rejects.toThrow();
+      await expect(
+        readFile(path.join(sandbox, "src", ".git", "config"), "utf8"),
+      ).rejects.toThrow();
+      expect(await readFile(path.join(sandbox, "src", "hello.ts"), "utf8")).toBe(
+        "export const hello = 1;\n",
+      );
+
+      const logPath = path.join(
+        sandbox,
+        SESSION_DIR,
+        SUBAGENT_DIR,
+        `build-${outcome.childId}.jsonl`,
+      );
+      const history = await new SessionLog(logPath).history();
+      const toolText = history
+        .filter((message) => message.role === "tool")
+        .map((message) => message.content)
+        .join("\n");
+      expect(toolText).toContain("can write only inside src");
+      expect(toolText).toContain("cannot write .env files");
+      expect(toolText).toContain("cannot write to .git paths");
+      expect(toolText).not.toContain("BUILDER_SECRET");
+    } finally {
+      leases.release(acquired.lease);
+    }
+  });
+
+  it("rejects tools outside the builder allowlist", async () => {
+    const acquired = leases.acquire(sandbox, "src");
+    if (!acquired.ok) throw new Error(acquired.error);
+    const { gateway } = scriptedGateway([
+      toolRound([
+        {
+          id: "plan_1",
+          name: "update_plan",
+          args: { steps: [{ title: "x", status: "pending" }] },
+        },
+        { id: "delegate_1", name: "explore_project", args: { task: "look" } },
+      ]),
+      textRound("No changes."),
+    ]);
+    try {
+      const outcome = await runBuilder({
+        gateway,
+        model: "free/model-a",
+        sandboxRoot: sandbox,
+        task: "Try disallowed tools.",
+        signal: new AbortController().signal,
+        lease: acquired.lease,
+      });
+
+      expect(outcome.ok).toBe(true);
+      expect(outcome.result).toContain("Files written: none");
+      const logPath = path.join(
+        sandbox,
+        SESSION_DIR,
+        SUBAGENT_DIR,
+        `build-${outcome.childId}.jsonl`,
+      );
+      const history = await new SessionLog(logPath).history();
+      const toolText = history
+        .filter((message) => message.role === "tool")
+        .map((message) => message.content)
+        .join("\n");
+      expect(toolText).toContain("the builder cannot use update_plan");
+      expect(toolText).toContain("the builder cannot use explore_project");
+    } finally {
+      leases.release(acquired.lease);
+    }
   });
 });

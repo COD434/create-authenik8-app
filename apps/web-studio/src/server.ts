@@ -24,11 +24,16 @@ import {
   type ToolOutcome,
 } from "./tools.js";
 import { executeToolBatch, planToolBatches } from "./tool-loop.js";
+import { createLeaseManager, type LeaseManager } from "./directory-lease.js";
 import {
+  BUILDER_MAX_DIRECTORY_CHARS,
+  buildTaskSchema,
+  buildToolDefinition,
   exploreTaskSchema,
   exploreToolDefinition,
   reviewTaskSchema,
   reviewToolDefinition,
+  runBuilder,
   runExplorer,
   runReviewer,
   SUBAGENT_MAX_TASK_CHARS,
@@ -184,19 +189,22 @@ const SYSTEM_PROMPT = [
   "Thesis: vibe-code the interface; keep identity on a backend the user owns.",
   "You have tools that operate on a sandbox project directory: list_files, read_file,",
   "write_file, design_audit (Authenik8 design checks A8-DS-001..004 over a design",
-  "directory with tokens.json + DESIGN.md), update_plan, explore_project, and review_project.",
-  "Independent read-only calls can be batched in one message and run together; writes, plans,",
-  "and child delegation are barriers that run alone in order. Build real files in small,",
-  "verifiable steps: list the project, write complete runnable files, and say what you did",
-  "in one short line before each tool call. For a multi-file build, call update_plan once",
-  "with 3 to 8 short steps, then update it when a step starts or finishes.",
+  "directory with tokens.json + DESIGN.md), update_plan, explore_project, review_project,",
+  "and build_project. Independent read-only calls can be batched in one message and run",
+  "together; writes, plans, and child delegation are barriers that run alone in order.",
+  "Build real files in small, verifiable steps: list the project, write complete runnable",
+  "files, and say what you did in one short line before each tool call. For a multi-file",
+  "build, call update_plan once with 3 to 8 short steps, then update it when a step starts",
+  "or finishes.",
   "For a focused read-only investigation that would flood this conversation with file",
   "output, call explore_project with a self-contained task. For a review after a build or",
-  "before export, call review_project with the risks to check. A child does not see this",
-  "conversation, cannot write files, and returns a report. Use at most one read-only child",
-  "(explore_project or review_project) per turn, and verify its findings before changing",
-  "files. After writing or changing design tokens, run design_audit and fix every failed",
-  "check before moving on.",
+  "before export, call review_project with the risks to check. For a multi-file build or a",
+  "short implement-and-check loop, call build_project with a sandbox-relative directory.",
+  "A child does not see this conversation and returns a report. Read-only children cannot",
+  "write; the builder can write only inside its leased directory and cannot run commands.",
+  "Use at most one child per turn and verify its findings before changing files. After",
+  "writing or changing design tokens, run design_audit and fix every failed check before",
+  "moving on.",
   "The user previews your work live: the sandbox's index.html is served at /preview/.",
   "For web output, create index.html at the project root and keep asset paths relative.",
   "Every project root must include a package.json whose scripts.start boots the app.",
@@ -210,7 +218,12 @@ const SYSTEM_PROMPT = [
 ].join(" ");
 
 /** Tools offered to the parent model: studio tools plus delegation. */
-const PARENT_TOOL_DEFINITIONS = [...toolDefinitions, exploreToolDefinition, reviewToolDefinition];
+const PARENT_TOOL_DEFINITIONS = [
+  ...toolDefinitions,
+  exploreToolDefinition,
+  reviewToolDefinition,
+  buildToolDefinition,
+];
 
 /**
  * The zero-dependency static server the studio writes into a static sandbox
@@ -550,6 +563,9 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   // Single-user localhost tool: one durable conversation per sandbox;
   // /api/reset starts a new one.
   const session: StudioSession = { log: null, agentBusy: false, runRes: null };
+  // Directory leases are process-local and shared across chat turns. A builder
+  // holds one for the duration of its synchronous child run.
+  const leases = createLeaseManager();
 
   // Project runner wiring: run output streams to whoever holds the SSE.
   const runner = deps.createRunner({
@@ -566,7 +582,7 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   });
 
   return createServer((req, res) => {
-    void handle(deps, session, runner, req, res);
+    void handle(deps, session, runner, leases, req, res);
   });
 }
 
@@ -574,6 +590,7 @@ async function handle(
   deps: WebStudioDeps,
   session: StudioSession,
   runner: Runner,
+  leases: LeaseManager,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -947,7 +964,7 @@ async function handle(
 
         const generate = async (model: string): Promise<void> => {
           let rounds = 0;
-          let readOnlyChildUsed = false;
+          let childUsed = false;
 
           while (rounds < MAX_TOOL_ROUNDS) {
             rounds++;
@@ -1020,15 +1037,61 @@ async function handle(
             const executeCall = async (call: ParentToolCall): Promise<ToolOutcome> => {
               const isExplorer = call.name === "explore_project";
               const isReviewer = call.name === "review_project";
-              if (!isExplorer && !isReviewer) {
+              const isBuilder = call.name === "build_project";
+              if (!isExplorer && !isReviewer && !isBuilder) {
                 return executeTool(call.name, call.arguments, deps.sandboxRoot);
               }
-              if (readOnlyChildUsed) {
+              if (childUsed) {
                 return {
                   ok: false,
                   result: `Error: only one ${call.name} call is allowed per turn. Use the report you already have.`,
                 };
               }
+
+              if (isBuilder) {
+                let task: string | null = null;
+                let directory: string | null = null;
+                try {
+                  const parsedArgs = buildTaskSchema.safeParse(JSON.parse(call.arguments));
+                  if (parsedArgs.success) {
+                    task = parsedArgs.data.task;
+                    directory = parsedArgs.data.directory;
+                  }
+                } catch {
+                  // The schema error below covers invalid JSON too.
+                }
+                if (task === null || directory === null) {
+                  return {
+                    ok: false,
+                    result: `Error: build_project needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters and a sandbox-relative directory string of at most ${BUILDER_MAX_DIRECTORY_CHARS} characters.`,
+                  };
+                }
+                const acquired = leases.acquire(deps.sandboxRoot, directory);
+                if (!acquired.ok) {
+                  return {
+                    ok: false,
+                    result: `Error: build_project could not start: ${acquired.error}`,
+                  };
+                }
+                childUsed = true;
+                try {
+                  const child = await runBuilder({
+                    gateway,
+                    model,
+                    sandboxRoot: deps.sandboxRoot,
+                    task,
+                    signal: abort.signal,
+                    lease: acquired.lease,
+                  });
+                  return { ok: child.ok, result: child.result };
+                } catch (error) {
+                  const message = error instanceof Error ? error.message : "builder failed";
+                  return { ok: false, result: `Error: builder failed: ${message}` };
+                } finally {
+                  leases.release(acquired.lease);
+                }
+              }
+
               const schema = isReviewer ? reviewTaskSchema : exploreTaskSchema;
               let task: string | null = null;
               try {
@@ -1043,7 +1106,7 @@ async function handle(
                   result: `Error: ${call.name} needs a JSON object with a non-empty task string of at most ${SUBAGENT_MAX_TASK_CHARS} characters.`,
                 };
               }
-              readOnlyChildUsed = true;
+              childUsed = true;
               try {
                 const child = await (isReviewer ? runReviewer : runExplorer)({
                   gateway,
