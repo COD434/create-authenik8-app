@@ -189,6 +189,7 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain('id="plan-steps"');
     expect(html).toContain('id="subagents-btn"');
     expect(html).toContain('id="subagents-overlay"');
+    expect(html).toContain("Newest 50 runs max.");
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
@@ -199,6 +200,8 @@ describe("static UI and auth boundary", () => {
     expect(appSource).toContain("setSubagentsBackgroundInert");
     expect(appSource).toContain("trapSubagentTab");
     expect(appSource).toContain('subagentsMeta.textContent = "Unavailable"');
+    expect(appSource).toContain("shortSubagentId");
+    expect(appSource).toContain('"Task preview"');
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,

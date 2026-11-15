@@ -650,6 +650,12 @@ function openSubagents() {
   void loadSubagents();
 }
 
+function shortSubagentId(id) {
+  const separator = id.indexOf("-");
+  const uuid = separator === -1 ? id : id.slice(separator + 1);
+  return uuid.slice(0, 8);
+}
+
 function subagentRow(log) {
   const row = document.createElement("button");
   row.type = "button";
@@ -666,9 +672,15 @@ function subagentRow(log) {
   preview.className = "subagent-preview";
   preview.textContent = log.preview || "No task recorded";
 
+  const shortId = shortSubagentId(log.id);
   const meta = document.createElement("span");
   meta.className = "subagent-meta";
-  meta.textContent = [formatSubagentBytes(log.bytes), formatSubagentWhen(log.modifiedAt)]
+  meta.title = log.id;
+  meta.textContent = [
+    formatSubagentBytes(log.bytes),
+    formatSubagentWhen(log.modifiedAt),
+    shortId === "" ? "" : `ID\u00A0${shortId}`,
+  ]
     .filter((part) => part !== "")
     .join(" · ");
 
@@ -709,12 +721,12 @@ async function loadSubagents() {
   }
 }
 
-function appendSubagentMessage(parent, role, text) {
+function appendSubagentMessage(parent, role, text, roleLabel = role === "user" ? "Task" : "Child") {
   const block = document.createElement("div");
   block.className = `subagent-message ${role}`;
   const label = document.createElement("span");
   label.className = "subagent-role";
-  label.textContent = role === "user" ? "Task" : "Child";
+  label.textContent = roleLabel;
   const content = document.createElement("div");
   content.className = "subagent-text";
   content.textContent = text;
@@ -761,8 +773,11 @@ function renderSubagentTranscript(body) {
   if (body.truncated === true) {
     const note = document.createElement("p");
     note.className = "subagent-note";
-    note.textContent = "This transcript is larger than the viewer limit, so only its metadata is shown. The full log remains on disk.";
+    note.textContent = "This transcript is larger than the viewer limit, so only its task preview and metadata are shown. The full log remains on disk.";
     subagentsTranscriptEl.appendChild(note);
+    if (typeof body.preview === "string" && body.preview.length > 0) {
+      appendSubagentMessage(subagentsTranscriptEl, "user", body.preview, "Task preview");
+    }
     return;
   }
 

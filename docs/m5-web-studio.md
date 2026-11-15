@@ -92,8 +92,8 @@ and audit trails instead of a second users table.
 ### Subagent transcript viewer (v5.1)
 
 - The sidebar "Subagent runs" door opens a bounded modal with the newest 50
-  child logs. Each row shows the child role, the first task line, size, and
-  modification time.
+  child logs. Each row shows the child role, the first task line, size,
+  modification time, and a short child ID; the hint states the 50-run cap.
 - The list endpoint stats and sorts candidate files first, then reads task
   previews only for the newest 50. A large backlog does not multiply head
   reads.
@@ -107,10 +107,11 @@ and audit trails instead of a second users table.
 - Transcript reads use a separate read-only parser. Unlike the parent session
   log, they never append synthetic repair results for interrupted tool calls.
 - Logs larger than 32 MB return metadata with `truncated: true` instead of
-  being parsed into the response. Builder-sized logs are parsed; `write_file`
-  bodies are projected out of the response as a size marker, so the viewer
-  stays small while the full body remains in the raw log. The UI caps other
-  long tool payloads at 12,000 displayed characters.
+  being parsed into the response. The viewer shows the task preview and
+  metadata for those logs. Builder-sized logs are parsed; `write_file` bodies
+  are projected out of the response as a size marker, so the viewer stays
+  small while the full body remains in the raw log. The UI caps other long
+  tool payloads at 12,000 displayed characters.
 - API responses are `cache-control: no-store`, matching the static shell. The
   viewer is same-origin and localhost-only; it does not add a new network
   boundary or expose logs to the project preview or export.

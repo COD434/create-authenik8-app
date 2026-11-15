@@ -179,16 +179,25 @@ describe("subagent transcript logs", () => {
     expect(await listChildLogs(sandbox)).toEqual([]);
   });
 
-  it("returns only metadata for a log above the viewer cap", async () => {
+  it("returns only metadata and the task preview for a log above the viewer cap", async () => {
     const id = `build-${randomUUID()}`;
     const filePath = path.join(subagentDir(), `${id}.jsonl`);
     await mkdir(subagentDir(), { recursive: true });
-    await writeFile(filePath, "", "utf8");
+    const at = new Date().toISOString();
+    const event = {
+      v: 1,
+      seq: 1,
+      at,
+      type: "message",
+      message: { role: "user", content: "Recover the oversized settings page" },
+    };
+    await writeFile(filePath, `${JSON.stringify(event)}\n`, "utf8");
     await truncate(filePath, CHILD_LOG_MAX_BYTES + 1);
 
     const transcript = await readChildLog(sandbox, id);
     expect(transcript).not.toBeNull();
     expect(transcript?.truncated).toBe(true);
+    expect(transcript?.preview).toBe("Recover the oversized settings page");
     expect(transcript?.messages).toEqual([]);
   });
 
