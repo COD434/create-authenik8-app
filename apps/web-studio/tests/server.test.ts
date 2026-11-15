@@ -192,7 +192,13 @@ describe("static UI and auth boundary", () => {
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
-    expect(await appJs.text()).toContain("/api/subagents");
+    const appSource = await appJs.text();
+    expect(appSource).toContain("/api/subagents");
+    // Structural guard for the viewer's focus contract: background inert,
+    // a Tab trap, and a visible error state with focus kept on Back.
+    expect(appSource).toContain("setSubagentsBackgroundInert");
+    expect(appSource).toContain("trapSubagentTab");
+    expect(appSource).toContain('subagentsMeta.textContent = "Unavailable"');
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,

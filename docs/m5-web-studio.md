@@ -109,6 +109,10 @@ and audit trails instead of a second users table.
 - API responses are `cache-control: no-store`, matching the static shell. The
   viewer is same-origin and localhost-only; it does not add a new network
   boundary or expose logs to the project preview or export.
+- Opening the viewer moves focus into the dialog, traps Tab inside it, and
+  makes the rest of the shell inert. Closing restores focus to the sidebar
+  door. A transcript load failure sets an "Unavailable" status and keeps focus
+  on the Back control.
 - Not included: live child progress, background children, search or filtering,
   log deletion/pruning, and diff/merge. The parent transcript still shows one
   tool line per child call.

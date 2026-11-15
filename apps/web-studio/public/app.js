@@ -515,6 +515,9 @@ templateRunBtn.addEventListener("click", async () => {
 // --- Subagent transcripts (read-only) ---
 
 const subagentsBtn = document.getElementById("subagents-btn");
+const subagentsModal = subagentsOverlay.querySelector(".subagents-modal");
+const subagentsClose = document.getElementById("subagents-close");
+const subagentsBack = document.getElementById("subagents-back");
 const subagentsListEl = document.getElementById("subagents-list");
 const subagentsListView = document.getElementById("subagents-list-view");
 const subagentsTranscriptView = document.getElementById("subagents-transcript-view");
@@ -522,7 +525,17 @@ const subagentsTranscriptEl = document.getElementById("subagents-transcript");
 const subagentsMeta = document.getElementById("subagents-meta");
 const subagentsTitle = document.getElementById("subagents-title");
 const SUBAGENT_DISPLAY_CHARS = 12_000;
+const SUBAGENT_FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "summary",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 let subagentsEpoch = 0;
+let subagentsInertSiblings = [];
 
 function formatSubagentBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "";
@@ -549,6 +562,65 @@ function capSubagentText(value) {
   return `${value.slice(0, SUBAGENT_DISPLAY_CHARS)}\n... [truncated]`;
 }
 
+function subagentFocusableElements() {
+  return [...subagentsModal.querySelectorAll(SUBAGENT_FOCUSABLE)].filter((element) => {
+    if (element.closest("[hidden]")) return false;
+    if (element.getAttribute("aria-hidden") === "true") return false;
+    if (element.tabIndex < 0) return false;
+    return element.getClientRects().length > 0;
+  });
+}
+
+function focusSubagentFirst() {
+  const first = subagentFocusableElements()[0];
+  (first ?? subagentsClose).focus();
+}
+
+function setSubagentsBackgroundInert(inert) {
+  const shell = subagentsOverlay.parentElement;
+  if (shell === null) return;
+  if (inert) {
+    if (subagentsInertSiblings.length > 0) return;
+    subagentsInertSiblings = [...shell.children]
+      .filter((element) => element !== subagentsOverlay)
+      .map((element) => ({ element, wasInert: element.inert }));
+    for (const { element } of subagentsInertSiblings) element.inert = true;
+    return;
+  }
+  for (const { element, wasInert } of subagentsInertSiblings) element.inert = wasInert;
+  subagentsInertSiblings = [];
+}
+
+function trapSubagentTab(event) {
+  if (event.key !== "Tab" || subagentsOverlay.hidden) return;
+  const focusable = subagentFocusableElements();
+  if (focusable.length === 0) {
+    event.preventDefault();
+    subagentsClose.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const inside = active !== null && subagentsModal.contains(active);
+  if (event.shiftKey) {
+    if (!inside || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+document.addEventListener("keydown", trapSubagentTab);
+document.addEventListener("focusin", (event) => {
+  if (subagentsOverlay.hidden) return;
+  if (event.target instanceof Node && subagentsModal.contains(event.target)) return;
+  focusSubagentFirst();
+});
+
 function resetSubagentView() {
   subagentsEpoch++;
   subagentsTitle.textContent = "Subagent runs";
@@ -559,14 +631,22 @@ function resetSubagentView() {
 }
 
 function closeSubagents() {
+  if (subagentsOverlay.hidden) return;
   subagentsOverlay.hidden = true;
+  setSubagentsBackgroundInert(false);
   resetSubagentView();
   subagentsBtn.focus();
 }
 
 function openSubagents() {
+  if (!subagentsOverlay.hidden) {
+    subagentsClose.focus();
+    return;
+  }
   subagentsOverlay.hidden = false;
+  setSubagentsBackgroundInert(true);
   resetSubagentView();
+  subagentsClose.focus();
   void loadSubagents();
 }
 
@@ -738,6 +818,7 @@ async function openSubagentTranscript(id) {
   subagentsTitle.textContent = "Subagent transcript";
   subagentsMeta.textContent = "Loading...";
   subagentsTranscriptEl.textContent = "";
+  subagentsBack.focus();
   try {
     const res = await fetch(`/api/subagents/${encodeURIComponent(id)}`);
     if (epoch !== subagentsEpoch) return;
@@ -750,18 +831,23 @@ async function openSubagentTranscript(id) {
       formatSubagentWhen(body.modifiedAt),
     ].filter((part) => typeof part === "string" && part !== "").join(" · ");
     renderSubagentTranscript(body);
-    document.getElementById("subagents-back").focus();
   } catch (error) {
     if (epoch !== subagentsEpoch) return;
+    subagentsMeta.textContent = "Unavailable";
     subagentsTranscriptEl.textContent = `Could not load this transcript: ${error.message}`;
+    subagentsBack.focus();
   }
 }
 
 subagentsBtn.addEventListener("click", openSubagents);
-document.getElementById("subagents-close").addEventListener("click", closeSubagents);
-document.getElementById("subagents-back").addEventListener("click", () => {
+subagentsClose.addEventListener("click", closeSubagents);
+subagentsBack.addEventListener("click", async () => {
   resetSubagentView();
-  void loadSubagents();
+  subagentsClose.focus();
+  await loadSubagents();
+  if (subagentsOverlay.hidden) return;
+  const firstRow = subagentsListEl.querySelector(".subagent-row");
+  (firstRow ?? subagentsClose).focus();
 });
 subagentsOverlay.addEventListener("mousedown", (event) => {
   if (event.target === subagentsOverlay) closeSubagents();
