@@ -94,6 +94,9 @@ and audit trails instead of a second users table.
 - The sidebar "Subagent runs" door opens a bounded modal with the newest 50
   child logs. Each row shows the child role, the first task line, size, and
   modification time.
+- The list endpoint stats and sorts candidate files first, then reads task
+  previews only for the newest 50. A large backlog does not multiply head
+  reads.
 - `GET /api/subagents` returns metadata only. `GET /api/subagents/<id>` returns
   the parsed messages from one log.
 - The id must match `(explore|review|build)-<uuid>` exactly. The resolved file

@@ -10,6 +10,7 @@ import type { ChatMessage } from "@authenik8/models";
 import { SESSION_DIR, SessionLog } from "../src/session-log.js";
 import { SUBAGENT_DIR } from "../src/subagent.js";
 import {
+  CHILD_LOG_LIST_LIMIT,
   CHILD_LOG_MAX_BYTES,
   CHILD_LOG_PREVIEW_CHARS,
   listChildLogs,
@@ -73,6 +74,34 @@ describe("subagent transcript logs", () => {
       label: "Explorer",
       preview: "Inspect the README",
     });
+  });
+
+  it("reads previews only for the newest list page", async () => {
+    const ids: string[] = [];
+    const base = Date.now() - 60 * 60_000;
+    for (let index = 0; index < CHILD_LOG_LIST_LIMIT + 10; index += 1) {
+      const id = await writeChildLog("explore", [
+        { role: "user", content: `Task ${index}` },
+      ]);
+      const filePath = path.join(subagentDir(), `${id}.jsonl`);
+      const at = new Date(base + index * 1000);
+      await utimes(filePath, at, at);
+      ids.push(id);
+    }
+
+    const calls: string[] = [];
+    const logs = await listChildLogs(sandbox, {
+      previewReader: async (filePath) => {
+        calls.push(path.basename(filePath));
+        return `preview ${path.basename(filePath)}`;
+      },
+    });
+
+    const newest = ids.slice(-CHILD_LOG_LIST_LIMIT).reverse();
+    expect(logs.map((log) => log.id)).toEqual(newest);
+    expect(calls).toEqual(newest.map((id) => `${id}.jsonl`));
+    expect(calls).not.toContain(`${ids[0]}.jsonl`);
+    expect(logs.every((log) => log.preview.startsWith("preview "))).toBe(true);
   });
 
   it("reads a transcript without repairing an interrupted tool call", async () => {

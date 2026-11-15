@@ -166,11 +166,29 @@ function childLogDir(sandboxRoot: string): string {
   return path.join(sandboxRoot, SESSION_DIR, SUBAGENT_DIR);
 }
 
+type ChildLogFile = {
+  id: string;
+  kind: ChildKind;
+  filePath: string;
+  info: Stats;
+};
+
+export type ListChildLogsOptions = {
+  /** Optional preview reader; defaults to the bounded head reader. */
+  previewReader?: (filePath: string) => Promise<string>;
+};
+
 /**
  * List valid child logs, newest first. Invalid names, directories, and
  * symlinks are skipped; a missing directory is an empty list, not an error.
+ *
+ * Stat and sort every candidate first, then read task previews only for the
+ * newest CHILD_LOG_LIST_LIMIT. A large backlog must not multiply head reads.
  */
-export async function listChildLogs(sandboxRoot: string): Promise<ChildLogSummary[]> {
+export async function listChildLogs(
+  sandboxRoot: string,
+  options: ListChildLogsOptions = {},
+): Promise<ChildLogSummary[]> {
   const dir = childLogDir(sandboxRoot);
   let entries: Dirent[];
   try {
@@ -180,7 +198,7 @@ export async function listChildLogs(sandboxRoot: string): Promise<ChildLogSummar
     throw error;
   }
 
-  const logs: ChildLogSummary[] = [];
+  const candidates: ChildLogFile[] = [];
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith(".jsonl")) continue;
     const id = entry.name.slice(0, -".jsonl".length);
@@ -195,8 +213,21 @@ export async function listChildLogs(sandboxRoot: string): Promise<ChildLogSummar
       continue; // A file removed between readdir and stat is not an error.
     }
     if (!info.isFile()) continue;
+    candidates.push({ id, kind, filePath, info });
+  }
 
+  candidates.sort((a, b) => b.info.mtimeMs - a.info.mtimeMs);
+  const newest = candidates.slice(0, CHILD_LOG_LIST_LIMIT);
+  const previewFor = options.previewReader ?? readPreview;
+  const logs: ChildLogSummary[] = [];
+  for (const { id, kind, filePath, info } of newest) {
     const meta = metaFor(kind);
+    let preview = "";
+    try {
+      preview = await previewFor(filePath);
+    } catch {
+      preview = "";
+    }
     logs.push({
       id,
       kind,
@@ -204,12 +235,10 @@ export async function listChildLogs(sandboxRoot: string): Promise<ChildLogSummar
       label: meta.label,
       bytes: info.size,
       modifiedAt: info.mtime.toISOString(),
-      preview: await readPreview(filePath).catch(() => ""),
+      preview,
     });
   }
-
-  logs.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
-  return logs.slice(0, CHILD_LOG_LIST_LIMIT);
+  return logs;
 }
 
 /**
