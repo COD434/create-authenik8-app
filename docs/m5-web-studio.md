@@ -99,9 +99,11 @@ and audit trails instead of a second users table.
   reads.
 - `GET /api/subagents` returns metadata only. `GET /api/subagents/<id>` returns
   the parsed messages from one log.
-- The id must match `(explore|review|build)-<uuid>` exactly. The resolved file
-  is checked against the real `.authenik8/subagents` directory, so a symlink or
-  path traversal cannot turn a request into an arbitrary read.
+- The id must match `(explore|review|build)-<uuid>` exactly. The real
+  subagents directory must resolve to the `subagents` child of the real
+  `.authenik8` directory, and the resolved file is checked against it. A
+  symlink, junction, or path traversal cannot turn a list or transcript
+  request into an arbitrary read.
 - Transcript reads use a separate read-only parser. Unlike the parent session
   log, they never append synthetic repair results for interrupted tool calls.
 - Logs larger than 32 MB return metadata with `truncated: true` instead of

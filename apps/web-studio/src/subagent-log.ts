@@ -166,6 +166,28 @@ function childLogDir(sandboxRoot: string): string {
   return path.join(sandboxRoot, SESSION_DIR, SUBAGENT_DIR);
 }
 
+/**
+ * Resolve the subagent directory and require it to be the direct `subagents`
+ * child of the real `.authenik8` directory. A junction or symlink that points
+ * anywhere else is rejected before any entries or previews are read.
+ */
+async function resolveChildLogDir(sandboxRoot: string): Promise<string | null> {
+  const sessionDir = path.join(sandboxRoot, SESSION_DIR);
+  const dir = childLogDir(sandboxRoot);
+  try {
+    const [realSession, realDir] = await Promise.all([realpath(sessionDir), realpath(dir)]);
+    const relative = path.relative(realSession, realDir);
+    if (relative !== SUBAGENT_DIR || relative.startsWith("..") || path.isAbsolute(relative)) {
+      return null;
+    }
+    return realDir;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return null;
+    throw error;
+  }
+}
+
 type ChildLogFile = {
   id: string;
   kind: ChildKind;
@@ -189,7 +211,8 @@ export async function listChildLogs(
   sandboxRoot: string,
   options: ListChildLogsOptions = {},
 ): Promise<ChildLogSummary[]> {
-  const dir = childLogDir(sandboxRoot);
+  const dir = await resolveChildLogDir(sandboxRoot);
+  if (dir === null) return [];
   let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
@@ -252,28 +275,30 @@ export async function readChildLog(
   const kind = kindFromId(id);
   if (kind === null) return null;
 
-  const dir = childLogDir(sandboxRoot);
+  const dir = await resolveChildLogDir(sandboxRoot);
+  if (dir === null) return null;
   const filePath = path.join(dir, `${id}.jsonl`);
+
+  // Defense in depth: a file symlink must not turn a validated id into a read
+  // outside the validated real subagent directory.
+  let realFile: string;
+  try {
+    realFile = await realpath(filePath);
+  } catch {
+    return null;
+  }
+  const relative = path.relative(dir, realFile);
+  if (relative !== `${id}.jsonl` || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return null;
+  }
 
   let info: Stats;
   try {
-    info = await stat(filePath);
+    info = await stat(realFile);
   } catch {
     return null;
   }
   if (!info.isFile()) return null;
-
-  // Defense in depth: a symlink or a replaced directory must not turn a
-  // validated id into a read outside `.authenik8/subagents`.
-  try {
-    const [realDir, realFile] = await Promise.all([realpath(dir), realpath(filePath)]);
-    const relative = path.relative(realDir, realFile);
-    if (relative !== `${id}.jsonl` || relative.startsWith("..") || path.isAbsolute(relative)) {
-      return null;
-    }
-  } catch {
-    return null;
-  }
 
   const meta = metaFor(kind);
   const summary: ChildLogSummary = {
@@ -289,13 +314,13 @@ export async function readChildLog(
   if (info.size > CHILD_LOG_MAX_BYTES) {
     return {
       ...summary,
-      preview: await readPreview(filePath).catch(() => ""),
+      preview: await readPreview(realFile).catch(() => ""),
       messages: [],
       truncated: true,
     };
   }
 
-  const storedMessages = await readSessionMessages(filePath);
+  const storedMessages = await readSessionMessages(realFile);
   return {
     ...summary,
     preview: previewFromMessages(storedMessages),

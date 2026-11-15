@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, truncate, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -145,6 +145,38 @@ describe("subagent transcript logs", () => {
     const directoryId = `build-${randomUUID()}`;
     await mkdir(path.join(subagentDir(), `${directoryId}.jsonl`), { recursive: true });
     expect(await readChildLog(sandbox, directoryId)).toBeNull();
+  });
+
+  it("rejects a junction that redirects the subagent directory", async (ctx) => {
+    const outside = path.join(sandbox, "outside-subagents");
+    await mkdir(outside, { recursive: true });
+    const id = `explore-${randomUUID()}`;
+    const at = new Date().toISOString();
+    await writeFile(
+      path.join(outside, `${id}.jsonl`),
+      `${JSON.stringify({
+        v: 1,
+        seq: 1,
+        at,
+        type: "message",
+        message: { role: "user", content: "outside secret" },
+      })}\n`,
+      "utf8",
+    );
+    await mkdir(path.join(sandbox, SESSION_DIR), { recursive: true });
+    try {
+      await symlink(outside, subagentDir(), process.platform === "win32" ? "junction" : "dir");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "ENOSYS") {
+        ctx.skip();
+        return;
+      }
+      throw error;
+    }
+
+    expect(await readChildLog(sandbox, id)).toBeNull();
+    expect(await listChildLogs(sandbox)).toEqual([]);
   });
 
   it("returns only metadata for a log above the viewer cap", async () => {
