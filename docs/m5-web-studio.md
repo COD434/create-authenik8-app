@@ -52,6 +52,7 @@ and audit trails instead of a second users table.
 | v5.0 | Write-capable builder subagent: `build_project` leases a sandbox-relative directory and writes only inside it; writes outside the lease, `.env*` (except `.env.example`), `.authenik8`, `.git`, and `node_modules` are rejected; the report lists the files written; the one-child-per-turn limit is shared with the explorer and reviewer; the transcript is append-only at `.authenik8/subagents/build-<id>.jsonl`; max 6 rounds, 90s, 48k tool-result chars, 16 files, 6k report; no commands, network, recursion, diff/merge, or background | done |
 | v5.1 | Read-only subagent transcript viewer: the sidebar "Subagent runs" door lists explorer, reviewer, and builder logs newest first; `GET /api/subagents` returns metadata and the first task line, and `GET /api/subagents/<kind>-<uuid>` returns the parsed transcript; ids are restricted to the exact runner shape and re-checked against the real subagent directory; reads never repair or write the log; 32 MB cap; builder-sized logs are parsed and `write_file` bodies are projected to a size marker; API responses are no-store; the viewer shows the system prompt collapsed, the task, assistant text, tool calls, and tool results, with long payloads capped for display | done |
 | v5.2 | Direct child transcript links: each child tool line has a "View transcript" link; live completion events include the child id; restored history pairs each child call with its logged result and child id; closing the viewer returns focus to the link that opened it | done |
+| v5.3 | Modal focus containment: the agent and template dialogs now match the subagent viewer by moving focus inside on open, trapping Tab and Shift+Tab, making the rest of the shell inert, and restoring focus to the opener; starting an agent or template run moves focus to the status Close control | done |
 
 ### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2)
 
@@ -116,9 +117,7 @@ and audit trails instead of a second users table.
 - API responses are `cache-control: no-store`, matching the static shell. The
   viewer is same-origin and localhost-only; it does not add a new network
   boundary or expose logs to the project preview or export.
-- Opening the viewer moves focus into the dialog, traps Tab inside it, and
-  makes the rest of the shell inert. Closing restores focus to the control
-  that opened it: the sidebar door or a child tool line. A transcript load
+- The viewer follows the shared modal focus contract below. A transcript load
   failure sets an "Unavailable" status and keeps focus on the Back control.
 - Child tool lines include a "View transcript" link. Live completion events
   carry the child id; restored history pairs each child call with its logged
@@ -128,6 +127,14 @@ and audit trails instead of a second users table.
 - Not included: live child progress, background children, search or filtering,
   log deletion/pruning, and diff/merge. The parent transcript still shows one
   tool line per child call, now with a direct transcript link.
+
+### Modal focus contract (v5.3)
+
+- The agent, template, and subagent dialogs move focus inside on open, trap Tab
+  and Shift+Tab, and make the rest of the shell inert.
+- Closing restores focus to the control that opened the dialog. Starting an
+  agent or template run moves focus to the status Close control so focus never
+  stays on a hidden form button.
 
 ### Tool scheduling contract (v4.8)
 

@@ -28,6 +28,85 @@ function autoScroll() {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
+const MODAL_FOCUSABLE = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "summary",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+const modalInertSiblings = new Map();
+
+function modalFocusableElements(modal) {
+  return [...modal.querySelectorAll(MODAL_FOCUSABLE)].filter((element) => {
+    if (element.closest("[hidden]")) return false;
+    if (element.getAttribute("aria-hidden") === "true") return false;
+    if (element.tabIndex < 0) return false;
+    return element.getClientRects().length > 0;
+  });
+}
+
+function focusModalFirst(modal, fallback) {
+  const first = modalFocusableElements(modal)[0];
+  (first ?? fallback).focus();
+}
+
+function modalOpener(fallback) {
+  const active = document.activeElement;
+  return active instanceof HTMLElement && active !== document.body ? active : fallback;
+}
+
+function restoreModalFocus(opener, fallback) {
+  if (opener instanceof HTMLElement && opener.isConnected && opener.getClientRects().length > 0) {
+    opener.focus();
+    return;
+  }
+  fallback.focus();
+}
+
+function setModalBackgroundInert(overlay, inert) {
+  const shell = overlay.parentElement;
+  if (shell === null) return;
+  if (inert) {
+    if (modalInertSiblings.has(overlay)) return;
+    const siblings = [...shell.children]
+      .filter((element) => element !== overlay)
+      .map((element) => ({ element, wasInert: element.inert }));
+    modalInertSiblings.set(overlay, siblings);
+    for (const { element } of siblings) element.inert = true;
+    return;
+  }
+  const siblings = modalInertSiblings.get(overlay);
+  if (siblings === undefined) return;
+  for (const { element, wasInert } of siblings) element.inert = wasInert;
+  modalInertSiblings.delete(overlay);
+}
+
+function trapModalTab(event, overlay, modal, fallback) {
+  if (event.key !== "Tab" || overlay.hidden) return;
+  const focusable = modalFocusableElements(modal);
+  if (focusable.length === 0) {
+    event.preventDefault();
+    fallback.focus();
+    return;
+  }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  const active = document.activeElement;
+  const inside = active !== null && modal.contains(active);
+  if (event.shiftKey) {
+    if (!inside || active === first) {
+      event.preventDefault();
+      last.focus();
+    }
+  } else if (!inside || active === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 // The compact brand mark for assistant avatars: the real logo geometry,
 // trimmed of the dot grid and glow that only read at large sizes.
 const AVATAR_SVG = '<svg class="avatar" width="26" height="26" viewBox="0 0 680 680" aria-hidden="true"><circle cx="340" cy="340" r="240" fill="#246a43"/><circle cx="340" cy="340" r="240" fill="none" stroke="#39c978" stroke-width="34"/><polygon points="226 490 262 490 342 260 322 260" fill="#f7fff9"/><polygon points="356 260 336 260 418 490 454 490" fill="#f7fff9"/><rect x="270" y="388" width="98" height="32" rx="5" fill="#f7fff9"/><rect x="360" y="262" width="92" height="96" rx="36" fill="#a7dfbf"/><rect x="354" y="362" width="102" height="112" rx="42" fill="#a7dfbf"/><rect x="358" y="349" width="94" height="22" rx="5" fill="#a7dfbf"/></svg>';
@@ -288,45 +367,67 @@ document.getElementById("preview-close").addEventListener("click", hidePreview);
 // --- Build with agent (user-triggered only) ---
 
 const agentOverlay = document.getElementById("agent-overlay");
+const agentModal = agentOverlay.querySelector(".agent-modal");
+const agentBtn = document.getElementById("agent-btn");
+const agentClose = document.getElementById("agent-close");
+const agentDismiss = document.getElementById("agent-dismiss");
+const agentBrief = document.getElementById("agent-brief");
 const agentForm = document.getElementById("agent-form");
 const agentStatus = document.getElementById("agent-status");
 const agentState = document.getElementById("agent-state");
 const agentOutput = document.getElementById("agent-output");
 const agentRunBtn = document.getElementById("agent-run");
 let agentRunning = false;
+let agentOpener = null;
 
-function openAgent() {
+function openAgent(opener) {
+  if (!agentOverlay.hidden) {
+    if (agentRunning) agentDismiss.focus();
+    else agentBrief.focus();
+    return;
+  }
+  agentOpener = opener instanceof HTMLElement ? opener : modalOpener(agentBtn);
   agentOverlay.hidden = false;
-  if (agentRunning) return; // a running agent keeps its live status view
+  setModalBackgroundInert(agentOverlay, true);
+  if (agentRunning) {
+    agentForm.hidden = true;
+    agentStatus.hidden = false;
+    agentDismiss.focus();
+    return;
+  }
   agentForm.hidden = false;
   agentStatus.hidden = true;
-  document.getElementById("agent-brief").focus();
+  agentBrief.focus();
 }
 
-document.getElementById("agent-btn").addEventListener("click", openAgent);
-
-document.getElementById("agent-close").addEventListener("click", () => {
+function closeAgent() {
   // Closing the dialog is ALWAYS allowed: it never aborts the run (closing
   // the page does), and a stuck busy-flag must never trap the user.
+  if (agentOverlay.hidden) return;
   agentOverlay.hidden = true;
-});
-document.getElementById("agent-dismiss").addEventListener("click", () => {
-  agentOverlay.hidden = true;
-});
+  setModalBackgroundInert(agentOverlay, false);
+  const opener = agentOpener;
+  agentOpener = null;
+  restoreModalFocus(opener, agentBtn);
+}
+
+agentBtn.addEventListener("click", openAgent);
+agentClose.addEventListener("click", closeAgent);
+agentDismiss.addEventListener("click", closeAgent);
 
 // The modal must be dismissible in every conventional way: clicking the
 // backdrop outside the dialog, and Escape (agent first, then run panel).
 agentOverlay.addEventListener("mousedown", (event) => {
-  if (event.target === agentOverlay) agentOverlay.hidden = true;
+  if (event.target === agentOverlay) closeAgent();
 });
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   if (!agentOverlay.hidden) {
-    agentOverlay.hidden = true;
+    closeAgent();
     return;
   }
   if (!templateOverlay.hidden) {
-    templateOverlay.hidden = true;
+    closeTemplate();
     return;
   }
   if (!subagentsOverlay.hidden) {
@@ -349,13 +450,14 @@ function appendAgentLine(line) {
   agentOutput.scrollTop = agentOutput.scrollHeight;
 }
 
-document.getElementById("agent-run").addEventListener("click", async () => {
-  const brief = document.getElementById("agent-brief").value.trim();
+agentRunBtn.addEventListener("click", async () => {
+  const brief = agentBrief.value.trim();
   if (brief.length === 0 || agentRunning) return;
   agentRunning = true;
   agentRunBtn.disabled = true;
   agentForm.hidden = true;
   agentStatus.hidden = false;
+  if (!agentOverlay.hidden) agentDismiss.focus();
   agentState.textContent = "Agent running, this can take minutes…";
   agentOutput.textContent = "";
 
@@ -419,12 +521,18 @@ document.getElementById("agent-run").addEventListener("click", async () => {
 // --- New from template (the Authenik8 CLI bridge) ---
 
 const templateOverlay = document.getElementById("template-overlay");
+const templateModal = templateOverlay.querySelector(".agent-modal");
+const templateBtn = document.getElementById("template-btn");
+const templateClose = document.getElementById("template-close");
+const templateDismiss = document.getElementById("template-dismiss");
+const templatePreset = document.getElementById("template-preset");
 const templateForm = document.getElementById("template-form");
 const templateStatus = document.getElementById("template-status");
 const templateState = document.getElementById("template-state");
 const templateOutput = document.getElementById("template-output");
 const templateRunBtn = document.getElementById("template-run");
 let templateBusy = false;
+let templateOpener = null;
 
 const MAX_TEMPLATE_LINES = 300;
 function appendTemplateLine(line) {
@@ -440,7 +548,7 @@ function appendTemplateLine(line) {
 }
 
 function syncTemplateRows() {
-  const preset = document.getElementById("template-preset").value;
+  const preset = templatePreset.value;
   document.getElementById("template-frontend-row").hidden = preset !== "fullstack";
   document.getElementById("template-providers-row").hidden = preset !== "auth-oauth";
   if (preset === "fullstack") {
@@ -448,45 +556,63 @@ function syncTemplateRows() {
     document.getElementById("template-database").value = "postgresql";
   }
 }
-document.getElementById("template-preset").addEventListener("change", syncTemplateRows);
+templatePreset.addEventListener("change", syncTemplateRows);
 
-function openTemplate() {
+function openTemplate(opener) {
+  if (!templateOverlay.hidden) {
+    if (templateBusy) templateDismiss.focus();
+    else templatePreset.focus();
+    return;
+  }
+  templateOpener = opener instanceof HTMLElement ? opener : modalOpener(templateBtn);
   templateOverlay.hidden = false;
-  if (templateBusy) return; // a running generation keeps its live status view
+  setModalBackgroundInert(templateOverlay, true);
+  if (templateBusy) {
+    templateForm.hidden = true;
+    templateStatus.hidden = false;
+    templateDismiss.focus();
+    return;
+  }
   templateForm.hidden = false;
   templateStatus.hidden = true;
   syncTemplateRows();
+  templatePreset.focus();
 }
 
-document.getElementById("template-btn").addEventListener("click", openTemplate);
+function closeTemplate() {
+  // Always allowed: hiding the dialog never cancels the generation, and a
+  // stuck busy-flag must never trap the user.
+  if (templateOverlay.hidden) return;
+  templateOverlay.hidden = true;
+  setModalBackgroundInert(templateOverlay, false);
+  const opener = templateOpener;
+  templateOpener = null;
+  restoreModalFocus(opener, templateBtn);
+}
+
+templateBtn.addEventListener("click", openTemplate);
 
 // Starter prompts on the empty state: two fill the composer, two open the
 // real doors (the template wizard and the agent) in one click.
 document.querySelectorAll(".chip").forEach((chip) => {
   chip.addEventListener("click", () => {
-    if (chip.dataset.open === "template") { openTemplate(); return; }
-    if (chip.dataset.open === "agent") { openAgent(); return; }
+    if (chip.dataset.open === "template") { openTemplate(chip); return; }
+    if (chip.dataset.open === "agent") { openAgent(chip); return; }
     promptEl.value = chip.dataset.prompt ?? "";
     promptEl.style.height = "auto";
     promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
     promptEl.focus();
   });
 });
-document.getElementById("template-close").addEventListener("click", () => {
-  // Always allowed: hiding the dialog never cancels the generation, and a
-  // stuck busy-flag must never trap the user.
-  templateOverlay.hidden = true;
-});
-document.getElementById("template-dismiss").addEventListener("click", () => {
-  templateOverlay.hidden = true;
-});
+templateClose.addEventListener("click", closeTemplate);
+templateDismiss.addEventListener("click", closeTemplate);
 templateOverlay.addEventListener("mousedown", (event) => {
-  if (event.target === templateOverlay) templateOverlay.hidden = true;
+  if (event.target === templateOverlay) closeTemplate();
 });
 
 templateRunBtn.addEventListener("click", async () => {
   if (templateBusy) return;
-  const preset = document.getElementById("template-preset").value;
+  const preset = templatePreset.value;
   const spec = {
     preset,
     database: document.getElementById("template-database").value,
@@ -506,6 +632,7 @@ templateRunBtn.addEventListener("click", async () => {
   templateRunBtn.disabled = true;
   templateForm.hidden = true;
   templateStatus.hidden = false;
+  if (!templateOverlay.hidden) templateDismiss.focus();
   templateState.textContent = "Generating with the Authenik8 CLI. Runs locally, nothing is uploaded…";
   templateOutput.textContent = "";
 
@@ -551,7 +678,7 @@ templateRunBtn.addEventListener("click", async () => {
             "assistant",
             `Sandbox seeded from the Authenik8 template (${seeded.files} files). Describe changes in chat, or hit Run project to install and start it.`,
           );
-          templateOverlay.hidden = true;
+          closeTemplate();
         }
       }
     }
@@ -585,17 +712,7 @@ const subagentsTranscriptEl = document.getElementById("subagents-transcript");
 const subagentsMeta = document.getElementById("subagents-meta");
 const subagentsTitle = document.getElementById("subagents-title");
 const SUBAGENT_DISPLAY_CHARS = 12_000;
-const SUBAGENT_FOCUSABLE = [
-  "a[href]",
-  "button:not([disabled])",
-  "input:not([disabled])",
-  "select:not([disabled])",
-  "textarea:not([disabled])",
-  "summary",
-  "[tabindex]:not([tabindex='-1'])",
-].join(",");
 let subagentsEpoch = 0;
-let subagentsInertSiblings = [];
 let subagentsOpener = null;
 
 function formatSubagentBytes(bytes) {
@@ -623,63 +740,34 @@ function capSubagentText(value) {
   return `${value.slice(0, SUBAGENT_DISPLAY_CHARS)}\n... [truncated]`;
 }
 
-function subagentFocusableElements() {
-  return [...subagentsModal.querySelectorAll(SUBAGENT_FOCUSABLE)].filter((element) => {
-    if (element.closest("[hidden]")) return false;
-    if (element.getAttribute("aria-hidden") === "true") return false;
-    if (element.tabIndex < 0) return false;
-    return element.getClientRects().length > 0;
-  });
-}
-
-function focusSubagentFirst() {
-  const first = subagentFocusableElements()[0];
-  (first ?? subagentsClose).focus();
-}
-
-function setSubagentsBackgroundInert(inert) {
-  const shell = subagentsOverlay.parentElement;
-  if (shell === null) return;
-  if (inert) {
-    if (subagentsInertSiblings.length > 0) return;
-    subagentsInertSiblings = [...shell.children]
-      .filter((element) => element !== subagentsOverlay)
-      .map((element) => ({ element, wasInert: element.inert }));
-    for (const { element } of subagentsInertSiblings) element.inert = true;
+function trapOpenModalTab(event) {
+  if (!agentOverlay.hidden) {
+    trapModalTab(event, agentOverlay, agentModal, agentClose);
     return;
   }
-  for (const { element, wasInert } of subagentsInertSiblings) element.inert = wasInert;
-  subagentsInertSiblings = [];
-}
-
-function trapSubagentTab(event) {
-  if (event.key !== "Tab" || subagentsOverlay.hidden) return;
-  const focusable = subagentFocusableElements();
-  if (focusable.length === 0) {
-    event.preventDefault();
-    subagentsClose.focus();
+  if (!templateOverlay.hidden) {
+    trapModalTab(event, templateOverlay, templateModal, templateClose);
     return;
   }
-  const first = focusable[0];
-  const last = focusable[focusable.length - 1];
-  const active = document.activeElement;
-  const inside = active !== null && subagentsModal.contains(active);
-  if (event.shiftKey) {
-    if (!inside || active === first) {
-      event.preventDefault();
-      last.focus();
-    }
-  } else if (!inside || active === last) {
-    event.preventDefault();
-    first.focus();
-  }
+  trapModalTab(event, subagentsOverlay, subagentsModal, subagentsClose);
 }
 
-document.addEventListener("keydown", trapSubagentTab);
+document.addEventListener("keydown", trapOpenModalTab);
 document.addEventListener("focusin", (event) => {
+  const target = event.target;
+  if (!agentOverlay.hidden) {
+    if (target instanceof Node && agentModal.contains(target)) return;
+    focusModalFirst(agentModal, agentClose);
+    return;
+  }
+  if (!templateOverlay.hidden) {
+    if (target instanceof Node && templateModal.contains(target)) return;
+    focusModalFirst(templateModal, templateClose);
+    return;
+  }
   if (subagentsOverlay.hidden) return;
-  if (event.target instanceof Node && subagentsModal.contains(event.target)) return;
-  focusSubagentFirst();
+  if (target instanceof Node && subagentsModal.contains(target)) return;
+  focusModalFirst(subagentsModal, subagentsClose);
 });
 
 function resetSubagentView() {
@@ -694,12 +782,11 @@ function resetSubagentView() {
 function closeSubagents() {
   if (subagentsOverlay.hidden) return;
   subagentsOverlay.hidden = true;
-  setSubagentsBackgroundInert(false);
+  setModalBackgroundInert(subagentsOverlay, false);
   resetSubagentView();
   const opener = subagentsOpener;
   subagentsOpener = null;
-  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-  else subagentsBtn.focus();
+  restoreModalFocus(opener, subagentsBtn);
 }
 
 function openSubagents() {
@@ -707,9 +794,9 @@ function openSubagents() {
     subagentsClose.focus();
     return;
   }
-  subagentsOpener = subagentsBtn;
+  subagentsOpener = modalOpener(subagentsBtn);
   subagentsOverlay.hidden = false;
-  setSubagentsBackgroundInert(true);
+  setModalBackgroundInert(subagentsOverlay, true);
   resetSubagentView();
   subagentsClose.focus();
   void loadSubagents();
@@ -717,9 +804,9 @@ function openSubagents() {
 
 function openSubagentTranscriptFromTool(id, opener) {
   if (subagentsOverlay.hidden) {
-    subagentsOpener = opener instanceof HTMLElement ? opener : subagentsBtn;
+    subagentsOpener = opener instanceof HTMLElement ? opener : modalOpener(subagentsBtn);
     subagentsOverlay.hidden = false;
-    setSubagentsBackgroundInert(true);
+    setModalBackgroundInert(subagentsOverlay, true);
     resetSubagentView();
   }
   void openSubagentTranscript(id);

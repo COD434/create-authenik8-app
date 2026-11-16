@@ -206,10 +206,19 @@ describe("static UI and auth boundary", () => {
     expect(appJs.headers.get("cache-control")).toContain("no-store");
     const appSource = await appJs.text();
     expect(appSource).toContain("/api/subagents");
-    // Structural guard for the viewer's focus contract: background inert,
-    // a Tab trap, and a visible error state with focus kept on Back.
-    expect(appSource).toContain("setSubagentsBackgroundInert");
-    expect(appSource).toContain("trapSubagentTab");
+    // Structural guard for the modal focus contract: background inert,
+    // a shared Tab trap, opener restoration, and a visible error state with
+    // focus kept on Back.
+    expect(appSource).toContain("setModalBackgroundInert");
+    expect(appSource).toContain("trapModalTab");
+    expect(appSource).toContain("trapOpenModalTab");
+    expect(appSource).toContain("restoreModalFocus");
+    expect(appSource).toContain("openAgent");
+    expect(appSource).toContain("openTemplate");
+    expect(appSource).toContain("closeAgent");
+    expect(appSource).toContain("closeTemplate");
+    expect(appSource).toContain("agentDismiss.focus()");
+    expect(appSource).toContain("templateDismiss.focus()");
     expect(appSource).toContain('subagentsMeta.textContent = "Unavailable"');
     expect(appSource).toContain("shortSubagentId");
     expect(appSource).toContain('"Task preview"');
