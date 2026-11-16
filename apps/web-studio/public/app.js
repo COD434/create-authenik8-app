@@ -13,6 +13,12 @@ const planPanel = document.getElementById("plan-panel");
 const planSteps = document.getElementById("plan-steps");
 const planCount = document.getElementById("plan-count");
 const subagentsOverlay = document.getElementById("subagents-overlay");
+const SUBAGENT_TOOL_PREFIXES = new Map([
+  ["explore_project", "explore"],
+  ["review_project", "review"],
+  ["build_project", "build"],
+]);
+const CHILD_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function apiKey() {
   return keyInput.value.trim();
@@ -120,14 +126,37 @@ window.addEventListener("unhandledrejection", (event) => {
   addMessage("system-error", `Client error: ${reason}`);
 });
 
-function addToolLine(name, id) {
+function childIdFromResult(result) {
+  const match = /(?:^|\n)Child: ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\s*$/.exec(result);
+  return match?.[1] ?? null;
+}
+
+function subagentLogId(name, childId) {
+  const prefix = SUBAGENT_TOOL_PREFIXES.get(name);
+  if (prefix === undefined || typeof childId !== "string" || !CHILD_ID_PATTERN.test(childId)) return null;
+  return `${prefix}-${childId}`;
+}
+
+function addToolLine(name, id, scroll = true) {
   const el = document.createElement("div");
   el.className = "msg tool-line";
   if (typeof id === "string" && id.length > 0) el.dataset.toolId = id;
   el.textContent = `⚙ ${name} …`;
   messagesEl.appendChild(el);
-  autoScroll();
+  if (scroll) autoScroll();
   return el;
+}
+
+function setToolLine(line, name, ok, summary, transcriptId) {
+  line.textContent = `⚙ ${name} ${ok ? "✓" : "✗"} ${summary}`;
+  if (transcriptId === null) return;
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "tool-transcript-link";
+  link.textContent = "View transcript";
+  link.title = `Open transcript ${transcriptId}`;
+  link.addEventListener("click", () => openSubagentTranscriptFromTool(transcriptId, link));
+  line.append(" ", link);
 }
 
 async function loadModels() {
@@ -182,19 +211,50 @@ async function restoreHistory() {
     if (!res.ok) return;
     const body = await res.json();
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const visible = messages.filter(
-      (message) =>
-        (message.role === "user" || message.role === "assistant")
-        && typeof message.content === "string"
-        && message.content.length > 0,
-    );
+    const toolResults = new Map();
+    for (const message of messages) {
+      if (typeof message !== "object" || message === null) continue;
+      if (message.role !== "tool") continue;
+      if (typeof message.toolCallId !== "string" || typeof message.content !== "string") continue;
+      toolResults.set(message.toolCallId, {
+        content: message.content,
+        childId: typeof message.childId === "string" ? message.childId : null,
+      });
+    }
     if (epoch !== historyEpoch) return;
     renderPlan(body.plan ?? null);
-    if (visible.length === 0) return;
-    for (const message of visible) {
-      const bubble = addMessage(message.role, message.content);
-      if (message.role === "assistant") attachCopyButton(bubble);
+
+    let rendered = 0;
+    for (const message of messages) {
+      if (typeof message !== "object" || message === null) continue;
+      if (message.role !== "user" && message.role !== "assistant") continue;
+      if (typeof message.content !== "string") continue;
+      if (message.content.length > 0) {
+        const bubble = addMessage(message.role, message.content);
+        if (message.role === "assistant") attachCopyButton(bubble);
+        rendered++;
+      }
+      if (message.role !== "assistant" || !Array.isArray(message.toolCalls)) continue;
+      for (const call of message.toolCalls) {
+        if (typeof call !== "object" || call === null) continue;
+        if (typeof call.name !== "string" || !SUBAGENT_TOOL_PREFIXES.has(call.name)) continue;
+        const line = addToolLine(call.name, typeof call.id === "string" ? call.id : "", false);
+        const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
+        if (result !== undefined) {
+          const childId = result.childId ?? childIdFromResult(result.content);
+          setToolLine(
+            line,
+            call.name,
+            !result.content.startsWith("Error:"),
+            result.content.split("\n")[0] ?? "",
+            subagentLogId(call.name, childId),
+          );
+        }
+        rendered++;
+      }
     }
+    if (epoch !== historyEpoch) return;
+    if (rendered === 0) return;
     autoScroll();
   } catch {
     // History is an enhancement: a failed read must never block the composer.
@@ -536,6 +596,7 @@ const SUBAGENT_FOCUSABLE = [
 ].join(",");
 let subagentsEpoch = 0;
 let subagentsInertSiblings = [];
+let subagentsOpener = null;
 
 function formatSubagentBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) return "";
@@ -635,7 +696,10 @@ function closeSubagents() {
   subagentsOverlay.hidden = true;
   setSubagentsBackgroundInert(false);
   resetSubagentView();
-  subagentsBtn.focus();
+  const opener = subagentsOpener;
+  subagentsOpener = null;
+  if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+  else subagentsBtn.focus();
 }
 
 function openSubagents() {
@@ -643,11 +707,22 @@ function openSubagents() {
     subagentsClose.focus();
     return;
   }
+  subagentsOpener = subagentsBtn;
   subagentsOverlay.hidden = false;
   setSubagentsBackgroundInert(true);
   resetSubagentView();
   subagentsClose.focus();
   void loadSubagents();
+}
+
+function openSubagentTranscriptFromTool(id, opener) {
+  if (subagentsOverlay.hidden) {
+    subagentsOpener = opener instanceof HTMLElement ? opener : subagentsBtn;
+    subagentsOverlay.hidden = false;
+    setSubagentsBackgroundInert(true);
+    resetSubagentView();
+  }
+  void openSubagentTranscript(id);
 }
 
 function shortSubagentId(id) {
@@ -1040,7 +1115,16 @@ composer.addEventListener("submit", async (event) => {
                 ? toolLines.get(payload.tool.id) ?? lastToolLine
                 : lastToolLine;
               if (line !== null) {
-                line.textContent = `⚙ ${payload.tool.name} ${payload.tool.ok ? "✓" : "✗"} ${payload.tool.summary}`;
+                const transcriptId = typeof payload.tool.childId === "string"
+                  ? subagentLogId(payload.tool.name, payload.tool.childId)
+                  : null;
+                setToolLine(
+                  line,
+                  payload.tool.name,
+                  payload.tool.ok === true,
+                  typeof payload.tool.summary === "string" ? payload.tool.summary : "",
+                  transcriptId,
+                );
                 if (typeof payload.tool.id === "string") toolLines.delete(payload.tool.id);
                 if (line === lastToolLine) lastToolLine = null;
               }

@@ -64,6 +64,17 @@ const textRound: ChatChunk[] = [
   },
 ];
 
+function sseToolChildId(text: string, name: string): string | undefined {
+  for (const line of text.split("\n")) {
+    if (!line.startsWith("data: ")) continue;
+    const payload = JSON.parse(line.slice(6)) as {
+      tool?: { name?: string; phase?: string; childId?: string };
+    };
+    if (payload.tool?.name === name && payload.tool.phase === "done") return payload.tool.childId;
+  }
+  return undefined;
+}
+
 let sandbox: string;
 let capturedKey: string | null = null;
 
@@ -202,8 +213,12 @@ describe("static UI and auth boundary", () => {
     expect(appSource).toContain('subagentsMeta.textContent = "Unavailable"');
     expect(appSource).toContain("shortSubagentId");
     expect(appSource).toContain('"Task preview"');
+    expect(appSource).toContain("openSubagentTranscriptFromTool");
+    expect(appSource).toContain('"View transcript"');
+    expect(appSource).toContain("childIdFromResult");
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
+    expect(await style.text()).toContain(".tool-transcript-link");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
     // and avatars all point at it (no CDNs, ever).
     const logo = await fetch(`${base}/authenik8-logo.svg`);
@@ -529,6 +544,8 @@ describe("explorer subagent", () => {
     expect(text).toContain('"name":"explore_project"');
     expect(text).toContain("Explorer report (read-only, 2 rounds):");
     expect(text).not.toContain(KEY);
+    const childId = sseToolChildId(text, "explore_project");
+    expect(childId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 
     // Parent round 1, child read, child report, parent round 2.
     expect(capturedRequests).toHaveLength(4);
@@ -554,14 +571,19 @@ describe("explorer subagent", () => {
     expect(explorerResult?.content).not.toContain("Hello from README.");
 
     const parentHistory = await (await fetch(`${base}/api/history`)).json() as {
-      messages: Array<{ content: string }>;
+      messages: Array<{ role: string; content: string; toolCallId?: string; childId?: string }>;
     };
     expect(
       parentHistory.messages.some((message) => message.content.includes("Hello from README.")),
     ).toBe(false);
+    const explorerHistory = parentHistory.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_explore",
+    );
+    expect(explorerHistory?.childId).toBe(childId);
 
     const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
     expect(childFiles).toHaveLength(1);
+    expect(childFiles[0]).toBe(`explore-${childId}.jsonl`);
     const childHistory = await new SessionLog(
       path.join(sandbox, SESSION_DIR, SUBAGENT_DIR, childFiles[0]!),
     ).history();
@@ -914,6 +936,8 @@ describe("builder subagent", () => {
     expect(firstText).toContain('"name":"build_project"');
     expect(firstText).toContain("Builder report (write, 2 rounds):");
     expect(firstText).not.toContain(KEY);
+    const buildChildId = sseToolChildId(firstText, "build_project");
+    expect(buildChildId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
 
     const secondText = await (await chat("build src/b.ts")).text();
     expect(secondText).toContain("Builder report (write, 2 rounds):");
@@ -962,7 +986,7 @@ describe("builder subagent", () => {
     );
 
     const parentHistory = await (await fetch(`${base}/api/history`)).json() as {
-      messages: Array<{ content: string }>;
+      messages: Array<{ role: string; content: string; toolCallId?: string; childId?: string }>;
     };
     expect(
       parentHistory.messages.some((message) => message.content.includes("export const a = 1;")),
@@ -970,10 +994,15 @@ describe("builder subagent", () => {
     expect(
       parentHistory.messages.some((message) => message.content.includes("export const b = 2;")),
     ).toBe(false);
+    const built = parentHistory.messages.find(
+      (message) => message.role === "tool" && message.toolCallId === "call_build_1",
+    );
+    expect(built?.childId).toBe(buildChildId);
 
     const childFiles = await readdir(path.join(sandbox, SESSION_DIR, SUBAGENT_DIR));
     expect(childFiles).toHaveLength(2);
     expect(childFiles.every((file) => file.startsWith("build-"))).toBe(true);
+    expect(childFiles).toContain(`build-${buildChildId}.jsonl`);
     const childLog = await readFile(
       path.join(sandbox, SESSION_DIR, SUBAGENT_DIR, childFiles[0]!),
       "utf8",

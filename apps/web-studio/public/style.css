@@ -427,6 +427,20 @@ body {
   overflow-wrap: anywhere;
 }
 
+.tool-transcript-link {
+  margin-left: 2px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent-secondary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.tool-transcript-link:hover, .tool-transcript-link:focus-visible { color: var(--color-accent-primary); }
+
 /* -------- welcome (the empty state) -------- */
 
 .welcome {

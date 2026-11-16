@@ -1109,7 +1109,7 @@ async function handle(
                     signal: abort.signal,
                     lease: acquired.lease,
                   });
-                  return { ok: child.ok, result: child.result };
+                  return { ok: child.ok, result: child.result, childId: child.childId };
                 } catch (error) {
                   const message = error instanceof Error ? error.message : "builder failed";
                   return { ok: false, result: `Error: builder failed: ${message}` };
@@ -1141,7 +1141,7 @@ async function handle(
                   task,
                   signal: abort.signal,
                 });
-                return { ok: child.ok, result: child.result };
+                return { ok: child.ok, result: child.result, childId: child.childId };
               } catch (error) {
                 const message = error instanceof Error ? error.message : "child failed";
                 return {
@@ -1170,7 +1170,17 @@ async function handle(
               for (let index = 0; index < batch.calls.length; index++) {
                 const call = batch.calls[index]!;
                 const outcome = outcomes[index]!;
-                await log.append({ role: "tool", content: outcome.result, toolCallId: call.id });
+                // childId is local viewer metadata: it lets a refresh pair this
+                // result with its transcript. The provider adapter maps known
+                // message fields only, so it never reaches the model.
+                const toolMessage: {
+                  role: "tool";
+                  content: string;
+                  toolCallId: string;
+                  childId?: string;
+                } = { role: "tool", content: outcome.result, toolCallId: call.id };
+                if (outcome.childId !== undefined) toolMessage.childId = outcome.childId;
+                await log.append(toolMessage);
                 sseEvent(res, {
                   tool: {
                     id: call.id,
@@ -1178,6 +1188,7 @@ async function handle(
                     phase: "done",
                     ok: outcome.ok,
                     summary: outcome.result.split("\n")[0] ?? "",
+                    ...(outcome.childId !== undefined ? { childId: outcome.childId } : {}),
                   },
                 });
                 if (call.name === "update_plan" && outcome.ok) {

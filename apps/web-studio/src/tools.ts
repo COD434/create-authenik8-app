@@ -32,6 +32,8 @@ export type ToolOutcome = {
   ok: boolean;
   /** JSON-ish text fed back to the model as the tool result. */
   result: string;
+  /** Child transcript UUID for a delegated call; local UI metadata. */
+  childId?: string;
 };
 
 const listArgsSchema = z.object({ path: z.string().max(200).optional() });
