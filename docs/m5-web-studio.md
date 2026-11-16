@@ -53,8 +53,9 @@ and audit trails instead of a second users table.
 | v5.1 | Read-only subagent transcript viewer: the sidebar "Subagent runs" door lists explorer, reviewer, and builder logs newest first; `GET /api/subagents` returns metadata and the first task line, and `GET /api/subagents/<kind>-<uuid>` returns the parsed transcript; ids are restricted to the exact runner shape and re-checked against the real subagent directory; reads never repair or write the log; 32 MB cap; builder-sized logs are parsed and `write_file` bodies are projected to a size marker; API responses are no-store; the viewer shows the system prompt collapsed, the task, assistant text, tool calls, and tool results, with long payloads capped for display | done |
 | v5.2 | Direct child transcript links: each child tool line has a "View transcript" link; live completion events include the child id; restored history pairs each child call with its logged result and child id; closing the viewer returns focus to the link that opened it | done |
 | v5.3 | Modal focus containment: the agent and template dialogs now match the subagent viewer by moving focus inside on open, trapping Tab and Shift+Tab, making the rest of the shell inert, and restoring focus to the opener; starting an agent or template run moves focus to the status Close control | done |
+| v5.4 | Opt-in child log retention: `npm run prune:subagents` reports by default, requires `--yes` to delete, keeps the newest N, only considers logs older than the minimum age, caps the window at 10,000, re-checks the real subagent directory before unlink, and never deletes non-log files, directories, symlinks, or redirected directories | done |
 
-### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2)
+### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2, retention v5.4)
 
 - `explore_project`, `review_project`, and `build_project` are the delegation
   tools. One child per parent turn, shared across all three.
@@ -125,8 +126,9 @@ and audit trails instead of a second users table.
   as local viewer metadata on the parent tool result and is not sent to the
   model.
 - Not included: live child progress, background children, search or filtering,
-  log deletion/pruning, and diff/merge. The parent transcript still shows one
-  tool line per child call, now with a direct transcript link.
+  in-viewer deletion, and diff/merge. The parent transcript still shows one
+  tool line per child call, now with a direct transcript link. Retention is a
+  separate opt-in CLI command (v5.4).
 
 ### Modal focus contract (v5.3)
 
@@ -135,6 +137,24 @@ and audit trails instead of a second users table.
 - Closing restores focus to the control that opened the dialog. Starting an
   agent or template run moves focus to the status Close control so focus never
   stays on a hidden form button.
+
+### Child log retention (v5.4)
+
+- Retention is a local maintenance command, not an automatic policy. Run
+  `npm run prune:subagents -- --keep 50` from `apps/web-studio` after a build
+  to report what would be removed; add `--yes` to delete. The sandbox is
+  `SANDBOX_DIR` when set, otherwise `./.studio-sandbox`; `--sandbox <dir>`
+  overrides both.
+- The default keeps the newest 50 logs and only considers logs at least one
+  hour old, so a child that is still running is not pruned. Use
+  `--min-age-hours 0` only for deliberate immediate cleanup.
+- The command scans only exact `(explore|review|build)-<uuid>.jsonl` files
+  under the real `.authenik8/subagents` directory. It skips non-log files,
+  directories, symlinks, and redirected directories, and re-checks each file
+  against the real directory before `unlink`.
+- The keep window is bounded at 10,000 and invalid windows fail closed. The
+  command does not run on server start, adds no API route, and does not delete
+  logs from the viewer.
 
 ### Tool scheduling contract (v4.8)
 

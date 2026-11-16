@@ -1,5 +1,5 @@
 import type { Dirent, Stats } from "node:fs";
-import { open, readdir, realpath, stat } from "node:fs/promises";
+import { open, readdir, realpath, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 
 import type { ChatMessage, ToolCall } from "@authenik8/models";
@@ -24,6 +24,8 @@ import { SUBAGENT_DIR } from "./subagent.js";
 export const CHILD_LOG_MAX_BYTES = 32 * 1024 * 1024;
 export const CHILD_LOG_LIST_LIMIT = 50;
 export const CHILD_LOG_PREVIEW_CHARS = 120;
+/** Bound the retention window so one command cannot select an unbounded set. */
+export const CHILD_LOG_MAX_KEEP = 10_000;
 const CHILD_LOG_HEAD_BYTES = 8 * 1024;
 /** Leave room for the truncation marker under the client's 12,000-char cap. */
 const CHILD_LOG_ARGUMENT_MAX_CHARS = 11_000;
@@ -195,29 +197,54 @@ type ChildLogFile = {
   info: Stats;
 };
 
+type ChildLogCollection = {
+  dir: string;
+  candidates: ChildLogFile[];
+};
+
+export type PruneChildLogEntry = {
+  id: string;
+  bytes: number;
+  modifiedAt: string;
+};
+
+export type PruneChildLogsOptions = {
+  /** Number of newest valid logs to keep. Must be 1..CHILD_LOG_MAX_KEEP. */
+  keep: number;
+  /** Defaults to true: report eligible logs without deleting anything. */
+  dryRun?: boolean;
+  /** Only logs at least this old are eligible. Defaults to 0. */
+  minAgeMs?: number;
+  /** Clock override for tests. Defaults to Date.now(). */
+  now?: number;
+};
+
+export type PruneChildLogsResult = {
+  keep: number;
+  scanned: number;
+  eligible: PruneChildLogEntry[];
+  pruned: string[];
+  failed: Array<{ id: string; error: string }>;
+  dryRun: boolean;
+};
+
 export type ListChildLogsOptions = {
   /** Optional preview reader; defaults to the bounded head reader. */
   previewReader?: (filePath: string) => Promise<string>;
 };
 
 /**
- * List valid child logs, newest first. Invalid names, directories, and
- * symlinks are skipped; a missing directory is an empty list, not an error.
- *
- * Stat and sort every candidate first, then read task previews only for the
- * newest CHILD_LOG_LIST_LIMIT. A large backlog must not multiply head reads.
+ * Collect valid child log candidates, newest first. Invalid names, directories,
+ * and symlinks are skipped; a missing directory is an empty collection.
  */
-export async function listChildLogs(
-  sandboxRoot: string,
-  options: ListChildLogsOptions = {},
-): Promise<ChildLogSummary[]> {
+async function collectChildLogFiles(sandboxRoot: string): Promise<ChildLogCollection | null> {
   const dir = await resolveChildLogDir(sandboxRoot);
-  if (dir === null) return [];
+  if (dir === null) return null;
   let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
 
@@ -239,8 +266,22 @@ export async function listChildLogs(
     candidates.push({ id, kind, filePath, info });
   }
 
-  candidates.sort((a, b) => b.info.mtimeMs - a.info.mtimeMs);
-  const newest = candidates.slice(0, CHILD_LOG_LIST_LIMIT);
+  candidates.sort((a, b) => b.info.mtimeMs - a.info.mtimeMs || b.id.localeCompare(a.id));
+  return { dir, candidates };
+}
+
+/**
+ * List valid child logs, newest first. Stat and sort every candidate first,
+ * then read task previews only for the newest CHILD_LOG_LIST_LIMIT. A large
+ * backlog must not multiply head reads.
+ */
+export async function listChildLogs(
+  sandboxRoot: string,
+  options: ListChildLogsOptions = {},
+): Promise<ChildLogSummary[]> {
+  const collection = await collectChildLogFiles(sandboxRoot);
+  if (collection === null) return [];
+  const newest = collection.candidates.slice(0, CHILD_LOG_LIST_LIMIT);
   const previewFor = options.previewReader ?? readPreview;
   const logs: ChildLogSummary[] = [];
   for (const { id, kind, filePath, info } of newest) {
@@ -262,6 +303,93 @@ export async function listChildLogs(
     });
   }
   return logs;
+}
+
+/**
+ * Opt-in retention for child logs. Selects valid logs beyond the newest keep
+ * count, and only those at least minAgeMs old. Dry-run is the default; deletion
+ * requires dryRun: false. Each file is re-checked against the real subagent
+ * directory immediately before unlink, and only exact child-log names are
+ * candidates. Non-log files, directories, and redirected directories are never
+ * touched.
+ */
+export async function pruneChildLogs(
+  sandboxRoot: string,
+  options: PruneChildLogsOptions,
+): Promise<PruneChildLogsResult> {
+  if (!Number.isSafeInteger(options.keep) || options.keep < 1 || options.keep > CHILD_LOG_MAX_KEEP) {
+    throw new RangeError(`keep must be an integer between 1 and ${CHILD_LOG_MAX_KEEP}`);
+  }
+  const minAgeMs = options.minAgeMs ?? 0;
+  if (!Number.isFinite(minAgeMs) || minAgeMs < 0) {
+    throw new RangeError("minAgeMs must be a non-negative number");
+  }
+  const now = options.now ?? Date.now();
+  if (!Number.isFinite(now)) throw new RangeError("now must be a finite number");
+  const dryRun = options.dryRun ?? true;
+
+  const collection = await collectChildLogFiles(sandboxRoot);
+  if (collection === null) {
+    return { keep: options.keep, scanned: 0, eligible: [], pruned: [], failed: [], dryRun };
+  }
+
+  const { dir, candidates } = collection;
+  const eligible = candidates
+    .slice(options.keep)
+    .filter(({ info }) => now - info.mtimeMs >= minAgeMs)
+    .map(({ id, info }) => ({
+      id,
+      bytes: info.size,
+      modifiedAt: info.mtime.toISOString(),
+    }));
+
+  const result: PruneChildLogsResult = {
+    keep: options.keep,
+    scanned: candidates.length,
+    eligible,
+    pruned: [],
+    failed: [],
+    dryRun,
+  };
+  if (dryRun) return result;
+
+  for (const entry of eligible) {
+    const filePath = path.join(dir, `${entry.id}.jsonl`);
+    try {
+      let realFile: string;
+      try {
+        realFile = await realpath(filePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          result.pruned.push(entry.id);
+          continue;
+        }
+        throw error;
+      }
+      const relative = path.relative(dir, realFile);
+      if (relative !== `${entry.id}.jsonl` || relative.startsWith("..") || path.isAbsolute(relative)) {
+        throw new Error("file is outside the subagent directory");
+      }
+      const info = await stat(realFile);
+      if (!info.isFile()) throw new Error("not a regular file");
+      try {
+        await unlink(realFile);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          result.pruned.push(entry.id);
+          continue;
+        }
+        throw error;
+      }
+      result.pruned.push(entry.id);
+    } catch (error) {
+      result.failed.push({
+        id: entry.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return result;
 }
 
 /**

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, symlink, truncate, utimes, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -12,8 +12,10 @@ import { SUBAGENT_DIR } from "../src/subagent.js";
 import {
   CHILD_LOG_LIST_LIMIT,
   CHILD_LOG_MAX_BYTES,
+  CHILD_LOG_MAX_KEEP,
   CHILD_LOG_PREVIEW_CHARS,
   listChildLogs,
+  pruneChildLogs,
   readChildLog,
 } from "../src/subagent-log.js";
 
@@ -177,6 +179,10 @@ describe("subagent transcript logs", () => {
 
     expect(await readChildLog(sandbox, id)).toBeNull();
     expect(await listChildLogs(sandbox)).toEqual([]);
+    const pruned = await pruneChildLogs(sandbox, { keep: 1, dryRun: false, minAgeMs: 0 });
+    expect(pruned.scanned).toBe(0);
+    expect(pruned.pruned).toEqual([]);
+    expect(await readFile(path.join(outside, `${id}.jsonl`), "utf8")).toContain("outside secret");
   });
 
   it("returns only metadata and the task preview for a log above the viewer cap", async () => {
@@ -261,5 +267,130 @@ describe("subagent transcript logs", () => {
     expect(logs[0]?.id).toBe(id);
     expect(logs[0]!.preview.length).toBeLessThanOrEqual(CHILD_LOG_PREVIEW_CHARS);
     expect(logs[0]!.preview.endsWith("...")).toBe(true);
+  });
+
+  it("dry-runs retention by default without deleting logs", async () => {
+    const ids: string[] = [];
+    const base = Date.now() - 5 * 60_000;
+    for (let index = 0; index < 3; index += 1) {
+      const id = await writeChildLog("explore", [{ role: "user", content: `Task ${index}` }]);
+      const filePath = path.join(subagentDir(), `${id}.jsonl`);
+      const at = new Date(base + index * 1000);
+      await utimes(filePath, at, at);
+      ids.push(id);
+    }
+
+    const result = await pruneChildLogs(sandbox, { keep: 2, minAgeMs: 0, now: Date.now() });
+    expect(result.dryRun).toBe(true);
+    expect(result.scanned).toBe(3);
+    expect(result.eligible.map((entry) => entry.id)).toEqual([ids[0]]);
+    expect(result.pruned).toEqual([]);
+    expect(result.failed).toEqual([]);
+    expect(await readdir(subagentDir())).toHaveLength(3);
+  });
+
+  it("prunes only valid logs beyond the keep count", async () => {
+    const ids: string[] = [];
+    const base = Date.now() - 6 * 60_000;
+    for (let index = 0; index < 4; index += 1) {
+      const id = await writeChildLog("build", [{ role: "user", content: `Task ${index}` }]);
+      const filePath = path.join(subagentDir(), `${id}.jsonl`);
+      const at = new Date(base + index * 1000);
+      await utimes(filePath, at, at);
+      ids.push(id);
+    }
+
+    const invalid = path.join(subagentDir(), "explore-not-a-uuid.jsonl");
+    const notes = path.join(subagentDir(), "notes.txt");
+    const directoryId = `build-${randomUUID()}`;
+    await writeFile(invalid, "{}\n", "utf8");
+    await writeFile(notes, "keep me\n", "utf8");
+    await mkdir(path.join(subagentDir(), `${directoryId}.jsonl`), { recursive: true });
+
+    const result = await pruneChildLogs(sandbox, {
+      keep: 2,
+      dryRun: false,
+      minAgeMs: 0,
+      now: Date.now(),
+    });
+    expect(result.dryRun).toBe(false);
+    expect(result.scanned).toBe(4);
+    expect(result.eligible.map((entry) => entry.id)).toEqual([ids[1], ids[0]]);
+    expect(result.pruned).toEqual([ids[1], ids[0]]);
+    expect(result.failed).toEqual([]);
+
+    const remaining = await readdir(subagentDir());
+    expect(remaining).toContain(`${ids[2]}.jsonl`);
+    expect(remaining).toContain(`${ids[3]}.jsonl`);
+    expect(remaining).not.toContain(`${ids[0]}.jsonl`);
+    expect(remaining).not.toContain(`${ids[1]}.jsonl`);
+    expect(remaining).toContain("explore-not-a-uuid.jsonl");
+    expect(remaining).toContain("notes.txt");
+    expect(remaining).toContain(`${directoryId}.jsonl`);
+    expect(await readFile(invalid, "utf8")).toBe("{}\n");
+    expect(await readFile(notes, "utf8")).toBe("keep me\n");
+  });
+
+  it("keeps logs younger than the minimum age", async () => {
+    const now = Date.now();
+    const ages = [2 * 60 * 60_000, 30 * 60_000, 10 * 60_000];
+    const ids: string[] = [];
+    for (let index = 0; index < 3; index += 1) {
+      const id = await writeChildLog("review", [{ role: "user", content: `Task ${index}` }]);
+      const at = new Date(now - ages[index]!);
+      await utimes(path.join(subagentDir(), `${id}.jsonl`), at, at);
+      ids.push(id);
+    }
+
+    const result = await pruneChildLogs(sandbox, {
+      keep: 1,
+      dryRun: true,
+      minAgeMs: 60 * 60_000,
+      now,
+    });
+    expect(result.scanned).toBe(3);
+    expect(result.eligible.map((entry) => entry.id)).toEqual([ids[0]]);
+    expect(await readdir(subagentDir())).toHaveLength(3);
+  });
+
+  it("rejects an invalid or unbounded retention window", async () => {
+    await expect(pruneChildLogs(sandbox, { keep: 0 })).rejects.toThrow(/keep/);
+    await expect(pruneChildLogs(sandbox, { keep: -1 })).rejects.toThrow(/keep/);
+    await expect(pruneChildLogs(sandbox, { keep: 1.5 })).rejects.toThrow(/keep/);
+    await expect(pruneChildLogs(sandbox, { keep: CHILD_LOG_MAX_KEEP + 1 })).rejects.toThrow(/keep/);
+    await expect(pruneChildLogs(sandbox, { keep: 1, minAgeMs: -1 })).rejects.toThrow(/minAgeMs/);
+  });
+
+  it("treats a missing subagent directory as empty during retention", async () => {
+    const result = await pruneChildLogs(sandbox, { keep: 1, dryRun: false, minAgeMs: 0 });
+    expect(result).toMatchObject({
+      scanned: 0,
+      eligible: [],
+      pruned: [],
+      failed: [],
+      dryRun: false,
+    });
+  });
+
+  it("never follows a file symlink while pruning", async (ctx) => {
+    const outside = path.join(sandbox, "outside-log.jsonl");
+    const id = `explore-${randomUUID()}`;
+    await writeFile(outside, "outside secret\n", "utf8");
+    await mkdir(subagentDir(), { recursive: true });
+    try {
+      await symlink(outside, path.join(subagentDir(), `${id}.jsonl`), "file");
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === "EPERM" || code === "EACCES" || code === "ENOSYS") {
+        ctx.skip();
+        return;
+      }
+      throw error;
+    }
+
+    const result = await pruneChildLogs(sandbox, { keep: 1, dryRun: false, minAgeMs: 0 });
+    expect(result.scanned).toBe(0);
+    expect(result.pruned).toEqual([]);
+    expect(await readFile(outside, "utf8")).toBe("outside secret\n");
   });
 });
