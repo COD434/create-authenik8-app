@@ -69,7 +69,7 @@
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@types/supertest": "^7.2.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^4.1.12",
     "axe-core": "4.12.1",
     "bcryptjs": "^2.4.3",
     "esbuild": "0.28.1",
@@ -85,7 +85,7 @@
     "supertest": "^7.2.2",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^4.1.12"
   },
   "repository": {
     "type": "git",
