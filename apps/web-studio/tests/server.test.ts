@@ -146,6 +146,7 @@ const deps: WebStudioDeps = {
   },
   publicModels: async () => fakeModels,
   sandboxRoot: "", // filled in beforeAll
+  maxToolRounds: 3,
   agentRuntime: fakeRuntime,
   createRunner: fakeCreateRunner,
 };
@@ -354,7 +355,7 @@ describe("agent loop", () => {
     expect(capturedRequests).toHaveLength(2); // loop continued after the failure
   });
 
-  it("stops at the tool round budget", async () => {
+  it("asks for a final summary after the tool round budget", async () => {
     const toolRound: ChatChunk[] = [
       {
         delta: null,
@@ -364,13 +365,20 @@ describe("agent loop", () => {
       },
       { delta: null, toolCalls: null, finishReason: "tool_calls", usage: null },
     ];
-    script = [toolRound];
+    script = [toolRound, toolRound, toolRound, textRound];
 
     const res = await chat("loop forever");
     const text = await res.text();
 
-    expect(text).toContain("budget");
-    expect(capturedRequests).toHaveLength(6); // MAX_TOOL_ROUNDS
+    expect(text).toContain("Tool budget reached (3 tool rounds)");
+    expect(text).toContain('"delta":"Done."');
+    expect(text).toContain('"done":true');
+    expect(capturedRequests).toHaveLength(4); // 3 tool rounds + final summary
+    expect(capturedRequests[3]!.tools).toBeUndefined();
+    expect(capturedRequests[3]!.messages[0]?.content).toContain("Tool budget reached");
+    expect(
+      capturedRequests[3]!.messages.some((message) => message.role === "tool"),
+    ).toBe(true);
   });
 });
 

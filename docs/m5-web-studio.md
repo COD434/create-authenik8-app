@@ -55,6 +55,7 @@ and audit trails instead of a second users table.
 | v5.3 | Modal focus containment: the agent and template dialogs now match the subagent viewer by moving focus inside on open, trapping Tab and Shift+Tab, making the rest of the shell inert, and restoring focus to the opener; starting an agent or template run moves focus to the status Close control | done |
 | v5.4 | Opt-in child log retention: `npm run prune:subagents` reports by default, requires `--yes` to delete, keeps the newest N, only considers logs older than the minimum age, caps the window at 10,000, re-checks the real subagent directory before unlink, and never deletes non-log files, directories, symlinks, or redirected directories | done |
 | v5.5 | Child budget finalization: explorer and reviewer get 6 tool rounds, 90s, and 64k tool-result chars; the builder gets 10 tool rounds, 180s, and 64k; after the tool-round budget the child makes one final no-tools call that must return the report, so the last tool results are summarized instead of discarded; prompts ask for batched reads and no re-reads | done |
+| v5.6 | Parent tool budget: the studio agent gets 12 tool rounds by default (clamped to 1..30, override `AUTHENIK8_MAX_TOOL_ROUNDS`); after the last tool round it makes one no-tools summary call, so the final tool results are summarized instead of dropped; the UI shows a budget note and the turn ends cleanly | done |
 
 ### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2, retention v5.4, finalization v5.5)
 

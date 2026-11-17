@@ -81,7 +81,10 @@ type ParentToolCall = ReturnType<typeof assembleToolCalls>[number];
 
 const PUBLIC_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const MAX_BODY_BYTES = 1024 * 1024;
-const MAX_TOOL_ROUNDS = 6;
+const DEFAULT_MAX_TOOL_ROUNDS = 12;
+const MAX_TOOL_ROUNDS_CAP = 30;
+const FINAL_TOOL_BUDGET_INSTRUCTION =
+  "Tool budget reached. Do not call tools. Summarize what you completed, what remains, and the next step. Do not claim work you did not do. Use plain punctuation, no em dashes.";
 /**
  * Some free models sit behind providers that only accept traffic from coding
  * agents: any plain app call gets 403 "only available on agentic harnesses"
@@ -143,6 +146,11 @@ export type WebStudioDeps = {
    * DEFAULT_CONTEXT_BUDGET_CHARS.
    */
   contextBudgetChars?: number;
+  /**
+   * Parent tool rounds before one final no-tools summary call. Defaults to
+   * DEFAULT_MAX_TOOL_ROUNDS and is clamped to 1..MAX_TOOL_ROUNDS_CAP.
+   */
+  maxToolRounds?: number;
   /** The coding-agent runtime (OpenCode). Triggered only by explicit user action. */
   agentRuntime: AgentRuntime;
   /** Project runner factory (npm install/start). Fixed commands, user-triggered. */
@@ -572,6 +580,10 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   // Directory leases are process-local and shared across chat turns. A builder
   // holds one for the duration of its synchronous child run.
   const leases = createLeaseManager();
+  const maxToolRounds = Math.min(
+    MAX_TOOL_ROUNDS_CAP,
+    Math.max(1, Math.trunc(deps.maxToolRounds ?? DEFAULT_MAX_TOOL_ROUNDS)),
+  );
 
   // Project runner wiring: run output streams to whoever holds the SSE.
   const runner = deps.createRunner({
@@ -588,7 +600,7 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   });
 
   return createServer((req, res) => {
-    void handle(deps, session, runner, leases, req, res);
+    void handle(deps, session, runner, leases, maxToolRounds, req, res);
   });
 }
 
@@ -597,6 +609,7 @@ async function handle(
   session: StudioSession,
   runner: Runner,
   leases: LeaseManager,
+  maxToolRounds: number,
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<void> {
@@ -990,10 +1003,17 @@ async function handle(
 
         const generate = async (model: string): Promise<void> => {
           let rounds = 0;
+          let toolRounds = 0;
           let childUsed = false;
 
-          while (rounds < MAX_TOOL_ROUNDS) {
+          while (true) {
+            const finalRound = toolRounds >= maxToolRounds;
             rounds++;
+            if (finalRound) {
+              sseEvent(res, {
+                note: `Tool budget reached (${maxToolRounds} tool rounds). The assistant is wrapping up with what is complete; send another message to continue.`,
+              });
+            }
             if (rounds > 1) {
               // Tool rounds can change the project: refresh the snapshot before
               // the next model request. Unchanged snapshots are deduplicated.
@@ -1030,8 +1050,16 @@ async function handle(
             try {
               for await (const chunk of gateway.chatStream({
                 model,
-                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...compacted.messages],
-                tools: PARENT_TOOL_DEFINITIONS,
+                messages: [
+                  {
+                    role: "system",
+                    content: finalRound
+                      ? `${SYSTEM_PROMPT} ${FINAL_TOOL_BUDGET_INSTRUCTION}`
+                      : SYSTEM_PROMPT,
+                  },
+                  ...compacted.messages,
+                ],
+                ...(finalRound ? {} : { tools: PARENT_TOOL_DEFINITIONS }),
                 signal: abort.signal,
               })) {
                 if (chunk.delta !== null) {
@@ -1057,12 +1085,20 @@ async function handle(
             }
 
             const calls = assembleToolCalls(fragments);
-            if (calls.length === 0) {
-              await log.append({ role: "assistant", content: text });
+            if (calls.length === 0 || finalRound) {
+              // The final round has no tools, so any calls it still emits are
+              // ignored. This preserves the last tool results and gives the
+              // user a summary instead of a dead-end budget error.
+              const finalText = finalRound && text.trim() === ""
+                ? "Tool budget reached. I stopped before making more changes. Send another message to continue."
+                : text;
+              if (finalRound && text.trim() === "") sseEvent(res, { delta: finalText });
+              await log.append({ role: "assistant", content: finalText });
               sseEvent(res, { done: true, rounds });
               return;
             }
 
+            toolRounds++;
             await log.append({ role: "assistant", content: text, toolCalls: calls });
 
             const executeCall = async (call: ParentToolCall): Promise<ToolOutcome> => {
@@ -1204,10 +1240,6 @@ async function handle(
             }
 
             if (abort.signal.aborted) return;
-            if (rounds >= MAX_TOOL_ROUNDS) {
-              sseEvent(res, { error: `Stopped: tool round budget (${MAX_TOOL_ROUNDS}) exhausted. Send another message to continue.` });
-              return;
-            }
           }
         };
 
@@ -1285,6 +1317,15 @@ function contextBudgetFromEnv(): number | undefined {
   return Math.min(400_000, Math.max(4_000, Math.trunc(parsed)));
 }
 
+/** Optional parent tool-round override, clamped to the same local range as deps. */
+function maxToolRoundsFromEnv(): number {
+  const raw = process.env.AUTHENIK8_MAX_TOOL_ROUNDS;
+  if (raw === undefined || raw.trim() === "") return DEFAULT_MAX_TOOL_ROUNDS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed)) return DEFAULT_MAX_TOOL_ROUNDS;
+  return Math.min(MAX_TOOL_ROUNDS_CAP, Math.max(1, Math.trunc(parsed)));
+}
+
 /**
  * Boot the studio with port discipline: a busy preferred port falls back to
  * the next ten before giving up with a clear message — a first-run developer
@@ -1305,6 +1346,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     ? path.resolve(process.env.SANDBOX_DIR)
     : path.join(process.cwd(), ".studio-sandbox");
   const contextBudgetChars = contextBudgetFromEnv();
+  const maxToolRounds = maxToolRoundsFromEnv();
 
   // The agent runtime spawns opencode directly (no shell), so npm's .cmd
   // shims never resolve on Windows — resolve the underlying executable the
@@ -1321,6 +1363,7 @@ export function startStudio(options: StudioStartOptions = {}): Server {
     publicModels: () => listPublicModels(),
     sandboxRoot,
     ...(contextBudgetChars !== undefined ? { contextBudgetChars } : {}),
+    maxToolRounds,
     agentRuntime,
     createRunner,
   });
