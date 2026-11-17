@@ -11,6 +11,7 @@ import {
   READ_ONLY_TOOL_NAMES,
   SUBAGENT_DIR,
   SUBAGENT_MAX_REPORT_CHARS,
+  SUBAGENT_MAX_ROUNDS,
   SUBAGENT_MAX_TASK_CHARS,
   buildTaskSchema,
   buildToolDefinition,
@@ -273,11 +274,14 @@ describe("runExplorer", () => {
     expect(assistant?.content.length).toBe(long.length);
   });
 
-  it("stops at the tool round budget", async () => {
-    const rounds = Array.from({ length: 4 }, (_, index) =>
+  it("asks for a final report after the tool round budget", async () => {
+    const toolRounds = Array.from({ length: SUBAGENT_MAX_ROUNDS }, (_, index) =>
       toolRound([{ id: `read_${index}`, name: "read_file", args: { path: "README.md" } }]),
     );
-    const { gateway, requests } = scriptedGateway(rounds);
+    const { gateway, requests } = scriptedGateway([
+      ...toolRounds,
+      textRound("Answer: final report after the budget."),
+    ]);
     const outcome = await runExplorer({
       gateway,
       model: "free/model-a",
@@ -286,10 +290,15 @@ describe("runExplorer", () => {
       signal: new AbortController().signal,
     });
 
-    expect(outcome.ok).toBe(false);
-    expect(outcome.result).toContain("tool round budget (4)");
-    expect(outcome.rounds).toBe(4);
-    expect(requests).toHaveLength(4);
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result).toContain("Answer: final report after the budget.");
+    expect(outcome.result).toContain(
+      `Explorer report (read-only, ${SUBAGENT_MAX_ROUNDS + 1} rounds):`,
+    );
+    expect(outcome.rounds).toBe(SUBAGENT_MAX_ROUNDS + 1);
+    expect(requests).toHaveLength(SUBAGENT_MAX_ROUNDS + 1);
+    expect(requests[SUBAGENT_MAX_ROUNDS]!.tools).toBeUndefined();
+    expect(requests[SUBAGENT_MAX_ROUNDS]!.messages[0]?.content).toContain("Tool budget reached");
 
     const logPath = path.join(
       sandbox,
@@ -298,8 +307,12 @@ describe("runExplorer", () => {
       `explore-${outcome.childId}.jsonl`,
     );
     const history = await new SessionLog(logPath).history();
-    expect(history.filter((message) => message.role === "assistant")).toHaveLength(4);
-    expect(history.filter((message) => message.role === "tool")).toHaveLength(4);
+    expect(history.filter((message) => message.role === "assistant")).toHaveLength(
+      SUBAGENT_MAX_ROUNDS + 1,
+    );
+    expect(history.filter((message) => message.role === "tool")).toHaveLength(
+      SUBAGENT_MAX_ROUNDS,
+    );
   });
 
   it("cancels when the parent signal is already aborted", async () => {

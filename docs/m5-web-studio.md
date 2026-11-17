@@ -46,16 +46,17 @@ and audit trails instead of a second users table.
 | v4.4 | Request-view compaction: the oldest large tool results are summarized above a configurable character budget (`AUTHENIK8_CONTEXT_CHARS`); the log stays complete; the SSE stream announces compaction | done |
 | v4.5 | Runtime context: a logged project snapshot (root entries, package metadata, design and run state) is injected before the user turn and refreshed after tool rounds; `.env` values and absolute paths are never included | done |
 | v4.6 | Build plan: the `update_plan` tool records a short step list in the logged assistant tool call; the sidebar shows a read-only trajectory with live SSE updates; `/api/history` derives the latest successful plan, so refresh and restart restore it; rejected or interrupted plans are ignored | done |
-| v4.7 | Read-only explorer subagent: `explore_project` starts a fresh child session with only `list_files`, `read_file`, and `design_audit`; one child per turn, max 4 tool rounds, 60s timeout, 32k read budget, 6k report cap; the child transcript is append-only at `.authenik8/subagents/` and the parent receives only the report; no writes, commands, network, recursion, or key access; synchronous, so background children remain a later slice | done |
+| v4.7 | Read-only explorer subagent: `explore_project` starts a fresh child session with only `list_files`, `read_file`, and `design_audit`; one child per turn, max 6 tool rounds, 90s timeout, 64k read budget, 6k report cap; the child transcript is append-only at `.authenik8/subagents/` and the parent receives only the report; no writes, commands, network, recursion, or key access; synchronous, so background children remain a later slice | done |
 | v4.8 | Parallel read-only tools: adjacent `list_files`, `read_file`, and `design_audit` calls in one assistant message run together, at most four at a time; `write_file`, `update_plan`, `explore_project`, `review_project`, `build_project`, and unknown tools are exclusive barriers; results are logged in call order; tool SSE events carry call ids so the UI can track overlapping lines | done |
 | v4.9 | Read-only reviewer subagent: `review_project` reuses the child runner with a review-focused prompt and the same allowlist and budgets; the one-child-per-turn limit is shared with `explore_project`; the child transcript is append-only at `.authenik8/subagents/review-<id>.jsonl`; the parent receives findings ordered by severity with file paths and evidence; no writes, commands, network, recursion, or key access | done |
-| v5.0 | Write-capable builder subagent: `build_project` leases a sandbox-relative directory and writes only inside it; writes outside the lease, `.env*` (except `.env.example`), `.authenik8`, `.git`, and `node_modules` are rejected; the report lists the files written; the one-child-per-turn limit is shared with the explorer and reviewer; the transcript is append-only at `.authenik8/subagents/build-<id>.jsonl`; max 6 rounds, 90s, 48k tool-result chars, 16 files, 6k report; no commands, network, recursion, diff/merge, or background | done |
+| v5.0 | Write-capable builder subagent: `build_project` leases a sandbox-relative directory and writes only inside it; writes outside the lease, `.env*` (except `.env.example`), `.authenik8`, `.git`, and `node_modules` are rejected; the report lists the files written; the one-child-per-turn limit is shared with the explorer and reviewer; the transcript is append-only at `.authenik8/subagents/build-<id>.jsonl`; max 10 rounds, 180s, 64k tool-result chars, 16 files, 6k report; a final no-tools report round preserves the last tool results; no commands, network, recursion, diff/merge, or background | done |
 | v5.1 | Read-only subagent transcript viewer: the sidebar "Subagent runs" door lists explorer, reviewer, and builder logs newest first; `GET /api/subagents` returns metadata and the first task line, and `GET /api/subagents/<kind>-<uuid>` returns the parsed transcript; ids are restricted to the exact runner shape and re-checked against the real subagent directory; reads never repair or write the log; 32 MB cap; builder-sized logs are parsed and `write_file` bodies are projected to a size marker; API responses are no-store; the viewer shows the system prompt collapsed, the task, assistant text, tool calls, and tool results, with long payloads capped for display | done |
 | v5.2 | Direct child transcript links: each child tool line has a "View transcript" link; live completion events include the child id; restored history pairs each child call with its logged result and child id; closing the viewer returns focus to the link that opened it | done |
 | v5.3 | Modal focus containment: the agent and template dialogs now match the subagent viewer by moving focus inside on open, trapping Tab and Shift+Tab, making the rest of the shell inert, and restoring focus to the opener; starting an agent or template run moves focus to the status Close control | done |
 | v5.4 | Opt-in child log retention: `npm run prune:subagents` reports by default, requires `--yes` to delete, keeps the newest N, only considers logs older than the minimum age, caps the window at 10,000, re-checks the real subagent directory before unlink, and never deletes non-log files, directories, symlinks, or redirected directories | done |
+| v5.5 | Child budget finalization: explorer and reviewer get 6 tool rounds, 90s, and 64k tool-result chars; the builder gets 10 tool rounds, 180s, and 64k; after the tool-round budget the child makes one final no-tools call that must return the report, so the last tool results are summarized instead of discarded; prompts ask for batched reads and no re-reads | done |
 
-### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2, retention v5.4)
+### Child delegation contract (v4.7, reviewer v4.9, builder v5.0, viewer v5.1, links v5.2, retention v5.4, finalization v5.5)
 
 - `explore_project`, `review_project`, and `build_project` are the delegation
   tools. One child per parent turn, shared across all three.
@@ -68,9 +69,11 @@ and audit trails instead of a second users table.
   `.env.example`), `.authenik8`, `.git`, and `node_modules` are rejected. No
   child can run commands, reach the network, read `.env` files, or spawn
   another child.
-- Budgets: explorer and reviewer get 4 tool rounds, 60s wall clock, 32k
-  tool-result chars, and a 6k report cap. The builder gets 6 tool rounds, 90s,
-  48k tool-result chars, 16 files, and a 6k report cap.
+- Budgets: explorer and reviewer get 6 tool rounds, 90s wall clock, 64k
+  tool-result chars, and a 6k report cap. The builder gets 10 tool rounds, 180s,
+  64k tool-result chars, 16 files, and a 6k report cap. When a child uses its
+  last tool round, the next call omits tools and asks for the final report, so
+  the last tool results are summarized instead of discarded.
 - Transcripts stay in `.authenik8/subagents/explore-<id>.jsonl`,
   `review-<id>.jsonl`, or `build-<id>.jsonl`.
 - The read-only viewer reads those logs through `GET /api/subagents` and
