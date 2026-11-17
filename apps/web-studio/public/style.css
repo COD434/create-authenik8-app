@@ -371,6 +371,23 @@ body {
   50% { box-shadow: 12px 0 0 -1px var(--color-accent-primary), 24px 0 0 -1px var(--color-accent-primary); opacity: 1; }
 }
 
+/* A quiet cursor while tokens arrive, so the reply reads as live text rather
+   than a block that snaps in. */
+.msg.assistant.streaming::after {
+  content: "";
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--color-accent-primary);
+  animation: caret 1s steps(1) infinite;
+}
+
+@keyframes caret {
+  50% { opacity: 0; }
+}
+
 .msg-copy {
   position: absolute;
   top: -20px;

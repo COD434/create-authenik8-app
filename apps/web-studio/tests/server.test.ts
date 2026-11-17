@@ -300,6 +300,8 @@ describe("agent loop", () => {
     const text = await res.text();
 
     expect(text).toContain('"delta":"I\'ll create the file."');
+    expect(text).toContain('"round":1');
+    expect(text).toContain('"round":2');
     expect(text).toContain('"phase":"start"');
     expect(text).toContain('"phase":"done"');
     expect(text).toContain('"ok":true');

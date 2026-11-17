@@ -24,8 +24,14 @@ function apiKey() {
   return keyInput.value.trim();
 }
 
-function autoScroll() {
-  messagesEl.scrollTop = messagesEl.scrollHeight;
+function nearBottom() {
+  return messagesEl.scrollHeight - messagesEl.scrollTop - messagesEl.clientHeight < 96;
+}
+
+function autoScroll(force = false) {
+  // New messages should land in view. Streaming text only follows the bottom
+  // when the reader is already there, so scrolling up is never yanked away.
+  if (force || nearBottom()) messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 const MODAL_FOCUSABLE = [
@@ -122,7 +128,7 @@ function addMessage(kind, text) {
     el.textContent = text;
     row.appendChild(el);
     messagesEl.appendChild(row);
-    autoScroll();
+    autoScroll(true);
     return el;
   }
   if (kind === "user") {
@@ -135,7 +141,7 @@ function addMessage(kind, text) {
     el.textContent = text;
     row.appendChild(el);
     messagesEl.appendChild(row);
-    autoScroll();
+    autoScroll(true);
     return el;
   }
   const el = document.createElement("div");
@@ -191,6 +197,7 @@ function renderPlan(plan) {
 function attachCopyButton(bubble) {
   const row = bubble.parentElement;
   if (row === null || !row.classList.contains("msg-row")) return;
+  if (row.querySelector(".msg-copy") !== null) return;
   const btn = document.createElement("button");
   btn.type = "button";
   btn.className = "msg-copy";
@@ -1161,12 +1168,64 @@ composer.addEventListener("submit", async (event) => {
   promptEl.style.height = "auto";
   sendBtn.disabled = true;
 
-  const assistantEl = addMessage("assistant", "");
-  assistantEl.classList.add("thinking"); // three dots until the first token
-  let firstDelta = true;
+  let currentAssistant = addMessage("assistant", "");
+  currentAssistant.classList.add("thinking"); // three dots until the first token
   let usage = null;
   let lastToolLine = null;
   const toolLines = new Map();
+  let pendingDelta = "";
+  let renderFrame = 0;
+  let lastRound = 0;
+  let sawText = false;
+  let finished = false;
+
+  const finishCurrentAssistant = () => {
+    if (renderFrame !== 0) {
+      cancelAnimationFrame(renderFrame);
+      renderFrame = 0;
+    }
+    if (currentAssistant === null) {
+      pendingDelta = "";
+      return;
+    }
+    if (pendingDelta.length > 0) {
+      currentAssistant.textContent += pendingDelta;
+      pendingDelta = "";
+      autoScroll();
+    }
+    currentAssistant.classList.remove("thinking", "streaming");
+    if (currentAssistant.textContent.length === 0) {
+      currentAssistant.parentElement?.remove();
+    } else {
+      attachCopyButton(currentAssistant);
+    }
+    currentAssistant = null;
+  };
+
+  const startAssistant = () => {
+    currentAssistant = addMessage("assistant", "");
+    currentAssistant.classList.add("thinking");
+  };
+
+  const flushDelta = () => {
+    renderFrame = 0;
+    if (pendingDelta.length === 0 || currentAssistant === null) return;
+    currentAssistant.textContent += pendingDelta;
+    pendingDelta = "";
+    autoScroll();
+  };
+
+  const queueDelta = (delta) => {
+    sawText = true;
+    if (currentAssistant === null) startAssistant();
+    if (currentAssistant.classList.contains("thinking")) {
+      currentAssistant.textContent = "";
+      currentAssistant.classList.remove("thinking");
+      currentAssistant.classList.add("streaming");
+    }
+    pendingDelta += delta;
+    if (renderFrame === 0) renderFrame = requestAnimationFrame(flushDelta);
+  };
 
   try {
     const res = await fetch("/api/chat", {
@@ -1194,17 +1253,22 @@ composer.addEventListener("submit", async (event) => {
         for (const line of rawEvent.split("\n")) {
           if (!line.startsWith("data: ")) continue;
           const payload = JSON.parse(line.slice(6));
-          if (payload.delta !== undefined) {
-            if (firstDelta) {
-              assistantEl.textContent = "";
-              assistantEl.classList.remove("thinking");
-              firstDelta = false;
+          if (typeof payload.round === "number") {
+            // A fresh model round gets its own assistant block, so prose that
+            // follows tool output never backfills above the tool line. A retry
+            // can restart at round 1, which also starts a fresh block.
+            if (payload.round <= lastRound || payload.round > 1) {
+              finishCurrentAssistant();
+              startAssistant();
             }
-            assistantEl.textContent += payload.delta;
-            autoScroll();
+            lastRound = payload.round;
+          }
+          if (payload.delta !== undefined) {
+            queueDelta(payload.delta);
           }
           if (payload.tool !== undefined) {
             if (payload.tool.phase === "start") {
+              finishCurrentAssistant();
               const line = addToolLine(payload.tool.name, payload.tool.id);
               lastToolLine = line;
               if (typeof payload.tool.id === "string" && payload.tool.id.length > 0) {
@@ -1233,12 +1297,18 @@ composer.addEventListener("submit", async (event) => {
           if (payload.plan !== undefined) renderPlan(payload.plan);
           if (payload.usage !== undefined) usage = payload.usage;
           if (payload.done === true) {
+            finished = true;
+            finishCurrentAssistant();
             usageLine.textContent = usage
               ? `${model} · ${usage.totalTokens} tokens · ${usage.costUsd === null ? "free tier" : `$${usage.costUsd.toFixed(6)}`}`
               : model;
           }
-          if (payload.note !== undefined) addMessage("system", payload.note);
+          if (payload.note !== undefined) {
+            finishCurrentAssistant();
+            addMessage("system", payload.note);
+          }
           if (payload.compaction !== undefined) {
+            finishCurrentAssistant();
             const count = payload.compaction.pruned;
             addMessage(
               "system",
@@ -1250,16 +1320,19 @@ composer.addEventListener("submit", async (event) => {
       }
     }
 
-    if (firstDelta) {
-      assistantEl.classList.remove("thinking");
-      assistantEl.textContent = "(empty response)";
-    } else {
-      attachCopyButton(assistantEl);
+    if (!finished) finishCurrentAssistant();
+    if (!sawText) {
+      const empty = addMessage("assistant", "(empty response)");
+      attachCopyButton(empty);
     }
   } catch (error) {
-    if (firstDelta) assistantEl.remove();
+    finishCurrentAssistant();
     addMessage("system-error", error.message);
   } finally {
+    if (renderFrame !== 0) {
+      cancelAnimationFrame(renderFrame);
+      renderFrame = 0;
+    }
     sendBtn.disabled = modelSelect.disabled;
     promptEl.focus();
   }

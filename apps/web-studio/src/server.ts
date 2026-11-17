@@ -1022,6 +1022,11 @@ async function handle(
               }
             }
 
+            // Tell the client where one model round ends and the next begins.
+            // Tool lines are rendered between rounds, so the UI can keep each
+            // round's prose in its own block instead of backfilling above them.
+            sseEvent(res, { round: rounds });
+
             try {
               for await (const chunk of gateway.chatStream({
                 model,
