@@ -345,6 +345,7 @@ body {
 .msg.user {
   width: auto;
   max-width: min(70%, 620px);
+  margin-inline: 0;
   background: linear-gradient(180deg, var(--color-surface-field), color-mix(in srgb, var(--color-surface-field) 85%, var(--color-surface-base)));
   border: 1px solid color-mix(in srgb, var(--color-accent-primary) 24%, var(--color-surface-line));
   border-radius: 18px 18px 5px 18px;

@@ -125,6 +125,19 @@ function addMessage(kind, text) {
     autoScroll();
     return el;
   }
+  if (kind === "user") {
+    // The row carries the centered column width; the bubble itself must not
+    // inherit the `.msg` auto margins or it lands in the middle of the column.
+    const row = document.createElement("div");
+    row.className = "msg-row user";
+    const el = document.createElement("div");
+    el.className = "msg user";
+    el.textContent = text;
+    row.appendChild(el);
+    messagesEl.appendChild(row);
+    autoScroll();
+    return el;
+  }
   const el = document.createElement("div");
   el.className = `msg ${kind}`;
   el.textContent = text;
