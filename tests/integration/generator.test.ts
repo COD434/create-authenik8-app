@@ -933,7 +933,7 @@ describe("AI editor scaffolding and frontend modes", () => {
           const guide = await fs.readFile(proGuidePath, "utf8");
           expect(guide).toContain("# Authenik8 SaaS Starter (Pro)");
           expect(guide).toContain("SEED_DEMO=true");
-          expect(guide).toContain("Never put payment or email secrets in client code.");
+          expect(guide).toMatch(/Never put payment, email, or OAuth\s+secrets in client code\./);
         }
       } finally {
         await project.cleanup();
