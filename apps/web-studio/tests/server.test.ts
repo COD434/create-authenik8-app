@@ -202,6 +202,11 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain('id="subagents-btn"');
     expect(html).toContain('id="subagents-overlay"');
     expect(html).toContain("Newest 50 runs max.");
+    expect(html).toContain('id="pricing-btn"');
+    expect(html).toContain('id="pricing-overlay"');
+    expect(html).toContain("Pricing and waitlist");
+    expect(html).toContain("Planned pricing");
+    expect(html).toContain("Open the waitlist issue");
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
@@ -226,9 +231,15 @@ describe("static UI and auth boundary", () => {
     expect(appSource).toContain("openSubagentTranscriptFromTool");
     expect(appSource).toContain('"View transcript"');
     expect(appSource).toContain("childIdFromResult");
+    expect(appSource).toContain("openPricing");
+    expect(appSource).toContain("closePricing");
+    expect(appSource).toContain("pricing-status");
+    expect(appSource).toContain("pricing-cta");
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
-    expect(await style.text()).toContain(".tool-transcript-link");
+    const styleSource = await style.text();
+    expect(styleSource).toContain(".tool-transcript-link");
+    expect(styleSource).toContain(".pricing-grid");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
     // and avatars all point at it (no CDNs, ever).
     const logo = await fetch(`${base}/authenik8-logo.svg`);

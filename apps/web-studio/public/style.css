@@ -754,6 +754,172 @@ body {
 .template-providers label { display: flex; align-items: center; gap: 6px; }
 .template-check { flex-direction: row; align-items: center; gap: 8px; }
 
+/* Pricing and waitlist: planned tiers, no checkout, no telemetry. The body
+   scrolls inside the modal so a narrow window never clips the close control. */
+.pricing-modal {
+  width: min(900px, 94vw);
+  max-height: min(92vh, 820px);
+  overflow: hidden;
+}
+
+.pricing-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--spacing-scale-md);
+  overflow-y: auto;
+  min-height: 0;
+  padding-right: 2px;
+}
+
+.pricing-foot {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--color-surface-line);
+}
+
+.pricing-lede {
+  margin: 0;
+  color: var(--color-ink-mid);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.6;
+}
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.pricing-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px;
+  background: var(--color-surface-field);
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+}
+
+.pricing-card.featured {
+  border-color: color-mix(in srgb, var(--color-accent-secondary) 55%, var(--color-surface-line));
+  background: color-mix(in srgb, var(--color-accent-secondary) 8%, var(--color-surface-field));
+}
+
+.pricing-badge {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-accent-primary);
+  color: var(--color-accent-onPrimary);
+  font-size: var(--typography-scale-xs);
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.pricing-card h2 {
+  margin: 0;
+  color: var(--color-ink-high);
+  font-size: var(--typography-scale-md);
+  letter-spacing: 0.2px;
+}
+
+.pricing-price {
+  margin: 0;
+  color: var(--color-ink-high);
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.pricing-price span {
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-sm);
+  font-weight: 500;
+}
+
+.pricing-meta {
+  margin: 0;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-xs);
+}
+
+.pricing-card ul {
+  margin: 2px 0 10px;
+  padding-left: 18px;
+  color: var(--color-ink-mid);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.55;
+}
+
+.pricing-card li + li { margin-top: 4px; }
+
+.pricing-cta {
+  margin-top: auto;
+  padding: 9px 12px;
+  border: 1px solid var(--color-accent-secondary);
+  border-radius: var(--radius-sm);
+  background: var(--color-accent-secondary);
+  color: var(--color-accent-onPrimary);
+  font: inherit;
+  font-size: var(--typography-scale-sm);
+  font-weight: 650;
+  cursor: pointer;
+  transition: filter var(--ease), background-color var(--ease), color var(--ease);
+}
+
+.pricing-cta:hover, .pricing-cta:focus-visible { filter: brightness(1.08); }
+
+.pricing-cta.current {
+  background: transparent;
+  border-color: var(--color-surface-line);
+  color: var(--color-ink-low);
+  cursor: default;
+}
+
+.pricing-team {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-surface-line);
+  border-radius: var(--radius-md);
+  color: var(--color-ink-mid);
+  font-size: var(--typography-scale-sm);
+  line-height: 1.55;
+}
+
+.pricing-team strong { color: var(--color-ink-high); }
+
+.pricing-status {
+  min-height: 1.2em;
+  margin: 0;
+  color: var(--color-accent-primary);
+  font-size: var(--typography-scale-xs);
+  line-height: 1.5;
+}
+
+.pricing-status:empty { display: none; }
+
+.pricing-note {
+  margin: 0;
+  color: var(--color-ink-low);
+  font-size: var(--typography-scale-xs);
+  line-height: 1.55;
+}
+
+.pricing-waitlist-link {
+  color: var(--color-accent-secondary);
+  text-decoration: none;
+}
+
+.pricing-waitlist-link:hover, .pricing-waitlist-link:focus-visible { text-decoration: underline; }
+
 /* Subagent transcript viewer: list and transcript scroll inside a bounded
    modal, so a long child run never pushes the close control off screen. */
 .subagents-modal {
@@ -1076,4 +1242,6 @@ body {
   .messages, .composer { padding-inline: clamp(14px, 5vw, 32px); }
   .composer-bar em { display: none; }
   .composer-bar select { max-width: 60vw; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .pricing-modal { max-height: 86vh; max-height: 86dvh; }
 }

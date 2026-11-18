@@ -69,6 +69,12 @@
         Export ZIP
       </a>
 
+      <span class="group-label">Plan</span>
+      <button id="pricing-btn" class="btn-new" type="button">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.4 2.4h4.2l6.9 6.9-4.2 4.2-6.9-6.9V2.4Z"/><circle cx="5.4" cy="5.4" r="1.1"/></svg>
+        Pricing and waitlist
+      </button>
+
       <span class="group-label">Connect</span>
       <label class="field">
         <span>OpenRouter key <em>only needed to send</em></span>
@@ -216,6 +222,65 @@
             <span id="subagents-meta" class="subagents-meta"></span>
           </div>
           <div id="subagents-transcript" class="subagents-transcript"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="pricing-overlay" class="agent-overlay" role="dialog" aria-modal="true" aria-label="Authenik8 plans" hidden>
+      <div class="agent-modal pricing-modal">
+        <div class="agent-head">
+          <span>Authenik8 plans</span>
+          <button id="pricing-close" type="button" title="Close" aria-label="Close">✕</button>
+        </div>
+        <div class="pricing-body">
+          <p class="pricing-lede">Planned pricing. The local studio is free today. Paid plans add a hosted workspace, team handoff, and premium templates.</p>
+          <div class="pricing-grid">
+            <section class="pricing-card">
+              <h2>Local</h2>
+              <p class="pricing-price">$0</p>
+              <p class="pricing-meta">BYOK, free forever</p>
+              <ul>
+                <li>Unlimited local projects</li>
+                <li>Sandboxed files and preview</li>
+                <li>Export ZIP</li>
+                <li>Design audit</li>
+              </ul>
+              <button class="pricing-cta current" type="button" disabled>You are here</button>
+            </section>
+            <section class="pricing-card featured">
+              <span class="pricing-badge">Next</span>
+              <h2>Pro</h2>
+              <p class="pricing-price">$12<span>/mo</span></p>
+              <p class="pricing-meta">or $99 a year</p>
+              <ul>
+                <li>Everything in Local</li>
+                <li>Premium template library</li>
+                <li>Custom design-system generator</li>
+                <li>Commercial client license</li>
+              </ul>
+              <button class="pricing-cta" type="button" data-plan="Pro">Copy waitlist note</button>
+            </section>
+            <section class="pricing-card">
+              <h2>Cloud</h2>
+              <p class="pricing-price">$19<span>/mo</span></p>
+              <p class="pricing-meta">hosted, BYOK</p>
+              <ul>
+                <li>Hosted workspace</li>
+                <li>One-click deploy and custom domain</li>
+                <li>Project history</li>
+                <li>No key storage</li>
+              </ul>
+              <button class="pricing-cta" type="button" data-plan="Cloud">Copy waitlist note</button>
+            </section>
+          </div>
+          <div class="pricing-team">
+            <strong>Team and agency</strong>
+            <span>Shared design systems, white-label handoff, and priority support. Planned at $79/mo for 3 seats and $199/mo for 10 seats.</span>
+          </div>
+        </div>
+        <div class="pricing-foot">
+          <p id="pricing-status" class="pricing-status" role="status" aria-live="polite"></p>
+          <p class="pricing-note">No telemetry. The local studio never sends your key or project anywhere except the model provider you choose. <a class="pricing-waitlist-link" href="https://github.com/COD434/create-authenik8-app/issues/new?title=Studio%20waitlist&amp;body=Plan%3A%20%0AUse%20case%3A%20" target="_blank" rel="noopener">Open the waitlist issue</a></p>
         </div>
       </div>
     </div>

@@ -13,6 +13,12 @@ const planPanel = document.getElementById("plan-panel");
 const planSteps = document.getElementById("plan-steps");
 const planCount = document.getElementById("plan-count");
 const subagentsOverlay = document.getElementById("subagents-overlay");
+const pricingOverlay = document.getElementById("pricing-overlay");
+const pricingModal = pricingOverlay.querySelector(".agent-modal");
+const pricingBtn = document.getElementById("pricing-btn");
+const pricingClose = document.getElementById("pricing-close");
+const pricingStatus = document.getElementById("pricing-status");
+let pricingOpener = null;
 const SUBAGENT_TOOL_PREFIXES = new Map([
   ["explore_project", "explore"],
   ["review_project", "review"],
@@ -454,6 +460,10 @@ document.addEventListener("keydown", (event) => {
     closeSubagents();
     return;
   }
+  if (!pricingOverlay.hidden) {
+    closePricing();
+    return;
+  }
   const runOverlay = document.getElementById("run-overlay");
   if (!runOverlay.hidden) runOverlay.hidden = true;
 });
@@ -760,6 +770,48 @@ function capSubagentText(value) {
   return `${value.slice(0, SUBAGENT_DISPLAY_CHARS)}\n... [truncated]`;
 }
 
+// --- Pricing and waitlist (planned tiers, no checkout, no data collection) ---
+
+function openPricing(opener) {
+  if (!pricingOverlay.hidden) {
+    pricingClose.focus();
+    return;
+  }
+  pricingOpener = opener instanceof HTMLElement ? opener : modalOpener(pricingBtn);
+  pricingStatus.textContent = "";
+  pricingOverlay.hidden = false;
+  setModalBackgroundInert(pricingOverlay, true);
+  pricingClose.focus();
+}
+
+function closePricing() {
+  if (pricingOverlay.hidden) return;
+  pricingOverlay.hidden = true;
+  setModalBackgroundInert(pricingOverlay, false);
+  const opener = pricingOpener;
+  pricingOpener = null;
+  restoreModalFocus(opener, pricingBtn);
+}
+
+pricingBtn.addEventListener("click", openPricing);
+pricingClose.addEventListener("click", closePricing);
+pricingOverlay.addEventListener("mousedown", (event) => {
+  if (event.target === pricingOverlay) closePricing();
+});
+
+document.querySelectorAll(".pricing-cta[data-plan]").forEach((button) => {
+  button.addEventListener("click", async () => {
+    const plan = button.dataset.plan ?? "Pro";
+    const note = `I want to join the Authenik8 ${plan} waitlist. My use case: `;
+    try {
+      await navigator.clipboard.writeText(note);
+      pricingStatus.textContent = `Copied the ${plan} waitlist note. Open the waitlist issue and paste it there.`;
+    } catch {
+      pricingStatus.textContent = `Clipboard blocked. Open the waitlist issue and write: ${note}`;
+    }
+  });
+});
+
 function trapOpenModalTab(event) {
   if (!agentOverlay.hidden) {
     trapModalTab(event, agentOverlay, agentModal, agentClose);
@@ -769,7 +821,11 @@ function trapOpenModalTab(event) {
     trapModalTab(event, templateOverlay, templateModal, templateClose);
     return;
   }
-  trapModalTab(event, subagentsOverlay, subagentsModal, subagentsClose);
+  if (!subagentsOverlay.hidden) {
+    trapModalTab(event, subagentsOverlay, subagentsModal, subagentsClose);
+    return;
+  }
+  trapModalTab(event, pricingOverlay, pricingModal, pricingClose);
 }
 
 document.addEventListener("keydown", trapOpenModalTab);
@@ -783,6 +839,11 @@ document.addEventListener("focusin", (event) => {
   if (!templateOverlay.hidden) {
     if (target instanceof Node && templateModal.contains(target)) return;
     focusModalFirst(templateModal, templateClose);
+    return;
+  }
+  if (!pricingOverlay.hidden) {
+    if (target instanceof Node && pricingModal.contains(target)) return;
+    focusModalFirst(pricingModal, pricingClose);
     return;
   }
   if (subagentsOverlay.hidden) return;
