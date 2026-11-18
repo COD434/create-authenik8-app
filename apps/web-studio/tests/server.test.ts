@@ -207,6 +207,11 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain("Pricing and waitlist");
     expect(html).toContain("Planned pricing");
     expect(html).toContain("Open the waitlist issue");
+    expect(html).toContain('id="template-pro-saas"');
+    expect(html).toContain("SaaS starter");
+    expect(html).toContain('id="template-demo"');
+    expect(html).toContain('id="template-demo-row"');
+    expect(html).toContain('id="template-actions"');
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
@@ -235,11 +240,20 @@ describe("static UI and auth boundary", () => {
     expect(appSource).toContain("closePricing");
     expect(appSource).toContain("pricing-status");
     expect(appSource).toContain("pricing-cta");
+    expect(appSource).toContain("templateProSaas");
+    expect(appSource).toContain("templateDemo");
+    expect(appSource).toContain("templateActions");
+    expect(appSource).toContain("spec.demo");
+    expect(appSource).toContain("spec.oauthProviders = [];");
     const style = await fetch(`${base}/style.css`);
     expect(style.headers.get("cache-control")).toContain("no-store");
     const styleSource = await style.text();
     expect(styleSource).toContain(".tool-transcript-link");
     expect(styleSource).toContain(".pricing-grid");
+    expect(styleSource).toContain(".template-pro");
+    expect(styleSource).toContain(".template-modal");
+    expect(styleSource).toContain(".template-body");
+    expect(styleSource).toContain(".template-actions");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
     // and avatars all point at it (no CDNs, ever).
     const logo = await fetch(`${base}/authenik8-logo.svg`);
@@ -1522,6 +1536,13 @@ describe("template bridge route", () => {
     });
     expect(strayFrontend.status).toBe(422);
     expect((await strayFrontend.json()).error).toContain("fullstack preset");
+
+    const strayDemo = await fetch(`${base}/api/template`, {
+      method: "POST",
+      body: JSON.stringify({ ...validSeed, demo: true, confirm: true }),
+    });
+    expect(strayDemo.status).toBe(422);
+    expect((await strayDemo.json()).error).toContain("fullstack preset");
   });
 
   it("refuses while a run is active", async () => {

@@ -108,6 +108,29 @@ describe("bridge argv", () => {
     );
     expect(argv).toContain("--no-oauth");
   });
+
+  it("defaults fullstack to password-only when no providers are chosen", () => {
+    const argv = bridgeArgv(
+      { kind: "package", binPath: "bin.js" },
+      { ...baseSpec, preset: "fullstack", frontend: "react", database: "postgresql" },
+    );
+    expect(argv).toContain("--no-oauth");
+    expect(argv.some((flag) => flag.startsWith("--oauth="))).toBe(false);
+  });
+
+  it("passes --demo only when the fullstack spec asks for demo data", () => {
+    const plain = bridgeArgv(
+      { kind: "package", binPath: "bin.js" },
+      { ...baseSpec, preset: "fullstack", frontend: "react", database: "postgresql" },
+    );
+    expect(plain).not.toContain("--demo");
+
+    const demo = bridgeArgv(
+      { kind: "package", binPath: "bin.js" },
+      { ...baseSpec, preset: "fullstack", frontend: "react", database: "postgresql", demo: true },
+    );
+    expect(demo).toContain("--demo");
+  });
 });
 
 describe("spawn + seed with a stub bridge CLI", () => {

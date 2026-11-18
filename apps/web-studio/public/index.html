@@ -153,12 +153,22 @@
     </div>
 
     <div id="template-overlay" class="agent-overlay" role="dialog" aria-modal="true" aria-label="New project from an Authenik8 template" hidden>
-      <div class="agent-modal">
+      <div class="agent-modal template-modal">
         <div class="agent-head">
           <span>New project from an Authenik8 template</span>
           <button id="template-close" type="button" title="Close" aria-label="Close">✕</button>
         </div>
-        <div id="template-form">
+        <div id="template-form" class="template-body">
+          <div class="template-pro">
+            <div class="template-pro-copy">
+              <span class="template-pro-badge">Pro</span>
+              <strong>SaaS starter</strong>
+              <p>Password auth, dashboard, projects, and demo data.</p>
+              <span class="template-pro-tier">Included with the planned Pro tier.</span>
+            </div>
+            <button id="template-pro-saas" type="button">Use this template</button>
+          </div>
+          <p id="template-pro-note" class="template-pro-note" role="status" aria-live="polite"></p>
           <label class="template-field">Preset
             <select id="template-preset">
               <option value="auth" selected>auth · identity backend (Express)</option>
@@ -194,14 +204,16 @@
             </select>
           </label>
           <label class="template-field template-check"><input type="checkbox" id="template-prisma" checked> Prisma</label>
-          <p class="agent-warn">Seeding replaces the entire sandbox: the current chat resets with it. The
-            generator runs locally from the Authenik8 CLI; nothing is uploaded.</p>
-          <button id="template-run" type="button">Generate project</button>
+          <label class="template-field template-check" id="template-demo-row" hidden><input type="checkbox" id="template-demo"> Seed demo data (three projects)</label>
         </div>
-        <div id="template-status" hidden>
+        <div id="template-status" class="template-body" hidden>
           <p id="template-state"></p>
           <pre id="template-output"></pre>
           <button id="template-dismiss" type="button">Close</button>
+        </div>
+        <div id="template-actions" class="template-actions">
+          <p class="agent-warn">This replaces the sandbox and resets the chat. Runs locally; nothing is uploaded.</p>
+          <button id="template-run" type="button">Generate project</button>
         </div>
       </div>
     </div>
@@ -254,7 +266,7 @@
               <p class="pricing-meta">or $99 a year</p>
               <ul>
                 <li>Everything in Local</li>
-                <li>Premium template library</li>
+                <li>SaaS Starter template</li>
                 <li>Custom design-system generator</li>
                 <li>Commercial client license</li>
               </ul>

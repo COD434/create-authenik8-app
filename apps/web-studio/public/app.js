@@ -561,6 +561,11 @@ const templateStatus = document.getElementById("template-status");
 const templateState = document.getElementById("template-state");
 const templateOutput = document.getElementById("template-output");
 const templateRunBtn = document.getElementById("template-run");
+const templateProSaas = document.getElementById("template-pro-saas");
+const templateProNote = document.getElementById("template-pro-note");
+const templateDemo = document.getElementById("template-demo");
+const templateDemoRow = document.getElementById("template-demo-row");
+const templateActions = document.getElementById("template-actions");
 let templateBusy = false;
 let templateOpener = null;
 
@@ -581,12 +586,28 @@ function syncTemplateRows() {
   const preset = templatePreset.value;
   document.getElementById("template-frontend-row").hidden = preset !== "fullstack";
   document.getElementById("template-providers-row").hidden = preset !== "auth-oauth";
+  templateDemoRow.hidden = preset !== "fullstack";
+  if (preset !== "fullstack") templateProNote.textContent = "";
   if (preset === "fullstack") {
     // The CLI's own contract: fullstack requires PostgreSQL.
     document.getElementById("template-database").value = "postgresql";
   }
 }
 templatePreset.addEventListener("change", syncTemplateRows);
+
+// The first Pro template: a curated fullstack configuration with demo data.
+// It fills the form instead of generating immediately so the user can review.
+templateProSaas.addEventListener("click", () => {
+  templatePreset.value = "fullstack";
+  syncTemplateRows();
+  document.getElementById("template-frontend").value = "react";
+  document.getElementById("template-database").value = "postgresql";
+  document.getElementById("template-package-manager").value = "npm";
+  document.getElementById("template-prisma").checked = true;
+  templateDemo.checked = true;
+  templateProNote.textContent = "SaaS starter selected. Review the options, then generate.";
+  templateRunBtn.focus({ preventScroll: true });
+});
 
 function openTemplate(opener) {
   if (!templateOverlay.hidden) {
@@ -600,11 +621,13 @@ function openTemplate(opener) {
   if (templateBusy) {
     templateForm.hidden = true;
     templateStatus.hidden = false;
+    templateActions.hidden = true;
     templateDismiss.focus();
     return;
   }
   templateForm.hidden = false;
   templateStatus.hidden = true;
+  templateActions.hidden = false;
   syncTemplateRows();
   templatePreset.focus();
 }
@@ -650,7 +673,13 @@ templateRunBtn.addEventListener("click", async () => {
     usePrisma: document.getElementById("template-prisma").checked,
     confirm: true, // the modal itself is the explicit replacement warning
   };
-  if (preset === "fullstack") spec.frontend = document.getElementById("template-frontend").value;
+  if (preset === "fullstack") {
+    spec.frontend = document.getElementById("template-frontend").value;
+    spec.demo = templateDemo.checked;
+    // The Studio fullstack form has no provider choice; the CLI requires an
+    // explicit OAuth decision, so this configuration is password-only.
+    spec.oauthProviders = [];
+  }
   if (preset === "auth-oauth") {
     const providers = [];
     if (document.getElementById("template-oauth-google").checked) providers.push("google");
@@ -662,6 +691,7 @@ templateRunBtn.addEventListener("click", async () => {
   templateRunBtn.disabled = true;
   templateForm.hidden = true;
   templateStatus.hidden = false;
+  templateActions.hidden = true;
   if (!templateOverlay.hidden) templateDismiss.focus();
   templateState.textContent = "Generating with the Authenik8 CLI. Runs locally, nothing is uploaded…";
   templateOutput.textContent = "";

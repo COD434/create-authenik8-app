@@ -35,6 +35,8 @@ export type TemplateSpec = {
   runtime?: "node" | "bun";
   packageManager: "npm" | "pnpm" | "bun";
   usePrisma: boolean;
+  /** Seed the fullstack template's demo projects and Pro launch guide. */
+  demo?: boolean;
 };
 
 /** The generated project's folder name inside the staging directory. */
@@ -101,11 +103,14 @@ export function bridgeArgv(bridge: Bridge, spec: TemplateSpec): string[] {
       ? spec.oauthProviders.length > 0
         ? [`--oauth=${spec.oauthProviders.join(",")}`]
         : ["--no-oauth"]
-      : []),
+      : spec.preset === "fullstack"
+        ? ["--no-oauth"]
+        : []),
     `--database=${spec.database}`,
     ...(spec.runtime !== undefined ? [`--runtime=${spec.runtime}`] : []),
     `--package-manager=${spec.packageManager}`,
     spec.usePrisma ? "--prisma" : "--no-prisma",
+    ...(spec.demo === true ? ["--demo"] : []),
     "--no-git",
     "--no-install",
     "--yes",

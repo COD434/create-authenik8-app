@@ -180,6 +180,8 @@ const templateBodySchema = z.object({
   runtime: z.enum(["node", "bun"]).optional(),
   packageManager: z.enum(["npm", "pnpm", "bun"]),
   usePrisma: z.boolean(),
+  /** Seeds the fullstack template's demo projects and Pro launch guide. */
+  demo: z.boolean().optional(),
   /** Seeding wipes the whole sandbox; without explicit confirmation: refused. */
   confirm: z.boolean(),
 });
@@ -790,14 +792,21 @@ async function handle(
         sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
         return;
       }
+      // The Studio fullstack form has no provider choice. The CLI requires an
+      // explicit OAuth decision for fullstack, so default to password-only.
       const spec: TemplateSpec = {
         preset: parsed.data.preset,
         ...(parsed.data.frontend !== undefined ? { frontend: parsed.data.frontend } : {}),
-        ...(parsed.data.oauthProviders !== undefined ? { oauthProviders: parsed.data.oauthProviders } : {}),
+        ...(parsed.data.oauthProviders !== undefined
+          ? { oauthProviders: parsed.data.oauthProviders }
+          : parsed.data.preset === "fullstack"
+            ? { oauthProviders: [] }
+            : {}),
         database: parsed.data.database,
         ...(parsed.data.runtime !== undefined ? { runtime: parsed.data.runtime } : {}),
         packageManager: parsed.data.packageManager,
         usePrisma: parsed.data.usePrisma,
+        ...(parsed.data.demo !== undefined ? { demo: parsed.data.demo } : {}),
       };
 
       // Cross-field contracts mirror observed CLI behavior; the CLI remains
@@ -814,6 +823,10 @@ async function handle(
         sendJson(res, 422, {
           error: "The fullstack preset requires PostgreSQL. On a machine without a database server, generate the auth preset with sqlite.",
         });
+        return;
+      }
+      if (spec.demo === true && spec.preset !== "fullstack") {
+        sendJson(res, 422, { error: "Demo data applies only to the fullstack preset." });
         return;
       }
       if (parsed.data.confirm !== true) {
