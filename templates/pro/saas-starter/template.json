@@ -1,0 +1,26 @@
+{
+  "id": "saas-starter",
+  "name": "SaaS Starter",
+  "tier": "pro",
+  "status": "preview",
+  "description": "A production-shaped SaaS starting point with password auth, a dashboard, owned projects, account settings, admin, audit, and three demo projects.",
+  "preset": "fullstack",
+  "frontend": "react",
+  "database": "postgresql",
+  "usePrisma": true,
+  "packageManager": "npm",
+  "demo": true,
+  "includes": [
+    "Password auth with secure sessions",
+    "Dashboard, projects, account settings, admin, and audit",
+    "Three demo projects after the first dev seed",
+    "React, Express, PostgreSQL, Prisma, and the typed API client",
+    "A launch checklist and security boundaries in PRO_TEMPLATE.md"
+  ],
+  "notIncluded": [
+    "Billing and payments",
+    "Email delivery",
+    "Configured OAuth provider credentials",
+    "Production deployment credentials"
+  ]
+}

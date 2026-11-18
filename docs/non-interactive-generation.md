@@ -27,6 +27,6 @@ Interactive fullstack generation defaults to password-only so a developer can re
 
 See the [CLI reference](cli-reference.md) for every supported option.
 
-- `--demo` seeds additional example data in fullstack projects.
+- `--demo` seeds additional example data in fullstack projects and copies the SaaS Starter Pro guide as `PRO_TEMPLATE.md`.
 
 [Back to the documentation index](../README.md#documentation)

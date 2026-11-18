@@ -924,6 +924,17 @@ describe("AI editor scaffolding and frontend modes", () => {
       try {
         const env = await fs.readFile(path.join(project.targetDir, ".env"), "utf8");
         expect(demo ? env.includes("SEED_DEMO=true") : env.includes("SEED_DEMO")).toBe(demo);
+
+        const proGuidePath = path.join(project.targetDir, "PRO_TEMPLATE.md");
+        expect(await fs.pathExists(proGuidePath)).toBe(demo);
+        const readme = await fs.readFile(path.join(project.targetDir, "README.md"), "utf8");
+        expect(readme.includes("SaaS Starter Pro template")).toBe(demo);
+        if (demo) {
+          const guide = await fs.readFile(proGuidePath, "utf8");
+          expect(guide).toContain("# Authenik8 SaaS Starter (Pro)");
+          expect(guide).toContain("SEED_DEMO=true");
+          expect(guide).toContain("Never put payment or email secrets in client code.");
+        }
       } finally {
         await project.cleanup();
       }

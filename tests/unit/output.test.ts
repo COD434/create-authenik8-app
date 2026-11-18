@@ -166,6 +166,7 @@ describe("completion output", () => {
     expect(printed()).toContain("X-CSRF-Token: <token-from-step-1>");
     expect(printed()).toContain('"email":"admin@example.com","password":"dev-password-123"');
     expect(printed()).not.toContain("three demo projects");
+    expect(printed()).not.toContain("Pro guide: PRO_TEMPLATE.md");
   });
 
   it("mentions the seeded demo data only when the demo flag is set", () => {
@@ -178,6 +179,7 @@ describe("completion output", () => {
     }, false, true, true, { email: "admin@example.com", password: "dev-password-123" });
 
     expect(printed()).toContain("three demo projects");
+    expect(printed()).toContain("Pro guide: PRO_TEMPLATE.md");
   });
 
   it("keeps the credential block out of non-fullstack summaries", () => {

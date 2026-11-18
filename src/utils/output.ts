@@ -185,6 +185,7 @@ export function printSummary(
       console.log(chalk.dim(`      -d '{"email":"${credentials.email}","password":"${credentials.password}"}'`));
       if (state.demo) {
         console.log(chalk.dim("  Demo data: three demo projects are waiting after the first dev seed."));
+        console.log(chalk.dim("  Pro guide: PRO_TEMPLATE.md."));
       }
     }
   }

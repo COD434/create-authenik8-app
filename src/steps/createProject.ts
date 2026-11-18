@@ -237,6 +237,14 @@ export async function createProject(
       await fs.copy(path.join(templatePath, ".env.example"), path.join(stageDir, ".env"));
       if (state.demo) {
         await fs.appendFile(path.join(stageDir, ".env"), "\nSEED_DEMO=true\n");
+        await fs.copy(
+          path.join(templateRoot, "pro", "saas-starter", "README.md"),
+          path.join(stageDir, "PRO_TEMPLATE.md"),
+        );
+        await fs.appendFile(
+          path.join(stageDir, "README.md"),
+          "\n## SaaS Starter Pro template\n\nThis project was generated from the SaaS Starter Pro template. See [PRO_TEMPLATE.md](PRO_TEMPLATE.md) for the launch checklist and demo data notes.\n",
+        );
       }
       const providers = state.oauthProviders === undefined
         ? [...oauthProviders]

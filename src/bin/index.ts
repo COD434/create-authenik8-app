@@ -110,7 +110,7 @@ Options:
   --runtime <node|bun>              Runtime for --production-ready Express apps
   --resume                          Resume an interrupted setup
   --no-install                      Generate without installing dependencies
-  --demo                            Seed additional demo data in fullstack projects
+  --demo                            Seed demo data and the Pro guide in fullstack projects
   --production-ready                Configure PM2 for Express API presets
   -v, --version                     Print the CLI version
   -h, --help                        Show this help message
