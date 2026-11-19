@@ -136,11 +136,14 @@ and audit trails instead of a second users table.
 
 ### Modal focus contract (v5.3)
 
-- The agent, template, and subagent dialogs move focus inside on open, trap Tab
-  and Shift+Tab, and make the rest of the shell inert.
+- The agent, template, subagent, pricing, settings, ship, and command palette
+  dialogs move focus inside on open, trap Tab and Shift+Tab, and make the rest
+  of the shell inert.
 - Closing restores focus to the control that opened the dialog. Starting an
   agent or template run moves focus to the status Close control so focus never
   stays on a hidden form button.
+- The ship dialog also closes on Escape and on a backdrop click, like every
+  other dialog. Secret fields are cleared when it closes.
 
 ### Child log retention (v5.4)
 
@@ -171,6 +174,62 @@ and audit trails instead of a second users table.
 - Tool start and done events carry the model's call id; the UI matches lines by
   id, not by name.
 - Cancellation before a batch records undispatched calls as unknown, as before.
+
+### Ship integrations (v5.6)
+
+- **Only real destinations.** The Ship dialog exposes Supabase, Vercel, and
+  Netlify because each one has a live API implementation behind it. There are
+  no placeholder providers, custom-domain controls, or one-click fullstack
+  deploys.
+- **Supabase as managed data, never identity.** The Studio accepts a project
+  URL and an anon or publishable key, rejects `service_role`, `sb_secret_`,
+  and user access tokens before any request, and verifies the pair against
+  `GET {url}/rest/v1/`. Saving writes `SUPABASE_URL` and
+  `SUPABASE_ANON_KEY` to the sandbox root `.env`. Authenik8 keeps its own
+  users, sessions, cookies, CSRF, roles, and authorization; the Studio never
+  offers Supabase Auth.
+- **Database strings are shape-checked, not connectivity-tested.** A
+  `postgresql://` URL must have a host and database name. A port 6543 or
+  pooler host adds a note that Prisma migrations need the direct or session
+  connection on 5432. Saving also writes `DATABASE_URL` and
+  `AUTHENIK8_LOCAL_DATABASE=external`, which the generated API already reads.
+  The Studio does not open the database, run migrations, or claim the
+  credentials work.
+- **Env writes preserve the file.** Managed keys are replaced in place,
+  duplicate managed keys are collapsed, unrelated lines and comments survive,
+  CRLF is kept, values are quoted when needed, and the write is atomic with
+  restrictive permissions. Keys are reported by name only. Values are never
+  returned, logged, exported, previewed, or collected into a deploy.
+- **Static deploys only.** A root `index.html` selects the static path.
+  Fullstack projects (an `apps/api` directory) and server projects are refused
+  with a clear explanation and an export handoff to a Node host such as
+  Railway or Render. This is deliberate: a static host cannot run the Express
+  API, so publishing the frontend alone would break identity and sessions.
+- **File filtering.** Deploys include only browser-servable extensions and
+  named files. Dotfiles (including `.env`), `node_modules`, lockfiles, local
+  server entrypoints, and VCS or provider directories are excluded.
+- **Vercel.** `POST https://api.vercel.com/v13/deployments` with inline base64
+  files, `target: "production"`, and `projectSettings.framework: null`.
+  Inline uploads are capped at 3 MB with a suggestion to use Netlify or the
+  Vercel CLI for larger sites. The deployment id is polled briefly for a final
+  state and URL.
+- **Netlify.** `POST https://api.netlify.com/api/v1/sites` creates a site
+  unless an existing site id is supplied, then
+  `POST https://api.netlify.com/api/v1/sites/{site_id}/deploys` uploads a ZIP
+  with `Content-Type: application/zip`. Studio ZIP uploads are capped at
+  20 MB. The deploy id is polled briefly for a final state and URL.
+- **Per-request credentials.** Provider tokens and Supabase keys arrive in the
+  request body, are used for one outbound call, and are never stored, logged,
+  or echoed. Secret inputs are `type="password"`, are cleared on close, and
+  are cleared after a successful save or deploy. Provider error messages are
+  capped and redact the token.
+- **Routes.** `GET /api/integrations`,
+  `POST /api/integrations/supabase`, `POST /api/deploy/vercel`, and
+  `POST /api/deploy/netlify`.
+- **Not included.** Live provider credentials in the automated tests, custom
+  domains, environment-variable upload, deploy logs beyond the polled state,
+  fullstack deploys, database migrations, and Supabase Storage or Realtime
+  setup. Those are separate trust boundaries or separate features.
 
 ## Live smoke — real OpenCode drive (2026-11-07, v2.0.27)
 

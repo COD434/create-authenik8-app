@@ -212,6 +212,15 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain('id="template-demo"');
     expect(html).toContain('id="template-demo-row"');
     expect(html).toContain('id="template-actions"');
+    expect(html).toContain('id="ship-btn"');
+    expect(html).toContain('id="ship-overlay"');
+    expect(html).toContain("Ship project");
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('id="ship-tab-supabase"');
+    expect(html).toContain('id="ship-tab-vercel"');
+    expect(html).toContain('id="ship-tab-netlify"');
+    expect(html).toContain("Verify and save");
+    expect(html).toContain("Tokens and keys are never saved or logged.");
 
     const appJs = await fetch(`${base}/app.js`);
     expect(appJs.headers.get("cache-control")).toContain("no-store");
@@ -240,6 +249,15 @@ describe("static UI and auth boundary", () => {
     expect(appSource).toContain("closePricing");
     expect(appSource).toContain("pricing-status");
     expect(appSource).toContain("pricing-cta");
+    expect(appSource).toContain("openShip");
+    expect(appSource).toContain("closeShip");
+    expect(appSource).toContain("clearShipSecrets");
+    expect(appSource).toContain("/api/integrations");
+    expect(appSource).toContain("/api/deploy/");
+    expect(appSource).toContain('deployToProvider("vercel")');
+    expect(appSource).toContain('deployToProvider("netlify")');
+    expect(appSource).toContain("selectShipTab");
+    expect(appSource).toContain("shipBusy");
     expect(appSource).toContain("templateProSaas");
     expect(appSource).toContain("templateDemo");
     expect(appSource).toContain("templateActions");
@@ -254,6 +272,9 @@ describe("static UI and auth boundary", () => {
     expect(styleSource).toContain(".template-modal");
     expect(styleSource).toContain(".template-body");
     expect(styleSource).toContain(".template-actions");
+    expect(styleSource).toContain(".ship-modal");
+    expect(styleSource).toContain(".ship-tabs");
+    expect(styleSource).toContain(".ship-panel");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
     // and avatars all point at it (no CDNs, ever).
     const logo = await fetch(`${base}/authenik8-logo.svg`);

@@ -54,6 +54,15 @@ import { RUNTIME_CONTEXT_PREFIX, buildRuntimeContext } from "./runtime-context.j
 import { planFromMessages, parsePlanArgs } from "./plan.js";
 import { SESSION_DIR, SESSION_FILE, SessionLog, TOOL_OUTCOME_UNKNOWN } from "./session-log.js";
 import { createZip, type ZipEntry } from "./zip.js";
+import {
+  IntegrationError,
+  deployStaticToNetlify,
+  deployStaticToVercel,
+  parseDatabaseUrl,
+  readIntegrationStatus,
+  verifySupabase,
+  writeProjectEnv,
+} from "./integrations.js";
 
 /** One assembled parent tool call, as returned by the models gateway. */
 type ParentToolCall = ReturnType<typeof assembleToolCalls>[number];
@@ -160,6 +169,12 @@ export type WebStudioDeps = {
    * AUTHENIK8_CLI_PATH / the host npm against the real environment.
    */
   bridge?: Bridge;
+  /**
+   * Outbound HTTP for user-triggered Supabase checks and static deploys.
+   * Tests inject a fake; production uses the global fetch. Tokens still
+   * arrive per request and are never stored.
+   */
+  integrationFetch?: typeof fetch;
 };
 
 const agentBodySchema = z.object({
@@ -184,6 +199,29 @@ const templateBodySchema = z.object({
   demo: z.boolean().optional(),
   /** Seeding wipes the whole sandbox; without explicit confirmation: refused. */
   confirm: z.boolean(),
+});
+
+/**
+ * Integration requests carry per-request credentials. Tokens and keys stay in
+ * the request, are used for one outbound call, and are never written to the
+ * session log, the sandbox, or any response body.
+ */
+const supabaseConnectBodySchema = z.object({
+  url: z.string().min(1).max(300),
+  anonKey: z.string().min(8).max(4_096),
+  databaseUrl: z.string().max(4_096).optional(),
+  apply: z.boolean().optional(),
+});
+
+const vercelDeployBodySchema = z.object({
+  token: z.string().trim().min(8).max(1_000),
+  name: z.string().max(100).optional(),
+});
+
+const netlifyDeployBodySchema = z.object({
+  token: z.string().trim().min(8).max(1_000),
+  name: z.string().max(100).optional(),
+  siteId: z.string().max(200).optional(),
 });
 
 const AGENT_BRIEF_PREAMBLE = [
@@ -677,6 +715,158 @@ async function handle(
       // sees: one source of truth, no parallel UI state.
       const messages = await sessionLog(deps, session).history();
       sendJson(res, 200, { messages, plan: planFromMessages(messages) });
+      return;
+    }
+
+    if (url.pathname === "/api/integrations" && req.method === "GET") {
+      // Status is derived from the sandbox .env by key name only. Values are
+      // never returned: the UI learns what is configured, not what it says.
+      sendJson(res, 200, await readIntegrationStatus(deps.sandboxRoot));
+      return;
+    }
+
+    if (url.pathname === "/api/integrations/supabase" && req.method === "POST") {
+      const body = await readBody(req);
+      if (body === null) {
+        sendJson(res, 413, { error: "Request body too large" });
+        return;
+      }
+      const raw = parseJsonBody(body);
+      if (raw === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = supabaseConnectBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+        return;
+      }
+
+      const outbound = deps.integrationFetch ?? fetch;
+      try {
+        // Validate the database string before spending a network call. The
+        // connection is not opened here: a URL check must not pretend to
+        // prove live credentials.
+        const database = parsed.data.databaseUrl !== undefined && parsed.data.databaseUrl.trim() !== ""
+          ? parseDatabaseUrl(parsed.data.databaseUrl)
+          : null;
+        const target = await verifySupabase({
+          url: parsed.data.url,
+          key: parsed.data.anonKey,
+          fetch: outbound,
+        });
+
+        let write: Awaited<ReturnType<typeof writeProjectEnv>> | null = null;
+        if (parsed.data.apply === true) {
+          const values: Record<string, string> = {
+            SUPABASE_URL: target.url,
+            SUPABASE_ANON_KEY: parsed.data.anonKey.trim(),
+          };
+          if (database !== null) {
+            values.DATABASE_URL = database.url;
+            values.AUTHENIK8_LOCAL_DATABASE = "external";
+          }
+          write = await writeProjectEnv(deps.sandboxRoot, values);
+        }
+
+        sendJson(res, 200, {
+          ok: true,
+          verified: true,
+          applied: write !== null,
+          supabase: {
+            url: target.url,
+            keyKind: target.keyKind,
+            projectRef: target.projectRef,
+          },
+          database: database === null
+            ? null
+            : {
+              host: database.host,
+              port: database.port,
+              database: database.database,
+              notes: database.notes,
+            },
+          ...(write === null
+            ? {}
+            : { env: { keys: write.keys, replaced: write.replaced, added: write.added } }),
+          status: await readIntegrationStatus(deps.sandboxRoot),
+        });
+      } catch (error) {
+        if (error instanceof IntegrationError) {
+          sendJson(res, error.status, { error: error.message, code: error.code });
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/deploy/vercel" && req.method === "POST") {
+      const body = await readBody(req);
+      if (body === null) {
+        sendJson(res, 413, { error: "Request body too large" });
+        return;
+      }
+      const raw = parseJsonBody(body);
+      if (raw === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = vercelDeployBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+        return;
+      }
+      try {
+        const result = await deployStaticToVercel({
+          sandboxRoot: deps.sandboxRoot,
+          token: parsed.data.token,
+          name: parsed.data.name ?? "",
+          fetch: deps.integrationFetch ?? fetch,
+        });
+        sendJson(res, 200, { ok: true, ...result });
+      } catch (error) {
+        if (error instanceof IntegrationError) {
+          sendJson(res, error.status, { error: error.message, code: error.code });
+          return;
+        }
+        throw error;
+      }
+      return;
+    }
+
+    if (url.pathname === "/api/deploy/netlify" && req.method === "POST") {
+      const body = await readBody(req);
+      if (body === null) {
+        sendJson(res, 413, { error: "Request body too large" });
+        return;
+      }
+      const raw = parseJsonBody(body);
+      if (raw === undefined) {
+        sendJson(res, 400, { error: "Invalid JSON body" });
+        return;
+      }
+      const parsed = netlifyDeployBodySchema.safeParse(raw);
+      if (!parsed.success) {
+        sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+        return;
+      }
+      try {
+        const result = await deployStaticToNetlify({
+          sandboxRoot: deps.sandboxRoot,
+          token: parsed.data.token,
+          name: parsed.data.name ?? "",
+          siteId: parsed.data.siteId ?? "",
+          fetch: deps.integrationFetch ?? fetch,
+        });
+        sendJson(res, 200, { ok: true, ...result });
+      } catch (error) {
+        if (error instanceof IntegrationError) {
+          sendJson(res, error.status, { error: error.message, code: error.code });
+          return;
+        }
+        throw error;
+      }
       return;
     }
 

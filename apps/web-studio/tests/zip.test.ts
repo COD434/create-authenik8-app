@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
@@ -42,10 +42,11 @@ describe("createZip", () => {
     const zipPath = path.join(dir, "out.zip");
     await writeFile(zipPath, zip);
     const extracted = path.join(dir, "out");
-    await run("powershell", [
-      "-NoProfile", "-Command",
-      `Expand-Archive -Path '${zipPath}' -DestinationPath '${extracted}' -Force`,
-    ]);
+    await mkdir(extracted, { recursive: true });
+    // tar is the OS extractor here on purpose: this machine's PATH can resolve
+    // `powershell` to the Store pwsh alias, whose Expand-Archive -Force is
+    // broken. bsdtar reads ZIPs on Windows, macOS, and Linux alike.
+    await run("tar", ["-xf", zipPath, "-C", extracted]);
 
     expect(await readFile(path.join(extracted, "index.html"), "utf8")).toBe("<h1>exported</h1>");
     expect(await readFile(path.join(extracted, "assets", "style.css"), "utf8")).toBe("h1 { color: teal; }");
@@ -56,10 +57,8 @@ describe("createZip", () => {
     const zipPath = path.join(dir, "empty.zip");
     await writeFile(zipPath, zip);
     const extracted = path.join(dir, "empty");
-    await run("powershell", [
-      "-NoProfile", "-Command",
-      `Expand-Archive -Path '${zipPath}' -DestinationPath '${extracted}' -Force`,
-    ]);
+    await mkdir(extracted, { recursive: true });
+    await run("tar", ["-xf", zipPath, "-C", extracted]);
     const files = await readdir(extracted);
     expect(files).toHaveLength(0);
   });
