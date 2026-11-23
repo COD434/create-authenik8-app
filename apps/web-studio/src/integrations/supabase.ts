@@ -257,7 +257,7 @@ export function parseDatabaseUrl(value: string): DatabaseTarget {
   const notes: string[] = [];
   if (port === "6543") {
     notes.push("Port 6543 is the transaction pooler. Prisma migrations need the direct or session connection on port 5432; use that string for setup and migrations.");
-  } else if (parsed.hostname.includes("pooler.supabase.com")) {
+  } else if (parsed.hostname === "pooler.supabase.com" || parsed.hostname.endsWith(".pooler.supabase.com")) {
     notes.push("This is a Supabase pooler host. If migrations fail, use the direct connection string on port 5432.");
   }
   if ((parsed.searchParams.get("pgbouncer") ?? "").toLowerCase() === "true") {

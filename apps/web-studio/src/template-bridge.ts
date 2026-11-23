@@ -95,20 +95,40 @@ export function packageBinPath(cliPath: string): string | null {
  *   prompt would dead-lock the browser stream.
  * The virtual flags never come from the request; they are ours.
  */
+const ALLOWED_PRESETS = new Set<TemplateSpec["preset"]>(["base", "auth", "auth-oauth", "fullstack"]);
+const ALLOWED_FRONTENDS = new Set<NonNullable<TemplateSpec["frontend"]>>(["react", "lovable", "next"]);
+const ALLOWED_OAUTH = new Set<NonNullable<TemplateSpec["oauthProviders"]>[number]>(["google", "github"]);
+const ALLOWED_DATABASES = new Set<TemplateSpec["database"]>(["sqlite", "postgresql"]);
+const ALLOWED_RUNTIMES = new Set<NonNullable<TemplateSpec["runtime"]>>(["node", "bun"]);
+const ALLOWED_PACKAGE_MANAGERS = new Set<TemplateSpec["packageManager"]>(["npm", "pnpm", "bun"]);
+
+function assertAllowed<T extends string>(value: T, allowed: Set<T>, label: string): T {
+  if (!allowed.has(value)) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
+}
+
 export function bridgeArgv(bridge: Bridge, spec: TemplateSpec): string[] {
+  const preset = assertAllowed(spec.preset, ALLOWED_PRESETS, "preset");
+  const database = assertAllowed(spec.database, ALLOWED_DATABASES, "database");
+  const packageManager = assertAllowed(spec.packageManager, ALLOWED_PACKAGE_MANAGERS, "packageManager");
+
   const projectFlags = [
-    `--preset=${spec.preset}`,
-    ...(spec.frontend !== undefined ? [`--frontend=${spec.frontend}`] : []),
+    `--preset=${preset}`,
+    ...(spec.frontend !== undefined
+      ? [`--frontend=${assertAllowed(spec.frontend, ALLOWED_FRONTENDS, "frontend")}`]
+      : []),
     ...(spec.oauthProviders !== undefined
       ? spec.oauthProviders.length > 0
-        ? [`--oauth=${spec.oauthProviders.join(",")}`]
+        ? [`--oauth=${spec.oauthProviders.map((p) => assertAllowed(p, ALLOWED_OAUTH, "oauth provider")).join(",")}`]
         : ["--no-oauth"]
-      : spec.preset === "fullstack"
+      : preset === "fullstack"
         ? ["--no-oauth"]
         : []),
-    `--database=${spec.database}`,
-    ...(spec.runtime !== undefined ? [`--runtime=${spec.runtime}`] : []),
-    `--package-manager=${spec.packageManager}`,
+    `--database=${database}`,
+    ...(spec.runtime !== undefined
+      ? [`--runtime=${assertAllowed(spec.runtime, ALLOWED_RUNTIMES, "runtime")}`]
+      : []),
+    `--package-manager=${packageManager}`,
     spec.usePrisma ? "--prisma" : "--no-prisma",
     ...(spec.demo === true ? ["--demo"] : []),
     "--no-git",
@@ -148,7 +168,19 @@ export function spawnTemplateBridge(options: BridgeSpawnOptions): Promise<Bridge
   const projectDir = path.join(options.cwd, PROJECT_DIR_NAME);
 
   return new Promise((resolve) => {
-    const child = spawn(argv[0]!, argv.slice(1), {
+    const command = argv[0];
+    const args = argv.slice(1);
+    if (command !== process.execPath) {
+      throw new Error("Template bridge command must be the current Node executable.");
+    }
+    const scriptArg = args[0];
+    if (typeof scriptArg !== "string" || !path.isAbsolute(scriptArg) || !/\.(?:c|m)?js$/u.test(scriptArg)) {
+      throw new Error("Template bridge script must be an absolute JavaScript path.");
+    }
+    for (const arg of args) {
+      if (arg.includes("\0")) throw new Error("Template bridge argument contains a null byte.");
+    }
+    const child = spawn(command, args, {
       cwd: options.cwd,
       windowsHide: true,
     });
