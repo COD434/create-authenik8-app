@@ -149,6 +149,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
   pointer-events: none;
 }
 .hero-copy { padding: 12px 0; position: relative; z-index: 1; }
+/* Hero desktop grid placement: content above the spanning ember mount. */
+.hero .ember-mount { grid-column: 1 / -1; grid-row: 1; }
+.hero .hero-copy { grid-column: 1; grid-row: 1; }
+.hero .product-stage { grid-column: 2; grid-row: 1; }
 .eyebrow {
   display: flex;
   align-items: center;
@@ -414,7 +418,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .hero-mobile-primary { display: inline-flex; }
   .hero-download { background: var(--ember-white); color: var(--ember-ink); border: 1px solid var(--ember-line); box-shadow: none; }
   .hero-download:hover { background: var(--ember-bg-deep); color: var(--ember-ink); }
-  .studio-window { grid-template-columns: 1fr; }
+  .studio-window { grid-template-columns: 1fr; min-height: 0; }
   .studio-sidebar { display: none; }
   .principles-inner { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 17px; padding-bottom: 17px; }
   .principles-label { grid-column: 1 / -1; }
@@ -454,7 +458,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .hero-actions { align-items: flex-start; gap: 17px; margin-top: 23px; }
   .hero-note { font-size: 10.5px; }
   .product-stage { padding: 12px; border-radius: 11px; }
-  .studio-window { grid-template-columns: 1fr; min-height: 340px; }
+  .studio-window { grid-template-columns: 1fr; min-height: 0; }
   .studio-sidebar { display: none; }
   .studio-topline { min-height: 36px; padding-inline: 9px; font-size: 9px; }
   .local-tag { display: none; }
@@ -519,13 +523,6 @@ button, a { -webkit-tap-highlight-color: transparent; }
   position: relative;
   z-index: 1;
 }
-/* Hero: the ember mount spans both grid columns so the field runs behind the
- * whole hero (copy + product showcase). Content is explicitly placed so the
- * spanning mount does not disturb auto-placement. */
-.hero .ember-mount { grid-column: 1 / -1; grid-row: 1; }
-.hero .hero-copy { grid-column: 1; grid-row: 1; }
-.hero .product-stage { grid-column: 2; grid-row: 1; }
-
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; }
   .integration-marquee-track { width: 100%; animation: none; flex-wrap: wrap; justify-content: center; }
