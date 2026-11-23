@@ -1,4 +1,4 @@
-import { cpSync } from 'node:fs';
+import { cpSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { dirname } from 'node:path';
@@ -18,20 +18,23 @@ cpSync('assets/integrations', 'dist/assets/integrations', { recursive: true });
 
 // Bundle the EmberField React component (React + ReactDOM included) into a
 // self-contained IIFE for the static marketing pages. No CDN required.
-execFileSync(
-  process.execPath,
-  [
-    esbuildBin,
-    'src/ember-field.jsx',
-    '--bundle',
-    '--format=iife',
-    '--jsx=automatic',
-    '--global-name=EmberField',
-    '--outfile=ember-field.js',
-    '--log-level=info',
-  ],
-  { cwd: root, stdio: 'inherit' }
-);
+// esbuild 0.28+ postinstall may replace bin/esbuild with a native binary on
+// Unix; run JS shims via node, native binaries directly.
+const esbuildBinPrefix = readFileSync(esbuildBin).subarray(0, 2).toString();
+const esbuildArgs = [
+  'src/ember-field.jsx',
+  '--bundle',
+  '--format=iife',
+  '--jsx=automatic',
+  '--global-name=EmberField',
+  '--outfile=ember-field.js',
+  '--log-level=info',
+];
+if (esbuildBinPrefix === '#!') {
+  execFileSync(process.execPath, [esbuildBin, ...esbuildArgs], { cwd: root, stdio: 'inherit' });
+} else {
+  execFileSync(esbuildBin, esbuildArgs, { cwd: root, stdio: 'inherit' });
+}
 cpSync('ember-field.js', 'dist/ember-field.js', { recursive: true });
 
 console.log('Built to dist/');
