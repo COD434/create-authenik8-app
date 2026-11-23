@@ -8,8 +8,10 @@ import {
   IntegrationError,
   deployStaticToNetlify,
   deployStaticToVercel,
+  detectDeployTokens,
   parseDatabaseUrl,
   readIntegrationStatus,
+  verifyDeployment,
   verifySupabase,
   writeProjectEnv,
 } from "../integrations.js";
@@ -224,17 +226,53 @@ async function deployVercel(ctx: RouteContext): Promise<void> {
     sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
     return;
   }
+  const abort = new AbortController();
+  abortOnDisconnect(res, abort);
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  const sseError = (message: string, status: number) => {
+    sseEvent(res, { error: message });
+    if (!res.writableEnded) res.end();
+  };
+  const stream = await createDeploymentStream(res, abort.signal);
   try {
     const result = await deployStaticToVercel({
+      signal: abort.signal,
       sandboxRoot: deps.sandboxRoot,
       token: parsed.data.token,
       name: parsed.data.name ?? "",
       fetch: deps.integrationFetch ?? fetch,
+      onEvent: stream,
     });
-    sendJson(res, 200, { ok: true, ...result });
+    const verify = await verifyDeployment(
+      deps.integrationFetch ?? fetch,
+      result.url ?? "",
+      abort.signal,
+    );
+    sseEvent(res, { deployment: { ...result, verified: verify.verified } });
+    res.end();
   } catch (error) {
-    if (!sendIntegrationFailure(res, error)) throw error;
+    const message = error instanceof Error ? error.message : "The deploy failed.";
+    sseError(message, 400);
+    if (abort.signal.aborted) return;
   }
+}
+
+function createDeploymentStream(
+  res: RouteContext["res"],
+  signal: AbortSignal,
+): (event: { phase: string; detail?: string }) => void {
+  const onAbort = (): void => {
+    if (!res.writableEnded) res.end();
+  };
+  signal.addEventListener("abort", onAbort, { once: true });
+  return (event) => {
+    if (signal.aborted) return;
+    if (!res.writableEnded) sseEvent(res, { state: event.detail ?? event.phase });
+  };
 }
 
 async function deployNetlify(ctx: RouteContext): Promise<void> {
@@ -246,6 +284,18 @@ async function deployNetlify(ctx: RouteContext): Promise<void> {
     sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
     return;
   }
+  const abort = new AbortController();
+  abortOnDisconnect(res, abort);
+  res.writeHead(200, {
+    "content-type": "text/event-stream",
+    "cache-control": "no-cache",
+    connection: "keep-alive",
+  });
+  const sseError = (message: string) => {
+    sseEvent(res, { error: message });
+    if (!res.writableEnded) res.end();
+  };
+  const stream = createDeploymentStream(res, abort.signal);
   try {
     const result = await deployStaticToNetlify({
       sandboxRoot: deps.sandboxRoot,
@@ -253,11 +303,34 @@ async function deployNetlify(ctx: RouteContext): Promise<void> {
       name: parsed.data.name ?? "",
       siteId: parsed.data.siteId ?? "",
       fetch: deps.integrationFetch ?? fetch,
+      signal: abort.signal,
+      onEvent: stream,
     });
-    sendJson(res, 200, { ok: true, ...result });
+    const verify = await verifyDeployment(
+      deps.integrationFetch ?? fetch,
+      result.url ?? "",
+      abort.signal,
+    );
+    sseEvent(res, { deployment: { ...result, verified: verify.verified } });
+    res.end();
   } catch (error) {
-    if (!sendIntegrationFailure(res, error)) throw error;
+    const message = error instanceof Error ? error.message : "The deploy failed.";
+    sseError(message);
+    if (abort.signal.aborted) return;
   }
+}
+
+/** Deploy-token availability: detected on the machine, values stay browser-side. */
+async function detectTokens(ctx: RouteContext): Promise<boolean> {
+  const { deps, res } = ctx;
+  try {
+    const detected = await detectDeployTokens(process.env.HOME ?? process.env.USERPROFILE ?? "");
+    sendJson(res, 200, { tokens: detected });
+  } catch (error) {
+    sendJson(res, 500, { error: "Could not check for deploy tokens." });
+    void error;
+  }
+  return true;
 }
 
 /** Supabase connection verification and static deploys to Vercel or Netlify. */
@@ -274,6 +347,9 @@ export async function handleDeployRoutes(ctx: RouteContext): Promise<boolean> {
   if (url.pathname === "/api/deploy/netlify" && req.method === "POST") {
     await deployNetlify(ctx);
     return true;
+  }
+  if (url.pathname === "/api/deploy/tokens" && req.method === "GET") {
+    return await detectTokens(ctx);
   }
   return false;
 }

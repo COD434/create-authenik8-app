@@ -2447,6 +2447,11 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .ship-result[data-tone="error"] { color: var(--danger); }
 .ship-result a { color: var(--accent); }
 .ship-result a:hover { text-decoration: underline; }
+.ship-detect {
+  margin: 4px 0 0;
+  color: var(--text-3);
+  font-size: 11px;
+}
 
 /* ---------- command palette ---------- */
 

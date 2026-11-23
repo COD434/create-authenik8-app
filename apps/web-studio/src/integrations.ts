@@ -23,4 +23,11 @@ export type { ProjectKind, ProjectProfile, IntegrationStatus } from "./integrati
 export { projectProfile, readIntegrationStatus } from "./integrations/profile.js";
 
 export type { StaticDeployFiles, VercelDeployResult, NetlifyDeployResult } from "./integrations/deploy.js";
-export { collectStaticDeployFiles, deployStaticToVercel, deployStaticToNetlify } from "./integrations/deploy.js";
+export type { DeployVerifyResult } from "./integrations/deploy.js";
+export {
+  collectStaticDeployFiles,
+  deployStaticToVercel,
+  deployStaticToNetlify,
+  detectDeployTokens,
+  verifyDeployment,
+} from "./integrations/deploy.js";

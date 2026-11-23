@@ -6,6 +6,74 @@ import { createZip, type ZipEntry } from "../zip.js";
 import { IntegrationError, type FetchLike } from "./errors.js";
 import { projectProfile, type ProjectProfile } from "./profile.js";
 
+/** Where local Vercel/Netlify tokens are commonly stored (read-only). */
+const DEPLOY_TOKEN_SOURCES = {
+  vercel: () => {
+    const fromEnv = process.env.VERCEL_TOKEN;
+    if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+    return null;
+  },
+  netlify: () => {
+    const fromEnv = process.env.NETLIFY_TOKEN;
+    if (fromEnv !== undefined && fromEnv.length > 0) return fromEnv;
+    return null;
+  },
+} as const;
+
+async function readTokenFile(
+  relativePath: string,
+): Promise<string | null> {
+  try {
+    const raw = await readFile(path.join(process.env.HOME ?? process.env.USERPROFILE ?? "", relativePath), "utf8");
+    return raw.trim().length > 0 ? raw.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Detect tokens the user has already configured, so a deploy can be one
+ * click. Returns tokens WITHOUT the actual secret — UI only uses the fact
+ * they exist; real values stay browser-side (BYOK).
+ */
+export async function detectDeployTokens(
+  homeDir: string,
+): Promise<Record<string, { detected: boolean; label: string }>> {
+  const sources: Array<[string, () => Promise<string | null>, string]> = [
+    ["vercel", async () => {
+      const fromEnv = DEPLOY_TOKEN_SOURCES.vercel();
+      if (fromEnv !== null) return fromEnv;
+      return await readTokenFile("/.vercel/token");
+    }, "Vercel"],
+    ["netlify", async () => {
+      const fromEnv = DEPLOY_TOKEN_SOURCES.netlify();
+      if (fromEnv !== null) return fromEnv;
+      const dir = path.join(homeDir, "/.netlify");
+      try {
+        const entries = await readdir(dir, { withFileTypes: true });
+        const config = entries.find((e) => e.name === "config.json" && e.isFile());
+        if (config) {
+          const data = JSON.parse(await readFile(path.join(dir, "config.json"), "utf8")) as {
+            access_token?: string;
+            auth?: { access_token?: string };
+          };
+          return data.access_token ?? data.auth?.access_token ?? null;
+        }
+      } catch {
+        // No Netlify config directory.
+      }
+      return null;
+    }, "Netlify"],
+  ];
+
+  const result: Record<string, { detected: boolean; label: string }> = {};
+  for (const [key, read, label] of sources) {
+    const token = await read();
+    result[key] = { detected: token !== null, label };
+  }
+  return result;
+}
+
 // ---------- static deploy collection ----------
 
 const STATIC_EXTENSIONS = new Set([
@@ -208,6 +276,36 @@ function sanitizeDeploymentName(value: string): string {
     .slice(0, 52);
 }
 
+export type DeployVerifyResult = {
+  url: string | null;
+  verified: boolean;
+  status: number | null;
+  checkedUrl: string | null;
+};
+
+/** Fetch the deployed URL and check it serves content (HTTP 200). */
+export async function verifyDeployment(
+  fetchImpl: FetchLike,
+  url: string,
+  signal?: AbortSignal,
+): Promise<DeployVerifyResult> {
+  const target = publicUrl(url);
+  if (target === null) {
+    return { url: null, verified: false, status: null, checkedUrl: null };
+  }
+  try {
+    const response = await fetchImpl(target, {
+      method: "GET",
+      headers: { accept: "text/html,application/json" },
+      signal: signal ?? null,
+    });
+    const ok = response.ok;
+    return { url: target, verified: ok, status: response.status, checkedUrl: target };
+  } catch {
+    return { url: target, verified: false, status: null, checkedUrl: target };
+  }
+}
+
 function delay(milliseconds: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -239,7 +337,9 @@ async function pollVercelDeployment(
   deploymentId: string,
   state: string,
   url: string | null,
+  onEvent?: (event: { phase: string; detail?: string }) => void,
 ): Promise<{ state: string; url: string | null }> {
+  let lastState = state;
   for (let attempt = 0; attempt < 8 && state !== "READY" && state !== "ERROR" && state !== "CANCELED"; attempt++) {
     await delay(1_000);
     try {
@@ -255,6 +355,10 @@ async function pollVercelDeployment(
       const statusBody = await readJsonObject(statusResponse);
       if (typeof statusBody?.readyState === "string") state = statusBody.readyState;
       url = publicUrl(statusBody?.url) ?? url;
+      if (state !== lastState) {
+        lastState = state;
+        onEvent?.({ phase: "state", detail: state });
+      }
     } catch {
       break;
     }
@@ -272,6 +376,8 @@ export async function deployStaticToVercel(options: {
   token: string;
   name: string;
   fetch: FetchLike;
+  signal?: AbortSignal;
+  onEvent?: (event: { phase: string; detail?: string }) => void;
 }): Promise<VercelDeployResult> {
   const files = await staticEntriesForDeploy(options.sandboxRoot);
   if (files.bytes > VERCEL_INLINE_LIMIT) {
@@ -280,6 +386,7 @@ export async function deployStaticToVercel(options: {
 
   const name = sanitizeDeploymentName(options.name) || "authenik8-site";
   const token = options.token.trim();
+  options.onEvent?.({ phase: "upload", detail: `Pushing ${files.entries.length} files to Vercel…` });
   let response: Response;
   try {
     response = await options.fetch(
@@ -300,7 +407,7 @@ export async function deployStaticToVercel(options: {
           })),
           projectSettings: { framework: null },
         }),
-        signal: AbortSignal.timeout(45_000),
+        signal: options.signal ?? null,
       },
     );
   } catch {
@@ -316,7 +423,8 @@ export async function deployStaticToVercel(options: {
   let state = typeof body?.readyState === "string" ? body.readyState : "UNKNOWN";
   let url = publicUrl(body?.url);
 
-  const final = await pollVercelDeployment(options.fetch, token, deploymentId, state, url);
+  options.onEvent?.({ phase: "building" });
+  const final = await pollVercelDeployment(options.fetch, token, deploymentId, state, url, options.onEvent);
 
   return {
     provider: "vercel",
@@ -381,6 +489,7 @@ async function uploadNetlifyDeploy(
   siteId: string,
   zip: Buffer,
   siteUrl: string | null,
+  onEvent?: (event: { phase: string; detail?: string }) => void,
 ): Promise<NetlifyDeployRef> {
   let deployResponse: Response;
   try {
@@ -399,6 +508,8 @@ async function uploadNetlifyDeploy(
   } catch {
     throw new IntegrationError(502, "Could not reach Netlify to upload the site. Check your network and try again.", "provider_unreachable");
   }
+
+  onEvent?.({ phase: "state", detail: "uploaded" });
 
   const deployData = await readJsonObject(deployResponse);
   if (!deployResponse.ok) throw providerFailure("Netlify", deployResponse, deployData, [token]);
@@ -424,9 +535,11 @@ async function waitForNetlifyDeploy(
   deploymentId: string,
   initialState: string,
   initialUrl: string | null,
+  onEvent?: (event: { phase: string; detail?: string }) => void,
 ): Promise<NetlifyDeployRef> {
   let state = initialState;
   let url = initialUrl;
+  let lastState = state;
   for (let attempt = 0; attempt < 10 && state !== "ready" && state !== "error"; attempt++) {
     await delay(1_000);
     try {
@@ -445,6 +558,10 @@ async function waitForNetlifyDeploy(
         ?? publicUrl(statusBody?.deploy_ssl_url)
         ?? publicUrl(statusBody?.deploy_url)
         ?? url;
+      if (state !== lastState) {
+        lastState = state;
+        onEvent?.({ phase: "state", detail: state });
+      }
     } catch {
       break;
     }
@@ -463,6 +580,8 @@ export async function deployStaticToNetlify(options: {
   name: string;
   siteId: string;
   fetch: FetchLike;
+  signal?: AbortSignal;
+  onEvent?: (event: { phase: string; detail?: string }) => void;
 }): Promise<NetlifyDeployResult> {
   const files = await staticEntriesForDeploy(options.sandboxRoot);
   const zip = createZip(files.entries);
@@ -475,12 +594,15 @@ export async function deployStaticToNetlify(options: {
   }
 
   const token = options.token.trim();
+  options.onEvent?.({ phase: "upload", detail: `Creating site on Netlify…` });
   const siteRef: NetlifySiteRef = options.siteId.trim() === ""
     ? await createNetlifySite(options.fetch, token, options.name)
     : { siteId: options.siteId.trim(), siteUrl: null };
 
-  const deployRef = await uploadNetlifyDeploy(options.fetch, token, siteRef.siteId, zip, siteRef.siteUrl);
-  const status = await waitForNetlifyDeploy(options.fetch, token, deployRef.deploymentId, deployRef.state, deployRef.url);
+  options.onEvent?.({ phase: "upload", detail: `Uploading ${files.entries.length} files to Netlify…` });
+  const deployRef = await uploadNetlifyDeploy(options.fetch, token, siteRef.siteId, zip, siteRef.siteUrl, options.onEvent);
+  options.onEvent?.({ phase: "building" });
+  const status = await waitForNetlifyDeploy(options.fetch, token, deployRef.deploymentId, deployRef.state, deployRef.url, options.onEvent);
 
   return {
     provider: "netlify",

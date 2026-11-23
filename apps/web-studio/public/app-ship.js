@@ -80,6 +80,8 @@ function renderShipStatus(status) {
 
   shipState.textContent = supabase?.configured === true ? "Connected" : githubRepositoryLinked ? "GitHub synced" : "Not set";
   syncShipControls();
+  void getShipTokenStatus("vercel");
+  void getShipTokenStatus("netlify");
 }
 
 async function refreshShipStatus() {
@@ -115,6 +117,24 @@ async function shipRequest(route, payload) {
     throw new Error(body !== null && typeof body.error === "string" ? body.error : `The request failed with HTTP ${res.status}.`);
   }
   return body ?? {};
+}
+
+async function getShipTokenStatus(provider) {
+  try {
+    const body = await fetch("/api/deploy/tokens").then((r) => r.json());
+    const detected = body?.tokens?.[provider];
+    if (detected === undefined || !detected.detected) return;
+    const label = detected.label;
+    const portal = provider === "vercel"
+      ? "Vercel dashboard > Settings > Tokens"
+      : "Netlify App Settings > Access tokens";
+    setShipResult(
+      provider === "vercel" ? shipVercelDetect : shipNetlifyDetect,
+      `Token detected: ${label}. Your token is not read or stored — paste it to deploy.`,
+    );
+  } catch {
+    // Ignore: token detection is a convenience, not a blocker.
+  }
 }
 
 function clearGithubCiResults() {
@@ -440,6 +460,7 @@ async function deployToProvider(provider) {
   const tokenInput = vercel ? shipVercelToken : shipNetlifyToken;
   const nameInput = vercel ? shipVercelName : shipNetlifyName;
   const result = vercel ? shipVercelResult : shipNetlifyResult;
+  const detectEl = vercel ? shipVercelDetect : shipNetlifyDetect;
   const token = tokenInput.value.trim();
   if (token === "") {
     setShipResult(result, "Paste an access token first.", "error");
@@ -456,15 +477,54 @@ async function deployToProvider(provider) {
   try {
     const payload = { token, name: nameInput.value.trim() };
     if (!vercel) payload.siteId = shipNetlifySite.value.trim();
-    const body = await shipRequest(`/api/deploy/${provider}`, payload);
+    const res = await fetch(`/api/deploy/${provider}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+
+    // Stream: upload → state transitions → done/error.
+    const reader = res.body?.getReader();
+    if (reader === undefined) throw new Error("The Studio server closed the stream.");
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let body = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        for (const line of rawEvent.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const payloadEvent = JSON.parse(line.slice(6));
+          if (payloadEvent.deployment !== undefined) {
+            body = payloadEvent.deployment;
+          }
+          if (payloadEvent.state !== undefined) {
+            setShipResult(result, `${vercel ? "Vercel" : "Netlify"} deploy: ${payloadEvent.state}...`, "");
+          }
+          if (payloadEvent.error !== undefined) {
+            throw new Error(payloadEvent.error);
+          }
+        }
+      }
+    }
     tokenInput.value = "";
-    const state = typeof body.state === "string" && body.state !== "" ? body.state : "queued";
-    const count = Number.isFinite(body.files) ? `${body.files} files` : "the site";
+    const state = body !== null && typeof body.state === "string" && body.state !== "" ? body.state : "ready";
+    const count = body !== null && Number.isFinite(body.files) ? `${body.files} files` : "the site";
+    const verified = body?.verified === true ? " Verified with HTTP 200." : "";
     setShipResult(
       result,
-      `Deployed ${count} to ${vercel ? "Vercel" : "Netlify"}. State: ${state}.`,
+      `Deployed ${count} to ${vercel ? "Vercel" : "Netlify"}. State: ${state}.${verified}`,
       "ok",
-      typeof body.url === "string" ? body.url : null,
+      body !== null && typeof body.url === "string" ? body.url : null,
     );
   } catch (error) {
     setShipResult(result, errorText(error), "error");
