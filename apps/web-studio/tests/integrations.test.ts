@@ -111,6 +111,33 @@ async function post(route: string, body: unknown): Promise<Response> {
   });
 }
 
+/** Parse the Vercel/Netlify SSE deploy stream into its final events. */
+async function readDeployStream(res: Response): Promise<{ deployment?: Record<string, unknown>; error?: string; status: number }> {
+  const reader = res.body?.getReader();
+  if (reader === undefined) return { status: res.status };
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let deployment: Record<string, unknown> | undefined;
+  let error: string | undefined;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let boundary: number;
+    while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      for (const line of rawEvent.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        const event = JSON.parse(line.slice(6)) as Record<string, unknown>;
+        if (event.deployment !== undefined) deployment = event.deployment as Record<string, unknown>;
+        if (event.error !== undefined) error = String(event.error);
+      }
+    }
+  }
+  return { deployment, error, status: res.status };
+}
+
 async function readEnv(): Promise<string> {
   return readFile(path.join(sandbox, ".env"), "utf8");
 }
@@ -399,18 +426,19 @@ describe("Vercel static deploy", () => {
 
     const res = await post("/api/deploy/vercel", { token: VERCEL_TOKEN, name: "My Demo!" });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({
-      ok: true,
+    const stream = await readDeployStream(res);
+    expect(stream.deployment).toMatchObject({
       provider: "vercel",
       deploymentId: "dpl_test",
       url: "https://demo-abc.vercel.app",
       state: "READY",
       files: 4,
+      verified: true,
     });
-    expect(JSON.stringify(body)).not.toContain(VERCEL_TOKEN);
+    expect(JSON.stringify(stream.deployment)).not.toContain(VERCEL_TOKEN);
 
-    expect(requests).toHaveLength(1);
+    // One deploy POST + one verification GET to the deployed URL.
+    expect(requests).toHaveLength(2);
     expect(requests[0]!.url).toBe("https://api.vercel.com/v13/deployments?forceNew=1&skipAutoDetectionConfirmation=1");
     expect(requests[0]!.headers.get("authorization")).toBe(`Bearer ${VERCEL_TOKEN}`);
     const payload = JSON.parse(String(requests[0]!.body)) as {
@@ -437,8 +465,8 @@ describe("Vercel static deploy", () => {
     await seedStaticSite();
     await mkdir(path.join(sandbox, "apps", "api"), { recursive: true });
     const res = await post("/api/deploy/vercel", { token: VERCEL_TOKEN, name: "demo" });
-    expect(res.status).toBe(422);
-    expect((await res.json()).code).toBe("static_only");
+    const stream = await readDeployStream(res);
+    expect(stream.error).toContain("Express");
     expect(requests).toHaveLength(0);
   });
 
@@ -446,10 +474,9 @@ describe("Vercel static deploy", () => {
     await seedStaticSite();
     outbound = async () => jsonResponse({ error: { message: "Not authorized" } }, 401);
     const res = await post("/api/deploy/vercel", { token: VERCEL_TOKEN, name: "demo" });
-    expect(res.status).toBe(401);
-    const text = await res.text();
-    expect(text).toContain("Vercel rejected the access token");
-    expect(text).not.toContain(VERCEL_TOKEN);
+    const stream = await readDeployStream(res);
+    expect(stream.error).toContain("Vercel rejected the access token");
+    expect(stream.error).not.toContain(VERCEL_TOKEN);
   });
 });
 
@@ -471,19 +498,20 @@ describe("Netlify static deploy", () => {
 
     const res = await post("/api/deploy/netlify", { token: NETLIFY_TOKEN, name: "Demo Site" });
     expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body).toMatchObject({
-      ok: true,
+    const stream = await readDeployStream(res);
+    expect(stream.deployment).toMatchObject({
       provider: "netlify",
       siteId: "site_1",
       deploymentId: "dep_1",
       url: "https://demo.netlify.app",
       state: "ready",
       files: 4,
+      verified: true,
     });
-    expect(JSON.stringify(body)).not.toContain(NETLIFY_TOKEN);
+    expect(JSON.stringify(stream.deployment)).not.toContain(NETLIFY_TOKEN);
 
-    expect(requests).toHaveLength(2);
+    // Site create, ZIP upload, and a verification GET to the deployed URL.
+    expect(requests).toHaveLength(3);
     expect(requests[0]!.url).toBe("https://api.netlify.com/api/v1/sites");
     expect(JSON.parse(String(requests[0]!.body))).toEqual({ name: "demo-site" });
     expect(requests[1]!.url).toBe("https://api.netlify.com/api/v1/sites/site_1/deploys");
@@ -509,8 +537,10 @@ describe("Netlify static deploy", () => {
       siteId: "site_9",
     });
     expect(res.status).toBe(200);
-    expect((await res.json()).siteId).toBe("site_9");
-    expect(requests).toHaveLength(1);
+    const stream = await readDeployStream(res);
+    expect(stream.deployment).toMatchObject({ siteId: "site_9" });
+    // Upload + verification GET.
+    expect(requests).toHaveLength(2);
     expect(requests[0]!.url).toBe("https://api.netlify.com/api/v1/sites/site_9/deploys");
   });
 
@@ -518,9 +548,8 @@ describe("Netlify static deploy", () => {
     await seedStaticSite();
     outbound = async () => jsonResponse({ message: "A site with this name already exists" }, 422);
     const res = await post("/api/deploy/netlify", { token: NETLIFY_TOKEN, name: "demo" });
-    expect(res.status).toBe(422);
-    const text = await res.text();
-    expect(text).toContain("A site with this name already exists");
-    expect(text).not.toContain(NETLIFY_TOKEN);
+    const stream = await readDeployStream(res);
+    expect(stream.error).toContain("A site with this name already exists");
+    expect(stream.error).not.toContain(NETLIFY_TOKEN);
   });
 });
