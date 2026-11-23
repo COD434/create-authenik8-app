@@ -142,10 +142,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   position: absolute;
   inset: 0;
   z-index: 0;
-  background:
-    radial-gradient(ellipse 80% 60% at 30% 50%, rgba(36, 106, 67, 0.08), transparent),
-    radial-gradient(ellipse 60% 50% at 80% 30%, rgba(57, 160, 100, 0.06), transparent),
-    linear-gradient(180deg, rgba(14, 26, 20, 0.03), transparent 40%);
+  background: none;
   pointer-events: none;
 }
 .hero-copy { padding: 12px 0; position: relative; z-index: 1; }
