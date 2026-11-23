@@ -36,7 +36,14 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build CLI
-        run: npm run build
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: build-log-${{ runner.os }}
+          path: build.log
 
       - name: Verify packaged Studio
         run: npm run test:studio:package
@@ -79,7 +86,14 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build CLI
-        run: npm run build
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: build-log-${{ runner.os }}
+          path: build.log
 
       - name: Verify packaged Studio
         run: npm run test:studio:package
