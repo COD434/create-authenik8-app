@@ -10,10 +10,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-
     "db:migrate": "prisma db push && prisma generate",
     "prisma:migrate": "prisma db push && prisma generate",
-
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
@@ -38,6 +36,7 @@
     "valibot": "1.4.2",
     "deepmerge-ts": "^8.0.0",
     "mysql2": "^3.23.1",
-    "qs": "^6.16.0"
+    "qs": "^6.16.0",
+    "effect": "3.22.5"
   }
 }

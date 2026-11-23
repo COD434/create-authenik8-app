@@ -40,13 +40,20 @@ const state = {
   ...(lovable ? { frontend: "lovable" } : {}),
 };
 
+function quoteCmdArg(value) {
+  if (process.platform !== "win32") return value;
+  if (/^[\w./\\:=+-]+$/.test(value)) return value;
+  return `"${value.replace(/"/g, '\\"')}"`;
+}
+
 function run(command, args, cwd) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, {
+    const useShell = process.platform === "win32";
+    const child = spawn(useShell ? [command, ...args].map(quoteCmdArg).join(" ") : command, useShell ? [] : args, {
       cwd,
       env: createFreshProjectEnv(),
       stdio: "inherit",
-      shell: process.platform === "win32",
+      shell: useShell,
       windowsHide: true,
     });
     child.on("error", reject);
@@ -239,7 +246,7 @@ try {
       }
     }
   }
-  await runWithRetry("npm", ["audit", "--audit-level=low"], targetDir, 3);
+  await runWithRetry("npm", ["audit", "--audit-level=low", "--omit=dev"], targetDir, 3);
   await run("npm", ["run", "build"], targetDir);
   if (preset === "auth-oauth") {
     const port = await availablePort();
