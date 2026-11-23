@@ -23,8 +23,20 @@
         <a href="/docs">Docs</a>
         <a href="#pricing">Pricing</a>
       </nav>
-      <a class="button button-dark header-cta" href="https://github.com/COD434/create-authenik8-app/releases/latest/download/Authenik8-Studio-Setup.exe">Download for Windows <span aria-hidden="true"><svg class="button-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></svg></span></a>
+      <div class="header-actions">
+        <a class="button button-dark header-cta" href="https://github.com/COD434/create-authenik8-app/releases/latest/download/Authenik8-Studio-Setup.exe">Download for Windows <span aria-hidden="true"><svg class="button-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></svg></span></a>
+        <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="Open menu">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
     </div>
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Mobile navigation" hidden>
+      <a href="#why">Why Authenik8</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="/docs">Docs</a>
+      <a href="#pricing">Pricing</a>
+      <a class="button button-dark mobile-nav-cta" href="https://github.com/COD434/create-authenik8-app/releases/latest/download/Authenik8-Studio-Setup.exe">Download for Windows</a>
+    </nav>
   </header>
 
   <main>
@@ -35,7 +47,8 @@
         <h1 id="hero-title">Build the app.<br /><span>Start with identity.</span></h1>
         <p class="hero-lede">Most AI builders stop at a prototype. Authenik8 gives you a real app with users, rotating sessions, roles, and audit trails built into the backend from the first prompt  -  local-first, BYOK, and yours to export.</p>
         <div class="hero-actions">
-          <a class="button button-green" href="https://github.com/COD434/create-authenik8-app/releases/latest/download/Authenik8-Studio-Setup.exe">Download for Windows <span aria-hidden="true"><svg class="button-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></svg></span></a>
+          <a class="button button-green hero-download" href="https://github.com/COD434/create-authenik8-app/releases/latest/download/Authenik8-Studio-Setup.exe">Download for Windows <span aria-hidden="true"><svg class="button-icon" viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></svg></span></a>
+          <a class="button button-green hero-mobile-primary" href="#pricing">See plans &amp; waitlist <span aria-hidden="true">→</span></a>
           <a class="text-link" href="/docs">Explore the docs <span aria-hidden="true">→</span></a>
         </div>
         <p class="hero-note">Runs on your machine. Bring your own model key. No telemetry.</p>
@@ -259,6 +272,26 @@
       if (heroMount) mountEmberField(heroMount, 'default');
       if (principlesMount) mountEmberField(principlesMount, 'reduced');
       if (footerMount) mountEmberField(footerMount, 'reduced');
+    }
+    const menuToggle = document.querySelector('.menu-toggle');
+    const mobileNav = document.getElementById('mobile-nav');
+    if (menuToggle && mobileNav) {
+      const closeMenu = () => {
+        menuToggle.setAttribute('aria-expanded', 'false');
+        menuToggle.setAttribute('aria-label', 'Open menu');
+        mobileNav.classList.remove('is-open');
+        mobileNav.hidden = true;
+      };
+      menuToggle.addEventListener('click', () => {
+        const open = menuToggle.getAttribute('aria-expanded') === 'true';
+        if (open) { closeMenu(); return; }
+        menuToggle.setAttribute('aria-expanded', 'true');
+        menuToggle.setAttribute('aria-label', 'Close menu');
+        mobileNav.hidden = false;
+        mobileNav.classList.add('is-open');
+      });
+      mobileNav.querySelectorAll('a').forEach(a => a.addEventListener('click', closeMenu));
+      document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
     }
   </script>
 </body>
