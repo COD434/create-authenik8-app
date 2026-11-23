@@ -51,50 +51,51 @@ function toRelative(root: string, target: string): string {
   return relative === "" ? "." : relative.split(path.sep).join("/");
 }
 
+type LeaseTarget = { target: string; relativeRoot: string } | { error: string };
+
+/** Resolve a requested directory to an absolute, sandbox-internal target. */
+function resolveLeaseTarget(sandboxRoot: string, relativeDir: string): LeaseTarget {
+  const root = path.resolve(sandboxRoot);
+  const trimmed = relativeDir.trim();
+  if (trimmed === "") return { error: "directory must not be empty." };
+
+  const normalized = trimmed.replace(/[\\/]+$/, "");
+  if (normalized === ".") return { target: root, relativeRoot: "." };
+  const resolved = resolveInsideSandbox(root, normalized);
+  if (resolved === null) return { error: "directory must stay inside the project." };
+  return { target: resolved, relativeRoot: toRelative(root, resolved) };
+}
+
+/** Reject directories that hold studio state, dependencies, Git, or env. */
+function leaseDirectoryError(relativeRoot: string): string | null {
+  const components = relativeRoot === "." ? [] : relativeRoot.split("/");
+  if (components.some((component) => SENSITIVE_COMPONENTS.has(component.toLowerCase()))) {
+    return "directory is reserved for studio state, dependencies, or Git metadata.";
+  }
+  if (
+    components.some(
+      (component) =>
+        component.toLowerCase().startsWith(".env") &&
+        component.toLowerCase() !== ".env.example",
+    )
+  ) {
+    return "directory cannot be an environment path.";
+  }
+  return null;
+}
+
 export function createLeaseManager(): LeaseManager {
   const leases: SandboxLease[] = [];
 
   return {
     acquire(sandboxRoot, relativeDir) {
-      const root = path.resolve(sandboxRoot);
-      const trimmed = relativeDir.trim();
-      if (trimmed === "") {
-        return { ok: false, error: "directory must not be empty." };
-      }
+      const resolved = resolveLeaseTarget(sandboxRoot, relativeDir);
+      if ("error" in resolved) return { ok: false, error: resolved.error };
 
-      const normalized = trimmed.replace(/[\\/]+$/, "");
-      let target: string;
-      let relativeRoot: string;
-      if (normalized === ".") {
-        target = root;
-        relativeRoot = ".";
-      } else {
-        const resolved = resolveInsideSandbox(root, normalized);
-        if (resolved === null) {
-          return { ok: false, error: "directory must stay inside the project." };
-        }
-        target = resolved;
-        relativeRoot = toRelative(root, resolved);
-      }
+      const directoryError = leaseDirectoryError(resolved.relativeRoot);
+      if (directoryError !== null) return { ok: false, error: directoryError };
 
-      const components = relativeRoot === "." ? [] : relativeRoot.split("/");
-      if (components.some((component) => SENSITIVE_COMPONENTS.has(component.toLowerCase()))) {
-        return {
-          ok: false,
-          error: "directory is reserved for studio state, dependencies, or Git metadata.",
-        };
-      }
-      if (
-        components.some(
-          (component) =>
-            component.toLowerCase().startsWith(".env") &&
-            component.toLowerCase() !== ".env.example",
-        )
-      ) {
-        return { ok: false, error: "directory cannot be an environment path." };
-      }
-
-      const conflict = leases.find((lease) => overlaps(lease.root, target));
+      const conflict = leases.find((lease) => overlaps(lease.root, resolved.target));
       if (conflict !== undefined) {
         return {
           ok: false,
@@ -102,7 +103,11 @@ export function createLeaseManager(): LeaseManager {
         };
       }
 
-      const lease: SandboxLease = { id: randomUUID(), root: target, relativeRoot };
+      const lease: SandboxLease = {
+        id: randomUUID(),
+        root: resolved.target,
+        relativeRoot: resolved.relativeRoot,
+      };
       leases.push(lease);
       return { ok: true, lease };
     },

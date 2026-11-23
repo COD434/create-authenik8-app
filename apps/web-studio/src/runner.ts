@@ -139,107 +139,121 @@ function windowsProcessTable(): Array<{ pid: number; ppid: number }> {
   }
 }
 
-export function createRunner(handlers: RunnerHandlers): Runner {
-  let running = false;
-  let stopRequested = false;
-  let child: ChildProcess | null = null;
-  let lineBuffer = "";
+type RunnerState = {
+  running: boolean;
+  stopRequested: boolean;
+  child: ChildProcess | null;
+  lineBuffer: string;
+};
 
-  function capture(stream: NodeJS.ReadableStream): void {
-    stream.on("data", (chunk: Buffer) => {
-      lineBuffer += chunk.toString("utf8");
-      let newline = lineBuffer.indexOf("\n");
-      while (newline !== -1) {
-        const line = lineBuffer.slice(0, newline).replace(/\r$/, "");
-        if (line !== "") handlers.onOutput(line);
-        lineBuffer = lineBuffer.slice(newline + 1);
-        newline = lineBuffer.indexOf("\n");
-      }
+function captureStream(stream: NodeJS.ReadableStream, state: RunnerState, handlers: RunnerHandlers): void {
+  stream.on("data", (chunk: Buffer) => {
+    state.lineBuffer += chunk.toString("utf8");
+    let newline = state.lineBuffer.indexOf("\n");
+    while (newline !== -1) {
+      const line = state.lineBuffer.slice(0, newline).replace(/\r$/, "");
+      if (line !== "") handlers.onOutput(line);
+      state.lineBuffer = state.lineBuffer.slice(newline + 1);
+      newline = state.lineBuffer.indexOf("\n");
+    }
+  });
+}
+
+function runPhase(
+  argv: ReadonlyArray<string>,
+  cwd: string,
+  state: RunnerState,
+  handlers: RunnerHandlers,
+): Promise<number | null> {
+  return new Promise((resolve, reject) => {
+    try {
+      state.child = spawn(argv[0]!, [...argv.slice(1)], {
+        cwd,
+        shell: false,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      reject(new Error((error as NodeJS.ErrnoException).code === "ENOENT" ? "command not found" : "spawn failed"));
+      return;
+    }
+    captureStream(state.child.stdout!, state, handlers);
+    captureStream(state.child.stderr!, state, handlers);
+    state.child.on("error", (error: NodeJS.ErrnoException) => {
+      reject(new Error(error.code === "ENOENT" ? "command not found" : "spawn failed"));
     });
-  }
+    state.child.on("close", (code) => resolve(code));
+  });
+}
 
-  function runPhase(argv: ReadonlyArray<string>, cwd: string): Promise<number | null> {
-    return new Promise((resolve, reject) => {
-      try {
-        child = spawn(argv[0]!, [...argv.slice(1)], {
-          cwd,
-          shell: false,
-          windowsHide: true,
-          stdio: ["ignore", "pipe", "pipe"],
-        });
-      } catch (error) {
-        reject(new Error((error as NodeJS.ErrnoException).code === "ENOENT" ? "command not found" : "spawn failed"));
+async function runSteps(
+  commands: RunnerCommands,
+  cwd: string,
+  state: RunnerState,
+  handlers: RunnerHandlers,
+): Promise<void> {
+  try {
+    if (commands === null) {
+      handlers.onEvent({ phase: "failed", code: null, message: "npm CLI not found next to the Node executable" });
+      return;
+    }
+    const serveStep = commands.steps.at(-1);
+    const preSteps = commands.steps.slice(0, -1);
+    for (const step of preSteps) {
+      handlers.onEvent({ phase: step.phase, code: null });
+      const code = await runPhase(step.argv, cwd, state, handlers);
+      if (state.stopRequested) {
+        // A stop must always end with the terminal event: it is what
+        // closes the run's SSE stream.
+        handlers.onEvent({ phase: "exited", code: null });
         return;
       }
-      capture(child.stdout!);
-      capture(child.stderr!);
-      child.on("error", (error: NodeJS.ErrnoException) => {
-        reject(new Error(error.code === "ENOENT" ? "command not found" : "spawn failed"));
+      if (code !== 0) {
+        handlers.onEvent({ phase: "failed", code, message: `${step.phase} failed` });
+        return;
+      }
+    }
+    if (serveStep !== undefined) {
+      handlers.onEvent({ phase: "serve", code: null });
+      const serveCode = await runPhase(serveStep.argv, cwd, state, handlers);
+      handlers.onEvent({
+        phase: "exited",
+        code: state.stopRequested ? null : serveCode,
       });
-      child.on("close", (code) => resolve(code));
+    }
+  } catch (error) {
+    handlers.onEvent({
+      phase: "failed",
+      code: null,
+      message: error instanceof Error ? error.message : "runner failed",
     });
+  } finally {
+    state.child = null;
+    state.running = false;
   }
+}
+
+export function createRunner(handlers: RunnerHandlers): Runner {
+  const state: RunnerState = { running: false, stopRequested: false, child: null, lineBuffer: "" };
 
   return {
-    isRunning: () => running,
+    isRunning: () => state.running,
 
     start(cwd: string, commands: RunnerCommands): boolean {
-      if (running) return false;
-      running = true;
-      stopRequested = false;
-
-      void (async () => {
-        try {
-          if (commands === null) {
-            handlers.onEvent({ phase: "failed", code: null, message: "npm CLI not found next to the Node executable" });
-            return;
-          }
-          const serveStep = commands.steps.at(-1);
-          const preSteps = commands.steps.slice(0, -1);
-          for (const step of preSteps) {
-            handlers.onEvent({ phase: step.phase, code: null });
-            const code = await runPhase(step.argv, cwd);
-            if (stopRequested) {
-              // A stop must always end with the terminal event: it is what
-              // closes the run's SSE stream.
-              handlers.onEvent({ phase: "exited", code: null });
-              return;
-            }
-            if (code !== 0) {
-              handlers.onEvent({ phase: "failed", code, message: `${step.phase} failed` });
-              return;
-            }
-          }
-          if (serveStep !== undefined) {
-            handlers.onEvent({ phase: "serve", code: null });
-            const serveCode = await runPhase(serveStep.argv, cwd);
-            handlers.onEvent({
-              phase: "exited",
-              code: stopRequested ? null : serveCode,
-            });
-          }
-        } catch (error) {
-          handlers.onEvent({
-            phase: "failed",
-            code: null,
-            message: error instanceof Error ? error.message : "runner failed",
-          });
-        } finally {
-          child = null;
-          running = false;
-        }
-      })();
-
+      if (state.running) return false;
+      state.running = true;
+      state.stopRequested = false;
+      void runSteps(commands, cwd, state, handlers);
       return true;
     },
 
     stop(): void {
-      if (!running) return;
-      stopRequested = true;
-      if (child?.pid !== undefined) {
-        killTree(child.pid);
+      if (!state.running) return;
+      state.stopRequested = true;
+      if (state.child?.pid !== undefined) {
+        killTree(state.child.pid);
         try {
-          child.kill();
+          state.child.kill();
         } catch {
           // Already dead.
         }

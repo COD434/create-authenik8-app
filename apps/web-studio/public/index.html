@@ -666,9 +666,9 @@
             <span class="field-label">Database connection string <em>optional</em></span>
             <input id="ship-supabase-db" type="password" autocomplete="off" spellcheck="false" placeholder="postgresql://postgres:...@db.abcd.supabase.co:5432/postgres" />
           </label>
-          <p class="ship-help">The public key is checked against the project REST endpoint. The database string is shape-checked and written to the sandbox <code>.env</code>. The Studio does not open the database or store either value.</p>
+          <p class="ship-help">The public key is checked against the project REST endpoint. With a database string, Studio saves the connection and pushes your Prisma schema (<code>npm run db:migrate</code>) to Supabase in one step. Use the direct connection (port 5432), not the pooler, for migrations.</p>
           <div class="modal-actions">
-            <button id="ship-supabase-save" class="btn-primary" type="button">Connect Supabase</button>
+            <button id="ship-supabase-save" class="btn-primary" type="button">Connect &amp; Deploy Supabase</button>
           </div>
           <p id="ship-supabase-result" class="ship-result" role="status" aria-live="polite"></p>
         </section>

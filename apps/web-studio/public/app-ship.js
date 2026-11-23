@@ -361,23 +361,72 @@ async function submitSupabase() {
   }
   shipBusy = true;
   syncShipControls();
-  setShipResult(shipSupabaseResult, "Connecting...", "");
+  setShipResult(shipSupabaseResult, databaseUrl !== "" ? "Connecting and deploying schema..." : "Connecting...", "");
   try {
-    const payload = { url, anonKey: key, apply: true };
+    const payload = { url, anonKey: key, apply: true, deploy: databaseUrl !== "" };
     if (databaseUrl !== "") payload.databaseUrl = databaseUrl;
-    const body = await shipRequest("/api/integrations/supabase", payload);
-    shipSupabaseKey.value = "";
-    shipSupabaseDb.value = "";
-    const database = body.database ? ` Database ${body.database.host}/${body.database.database}.` : "";
-    const notes = Array.isArray(body.database?.notes) && body.database.notes.length > 0
-      ? ` ${body.database.notes.join(" ")}`
-      : "";
-    setShipResult(
-      shipSupabaseResult,
-      `Connected ${body.supabase.url} with the ${body.supabase.keyKind} key.${database}${notes}`,
-      "ok",
-    );
-    if (body.status !== undefined) renderShipStatus(body.status);
+    const res = await fetch("/api/integrations/supabase", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ error: res.statusText }));
+      throw new Error(body.error ?? `HTTP ${res.status}`);
+    }
+
+    // Deploy path streams SSE; connect-only path returns JSON.
+    const isStream = res.headers.get("content-type")?.includes("text/event-stream");
+    if (!isStream) {
+      const body = await res.json();
+      shipSupabaseKey.value = "";
+      const database = body.database ? ` Database ${body.database.host}/${body.database.database}.` : "";
+      setShipResult(shipSupabaseResult, `Connected ${body.supabase.url} with the ${body.supabase.keyKind} key.${database}`, "ok");
+      if (body.status !== undefined) renderShipStatus(body.status);
+      return;
+    }
+
+    // Stream: connection result, then schema-push lines, then done/error.
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let connected = false;
+    let deployLines = [];
+    let deployDone = null;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let boundary;
+      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+        const rawEvent = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        for (const line of rawEvent.split("\n")) {
+          if (!line.startsWith("data: ")) continue;
+          const payloadEvent = JSON.parse(line.slice(6));
+          if (payloadEvent.supabaseConnect) {
+            connected = true;
+            shipSupabaseKey.value = "";
+            shipSupabaseDb.value = "";
+            setShipResult(shipSupabaseResult, `Connected ${payloadEvent.supabaseConnect.supabase.url}. Pushing schema...`, "");
+          }
+          if (payloadEvent.supabaseDeploy?.phase === "line") {
+            deployLines.push(payloadEvent.supabaseDeploy.line);
+            setShipResult(shipSupabaseResult, `Deploying schema...\n${deployLines.slice(-3).join("\n")}`, "");
+          }
+          if (payloadEvent.supabaseDeploy?.phase === "done" || payloadEvent.supabaseDeploy?.phase === "error") {
+            deployDone = payloadEvent.supabaseDeploy;
+          }
+        }
+      }
+    }
+    if (deployDone?.phase === "done") {
+      setShipResult(shipSupabaseResult, "Connected and schema deployed to Supabase.", "ok");
+    } else if (deployDone?.phase === "error") {
+      setShipResult(shipSupabaseResult, `Schema push failed: ${deployDone.message ?? "see output"}\n${deployLines.slice(-5).join("\n")}`, "error");
+    } else if (connected) {
+      setShipResult(shipSupabaseResult, "Connected to Supabase.", "ok");
+    }
   } catch (error) {
     setShipResult(shipSupabaseResult, errorText(error), "error");
   } finally {

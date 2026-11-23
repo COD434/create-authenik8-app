@@ -176,6 +176,7 @@ describe("runExplorer", () => {
       "list_files",
       "read_file",
       "design_audit",
+      "canon_audit",
     ]);
     expect(requests[0]!.tools?.some((tool) => tool.name === "write_file")).toBe(false);
     expect(requests[0]!.tools?.some((tool) => tool.name === "explore_project")).toBe(false);
@@ -229,6 +230,7 @@ describe("runExplorer", () => {
       "list_files",
       "read_file",
       "design_audit",
+      "canon_audit",
     ]);
 
     const logPath = path.join(
@@ -412,6 +414,7 @@ describe("runReviewer", () => {
       "list_files",
       "read_file",
       "design_audit",
+      "canon_audit",
     ]);
     expect(requests[0]!.tools?.some((tool) => tool.name === "write_file")).toBe(false);
     expect(requests[0]!.tools?.some((tool) => tool.name === "review_project")).toBe(false);
@@ -458,6 +461,7 @@ describe("runReviewer", () => {
       "list_files",
       "read_file",
       "design_audit",
+      "canon_audit",
     ]);
 
     const logPath = path.join(
@@ -533,6 +537,7 @@ describe("runBuilder", () => {
         "read_file",
         "write_file",
         "design_audit",
+        "canon_audit",
       ]);
 
       expect(await readFile(path.join(sandbox, "src", "hello.ts"), "utf8")).toBe(

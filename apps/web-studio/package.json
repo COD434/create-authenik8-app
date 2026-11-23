@@ -15,6 +15,7 @@
   "dependencies": {
     "@authenik8/agent-adapter": "0.1.0",
     "@authenik8/design": "0.1.0",
+    "@authenik8/engineering-canon": "0.1.0",
     "@authenik8/models": "0.1.0",
     "zod": "^3.24.0"
   },

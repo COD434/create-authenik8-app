@@ -40,10 +40,9 @@ type PruneArgs = {
   help: boolean;
 };
 
-export async function main(): Promise<number> {
-  let values: PruneArgs;
+function parsePruneArgs(argv: string[]): PruneArgs | null {
   try {
-    ({ values } = parseArgs({
+    const { values } = parseArgs({
       options: {
         keep: { type: "string", default: String(CHILD_LOG_LIST_LIMIT) },
         "min-age-hours": { type: "string", default: "1" },
@@ -53,12 +52,55 @@ export async function main(): Promise<number> {
       },
       strict: true,
       allowPositionals: false,
-    }));
+    });
+    return values;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     console.error(USAGE);
-    return 1;
+    return null;
   }
+}
+
+type PruneOutcome = Awaited<ReturnType<typeof pruneChildLogs>>;
+
+function reportPruneResult(
+  result: PruneOutcome,
+  sandboxRoot: string,
+  keep: number,
+  minAgeHours: number,
+): number {
+  console.log(`Sandbox: ${sandboxRoot}`);
+  if (result.scanned === 0) {
+    console.log("No valid child logs found.");
+    return 0;
+  }
+
+  const selected = result.dryRun ? result.eligible.length : result.pruned.length;
+  const action = result.dryRun ? "Would prune" : "Pruned";
+  console.log(`${action} ${selected} of ${result.scanned} child logs; keeping the newest ${keep}.`);
+  console.log(`Only logs at least ${minAgeHours}h old are eligible.`);
+  for (const entry of result.eligible.slice(0, 20)) {
+    console.log(`  ${entry.id}  ${entry.bytes} B  ${entry.modifiedAt}`);
+  }
+  if (result.eligible.length > 20) {
+    console.log(`  ... and ${result.eligible.length - 20} more`);
+  }
+
+  if (result.dryRun) {
+    if (result.eligible.length > 0) console.log("Dry run only. Re-run with --yes to delete.");
+    return 0;
+  }
+
+  console.log(`Deleted: ${result.pruned.length}. Failed: ${result.failed.length}.`);
+  for (const failure of result.failed) {
+    console.error(`  ${failure.id}: ${failure.error}`);
+  }
+  return result.failed.length === 0 ? 0 : 1;
+}
+
+export async function main(): Promise<number> {
+  const values = parsePruneArgs(process.argv.slice(2));
+  if (values === null) return 1;
 
   if (values.help) {
     console.log(USAGE);
@@ -76,34 +118,7 @@ export async function main(): Promise<number> {
       dryRun: !values.yes,
       minAgeMs: minAgeHours * 3_600_000,
     });
-
-    console.log(`Sandbox: ${sandboxRoot}`);
-    if (result.scanned === 0) {
-      console.log("No valid child logs found.");
-      return 0;
-    }
-
-    const selected = result.dryRun ? result.eligible.length : result.pruned.length;
-    const action = result.dryRun ? "Would prune" : "Pruned";
-    console.log(`${action} ${selected} of ${result.scanned} child logs; keeping the newest ${keep}.`);
-    console.log(`Only logs at least ${minAgeHours}h old are eligible.`);
-    for (const entry of result.eligible.slice(0, 20)) {
-      console.log(`  ${entry.id}  ${entry.bytes} B  ${entry.modifiedAt}`);
-    }
-    if (result.eligible.length > 20) {
-      console.log(`  ... and ${result.eligible.length - 20} more`);
-    }
-
-    if (result.dryRun) {
-      if (result.eligible.length > 0) console.log("Dry run only. Re-run with --yes to delete.");
-      return 0;
-    }
-
-    console.log(`Deleted: ${result.pruned.length}. Failed: ${result.failed.length}.`);
-    for (const failure of result.failed) {
-      console.error(`  ${failure.id}: ${failure.error}`);
-    }
-    return result.failed.length === 0 ? 0 : 1;
+    return reportPruneResult(result, sandboxRoot, keep, minAgeHours);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return 1;

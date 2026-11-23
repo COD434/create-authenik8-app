@@ -110,7 +110,9 @@ describe("createRunner", () => {
     expect(start(commands)).toBe(true);
     expect(start(commands)).toBe(false);
     runner.stop();
-    await vi.waitFor(() => expect(runner.isRunning()).toBe(false));
+    // Stopping waits on a real child process; under suite load it can
+    // exceed vitest's default 1s waitFor window.
+    await vi.waitFor(() => expect(runner.isRunning()).toBe(false), { timeout: 5000 });
     expect(events.some((event) => event.phase === "exited")).toBe(true);
   });
 

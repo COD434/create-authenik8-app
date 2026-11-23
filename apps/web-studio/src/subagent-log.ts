@@ -313,10 +313,7 @@ export async function listChildLogs(
  * candidates. Non-log files, directories, and redirected directories are never
  * touched.
  */
-export async function pruneChildLogs(
-  sandboxRoot: string,
-  options: PruneChildLogsOptions,
-): Promise<PruneChildLogsResult> {
+function assertPruneOptions(options: PruneChildLogsOptions): void {
   if (!Number.isSafeInteger(options.keep) || options.keep < 1 || options.keep > CHILD_LOG_MAX_KEEP) {
     throw new RangeError(`keep must be an integer between 1 and ${CHILD_LOG_MAX_KEEP}`);
   }
@@ -326,6 +323,39 @@ export async function pruneChildLogs(
   }
   const now = options.now ?? Date.now();
   if (!Number.isFinite(now)) throw new RangeError("now must be a finite number");
+}
+
+/** Delete one eligible log after re-verifying it is still the same file. */
+async function pruneOneFile(dir: string, entry: PruneChildLogEntry): Promise<void> {
+  const filePath = path.join(dir, `${entry.id}.jsonl`);
+  let realFile: string;
+  try {
+    realFile = await realpath(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return; // already gone
+    throw error;
+  }
+  const relative = path.relative(dir, realFile);
+  if (relative !== `${entry.id}.jsonl` || relative.startsWith("..") || path.isAbsolute(relative)) {
+    throw new Error("file is outside the subagent directory");
+  }
+  const info = await stat(realFile);
+  if (!info.isFile()) throw new Error("not a regular file");
+  try {
+    await unlink(realFile);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return; // raced away
+    throw error;
+  }
+}
+
+export async function pruneChildLogs(
+  sandboxRoot: string,
+  options: PruneChildLogsOptions,
+): Promise<PruneChildLogsResult> {
+  assertPruneOptions(options);
+  const minAgeMs = options.minAgeMs ?? 0;
+  const now = options.now ?? Date.now();
   const dryRun = options.dryRun ?? true;
 
   const collection = await collectChildLogFiles(sandboxRoot);
@@ -354,33 +384,8 @@ export async function pruneChildLogs(
   if (dryRun) return result;
 
   for (const entry of eligible) {
-    const filePath = path.join(dir, `${entry.id}.jsonl`);
     try {
-      let realFile: string;
-      try {
-        realFile = await realpath(filePath);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          result.pruned.push(entry.id);
-          continue;
-        }
-        throw error;
-      }
-      const relative = path.relative(dir, realFile);
-      if (relative !== `${entry.id}.jsonl` || relative.startsWith("..") || path.isAbsolute(relative)) {
-        throw new Error("file is outside the subagent directory");
-      }
-      const info = await stat(realFile);
-      if (!info.isFile()) throw new Error("not a regular file");
-      try {
-        await unlink(realFile);
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          result.pruned.push(entry.id);
-          continue;
-        }
-        throw error;
-      }
+      await pruneOneFile(dir, entry);
       result.pruned.push(entry.id);
     } catch (error) {
       result.failed.push({

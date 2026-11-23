@@ -209,3 +209,57 @@ describe("design_audit tool", () => {
     expect(outcome.result).toContain("escapes the project sandbox");
   });
 });
+
+describe("canon_audit tool", () => {
+  it("passes a clean source directory", async () => {
+    await mkdir(path.join(sandbox, "canon-clean", "src"), { recursive: true });
+    await writeFile(
+      path.join(sandbox, "canon-clean", "src", "clean.ts"),
+      "export const value: number = 1;\n",
+      "utf8",
+    );
+    const outcome = await executeTool(
+      "canon_audit",
+      JSON.stringify({ path: "canon-clean" }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(true);
+    expect(outcome.result).toContain("canon audit: clean");
+  });
+
+  it("reports a typed escape and a swallowed failure with rule IDs", async () => {
+    await mkdir(path.join(sandbox, "canon-bad", "src"), { recursive: true });
+    await writeFile(
+      path.join(sandbox, "canon-bad", "src", "bad.ts"),
+      [
+        "export function parse(value: any): number {",
+        "  try {",
+        "    return Number(value);",
+        "  } catch {",
+        "  }",
+        "  return 0;",
+        "}",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const outcome = await executeTool(
+      "canon_audit",
+      JSON.stringify({ path: "canon-bad" }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result).toContain("A8-TS-01");
+    expect(outcome.result).toContain("A8-REL-05");
+  });
+
+  it("refuses audit directories outside the sandbox", async () => {
+    const outcome = await executeTool(
+      "canon_audit",
+      JSON.stringify({ path: "../../elsewhere" }),
+      sandbox,
+    );
+    expect(outcome.ok).toBe(false);
+    expect(outcome.result).toContain("escapes the project sandbox");
+  });
+});

@@ -13,7 +13,7 @@ import type { ToolOutcome } from "./tools.js";
  * order, so the session log and the model request stay stable.
  */
 
-const READ_ONLY_TOOLS = new Set(["list_files", "read_file", "design_audit"]);
+const READ_ONLY_TOOLS = new Set(["list_files", "read_file", "design_audit", "canon_audit"]);
 
 /** Bound peak file reads when a model batches many read-only calls at once. */
 export const MAX_PARALLEL_READS = 4;
