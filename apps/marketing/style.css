@@ -309,10 +309,10 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .header-cta { justify-self: end; }
 
 .studio-window { grid-template-columns: 1fr; min-height: 340px; }
-.studio-sidebar { display: flex; flex-direction: row; gap: 4px; align-items: center; justify-content: space-between; padding: 8px 10px; }
-.studio-sidebar .sidebar-section-labels, .studio-sidebar .sidebar-status, .studio-sidebar > *:not(.window-brand, .sidebar-section-labels, .sidebar-item) { display: none; }
+.studio-sidebar { display: none; }
 .studio-workspace { min-height: 320px; }
 .studio-topline { min-height: 30px; }
+.studio-conversation { min-height: 310px; }
 
 .site-footer nav { flex-wrap: wrap; gap: 12px; justify-content: flex-end; }
 .footer-inner { grid-template-columns: auto 1fr; gap: 10px 16px; }
