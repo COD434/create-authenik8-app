@@ -83,9 +83,9 @@ button, a { -webkit-tap-highlight-color: transparent; }
 /* ---------- Hero ---------- */
 .hero {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  align-items: center; gap: 48px;
-  padding: 64px 0 56px;
+  grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr);
+  align-items: center; gap: clamp(44px, 7vw, 96px);
+  padding: 70px 0 76px;
 }
 .hero h1 {
   max-width: 590px; margin: 0;
