@@ -13,7 +13,7 @@ CLI repo keeps its own contract and boundaries.
 | `@authenik8/mcp` | Read-only, identity-aware planning/validation tools over MCP stdio: `get_supported_features`, `plan_authenik8_project`, `validate_project_spec`, `get_project_contract` | M2 — read-only planning surface |
 | `@authenik8/design` | Design systems as versionable data: validated tokens, DESIGN.md brand specs, WCAG contrast checks with stable IDs (`A8-DS-###`) — plus 4 agent skills (`design-audit`, `design-init`, `design-css`, `design-contrast-fix`) wired into OpenCode via the `skills` config | M3 — data format + checks + agent skills |
 | `@authenik8/agent-adapter` | Documented runtime-swap contract over coding agents (OpenCode first): structured runs, timeout/abort kills, opt-in auto-approve | M4 — interface + OpenCode adapter |
-| `@authenik8/web-studio` | Localhost ChatGPT-style builder: describe an app, the agent writes real files, self-audits design checks, previews live — plus a user-triggered OpenCode build agent for full projects. BYOK free OpenRouter models, no telemetry | M5 v3b — agent generation (`docs/m5-web-studio.md`) |
+| `@authenik8/web-studio` | Localhost app builder with BYOK OpenRouter, user-triggered OpenCode and CodeRabbit workflows, GitHub repository sync with optional Actions CI, Supabase settings, and static deploys to Vercel/Netlify | M5 — local Studio integrations |
 | `create-authenik8-studio` | One-liner launcher: picks a free port, boots Studio Web, opens the browser (`npx create-authenik8-studio`; `--port`/`--no-open`) | M5 v4.2 — launcher |
 
 Planned: `apps/studio` growth, additional runtimes behind the same
@@ -27,6 +27,9 @@ start).
 
 ```bash
 npm install
+npm run dev
+# marketing homepage: http://127.0.0.1:4870/
+# builder studio:     http://127.0.0.1:4870/studio
 npm run build
 npm run test
 ```
@@ -36,5 +39,7 @@ npm run test
 - BYOK only in M1: the user's provider key is passed per call, is never
   logged, never embedded in errors, and is only sent to the validated
   provider base URL (HTTPS, non-private hosts — SSRF-guarded).
-- No telemetry. No platform credentials exist yet; when managed access
-  arrives it will live behind a separate hosted trust boundary.
+- No telemetry. GitHub and hosting tokens are supplied per request and are not
+  stored by Studio. Supabase settings are written to the local project `.env`
+  only after the user chooses Save. GitHub publish skips environment files and
+  common private-key files; review the included file list before publishing.

@@ -9,9 +9,14 @@
     "apps/*"
   ],
   "scripts": {
+    "dev": "npm run dev --workspace @authenik8/marketing",
     "build": "npm run build --workspaces --if-present",
+    "package:windows": "npm run build && node scripts/package-windows-studio.mjs",
     "test": "npm run test --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "canon:audit": "node packages/engineering-canon/dist/cli.js . --baseline canon-baseline.json",
+    "canon:baseline": "node packages/engineering-canon/dist/cli.js . --write-baseline canon-baseline.json",
+    "canon:test": "npm run test --workspace @authenik8/engineering-canon"
   },
   "engines": {
     "node": ">=22"

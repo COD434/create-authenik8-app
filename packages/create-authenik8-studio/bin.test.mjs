@@ -4,7 +4,13 @@ import { createServer } from "node:http";
 import { realpathSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
-import { isDirectInvocation, isPortFree, pickFreePort, studioAlreadyRunning } from "./bin.mjs";
+import { isDirectInvocation, isPortFree, pickFreePort, studioAlreadyRunning, studioUrl } from "./bin.mjs";
+
+describe("Studio browser destination", () => {
+  it("opens the local workspace route from a server root URL", () => {
+    expect(studioUrl("http://127.0.0.1:4870/")).toBe("http://127.0.0.1:4870/studio");
+  });
+});
 
 const occupied = [];
 

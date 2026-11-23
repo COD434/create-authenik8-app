@@ -6,3 +6,4 @@ dist/
 !.env.example
 coverage/
 .studio-sandbox/
+.vercel/

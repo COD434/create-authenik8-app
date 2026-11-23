@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "findings": [
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/public/app-chat.js",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-SEC-08",
+      "file": "apps/web-studio/public/app-palette.js",
+      "message": "raw HTML sink is documented as static; verify the value cannot carry user data"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/public/app-shell.js",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/public/app-shell.js",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/coderabbit.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/integrations/supabase.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/opencode-path.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/routes/chat.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/routes/chat.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/runner.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/runner.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/runner.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/runtime-context.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/subagent-log.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "apps/web-studio/src/template-bridge.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/agent-adapter/src/opencode.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/agent-adapter/src/spawn.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/agent-adapter/src/spawn.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/agent-adapter/src/spawn.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/agent-adapter/tests/opencode.live.test.ts",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/create-authenik8-studio/bin.mjs",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/create-authenik8-studio/bin.mjs",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    },
+    {
+      "rule": "A8-REL-05",
+      "file": "packages/create-authenik8-studio/bin.mjs",
+      "message": "empty catch is documented but still swallows the failure; verify the failure is non-critical"
+    }
+  ]
+}

@@ -11,7 +11,7 @@ import {
   projectSpecSchema,
   runtimeSchema,
 } from "./spec.js";
-import { createToolHandlers, type ToolResult } from "./tools.js";
+import { createToolHandlers, type ToolHandlers, type ToolResult } from "./tools.js";
 
 /**
  * MCP server wiring: four read-only, planning-oriented tools with narrow
@@ -48,10 +48,7 @@ function jsonContent(result: ToolResult) {
   return { content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }] };
 }
 
-export function createAuthenik8McpServer(options: { workspaceRoot?: string } = {}): McpServer {
-  const handlers = createToolHandlers(options);
-  const server = new McpServer({ name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION });
-
+function registerReadTools(server: McpServer, handlers: ToolHandlers): void {
   server.registerTool(
     "get_supported_features",
     {
@@ -63,6 +60,21 @@ export function createAuthenik8McpServer(options: { workspaceRoot?: string } = {
     async () => jsonContent(handlers.getSupportedFeatures()),
   );
 
+  server.registerTool(
+    "get_project_contract",
+    {
+      title: "Read the Authenik8 project contract",
+      description:
+        "Read-only inspection: parse authenik8.json (the source-controlled project manifest) from a directory inside the server's workspace and return the validated contract. Reads only that one file; never returns file contents or environment values; refuses paths outside the configured workspace.",
+      inputSchema: {
+        root: z.string().optional().describe("Directory to inspect, relative to the workspace root (default '.')"),
+      },
+    },
+    async (args) => jsonContent(handlers.getProjectContract(args.root)),
+  );
+}
+
+function registerSpecTools(server: McpServer, handlers: ToolHandlers): void {
   server.registerTool(
     "plan_authenik8_project",
     {
@@ -96,19 +108,12 @@ export function createAuthenik8McpServer(options: { workspaceRoot?: string } = {
       return jsonContent(handlers.validateSpec(parsed.data));
     },
   );
+}
 
-  server.registerTool(
-    "get_project_contract",
-    {
-      title: "Read the Authenik8 project contract",
-      description:
-        "Read-only inspection: parse authenik8.json (the source-controlled project manifest) from a directory inside the server's workspace and return the validated contract. Reads only that one file; never returns file contents or environment values; refuses paths outside the configured workspace.",
-      inputSchema: {
-        root: z.string().optional().describe("Directory to inspect, relative to the workspace root (default '.')"),
-      },
-    },
-    async (args) => jsonContent(handlers.getProjectContract(args.root)),
-  );
-
+export function createAuthenik8McpServer(options: { workspaceRoot?: string } = {}): McpServer {
+  const handlers = createToolHandlers(options);
+  const server = new McpServer({ name: MCP_SERVER_NAME, version: MCP_SERVER_VERSION });
+  registerReadTools(server, handlers);
+  registerSpecTools(server, handlers);
   return server;
 }
