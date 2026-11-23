@@ -8,7 +8,7 @@
   <meta name="description" content="Build apps with real users, rotating sessions, role-based access, and audit trails from the first prompt. Local-first, BYOK, no telemetry." />
   <link rel="icon" href="/authenik8-mark.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
-
+  <script src="/ember-field.js"></script>
 </head>
 <body>
   <header class="site-header">
@@ -29,6 +29,7 @@
 
   <main>
     <section class="hero page-width ember-section" aria-labelledby="hero-title">
+      <div id="ember-hero" class="ember-mount"></div>
       <div class="hero-copy ember-content">
         <p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span> Identity-aware app development</p>
         <h1 id="hero-title">Build the app.<br /><span>Start with identity.</span></h1>
@@ -77,7 +78,8 @@
       </div>
     </section>
 
-    <section class="principles ember-section" aria-label="Authenik8 principles">>
+    <section class="principles ember-section" aria-label="Authenik8 principles">
+      <div id="ember-principles" class="ember-mount ember-reduce"></div>
       <div class="page-width principles-inner">
         <span class="principles-label">BUILT INTO THE FOUNDATION</span>
         <div><span class="principle-index">01</span> Real users</div>
@@ -203,6 +205,7 @@
   </main>
 
   <footer class="site-footer">
+    <div id="ember-footer" class="ember-mount ember-reduce"></div>
     <div class="page-width footer-inner">
       <a class="brand footer-brand" href="/">
         <img src="/authenik8-mark.svg" alt="" width="30" height="30" />
@@ -218,6 +221,16 @@
       <span class="copyright">© <span id="year"></span> Authenik8</span>
     </div>
   </footer>
-
+  <script>
+    // Mount the EmberField particle theme into each ember-mount container.
+    const heroMount = document.getElementById('ember-hero');
+    const principlesMount = document.getElementById('ember-principles');
+    const footerMount = document.getElementById('ember-footer');
+    if (typeof mountEmberField === 'function') {
+      if (heroMount) mountEmberField(heroMount, 'default');
+      if (principlesMount) mountEmberField(principlesMount, 'reduced');
+      if (footerMount) mountEmberField(footerMount, 'reduced');
+    }
+  </script>
 </body>
 </html>

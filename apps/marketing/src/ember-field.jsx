@@ -1,14 +1,14 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 
-// Ember theme palette — warm glowing coals. Amber, orange, gold, warm green.
+// Green ember palette - glowing green coals.
 const EMBERS = [
-  [255, 140, 40],   // hot amber
-  [255, 180, 60],   // warm gold
-  [255, 100, 30],   // deep ember orange
-  [180, 220, 120],  // warm green spark
-  [255, 220, 140],  // pale ember glow
-  [120, 200, 100],  // forest ember
+  [50, 220, 100],   // bright green
+  [80, 255, 120],   // vivid green
+  [30, 180, 80],    // deep green
+  [120, 255, 160],  // pale green glow
+  [60, 200, 90],    // forest green
+  [100, 240, 140],  // mint green
 ];
 
 // Particles per density tier, scaled further by viewport area below.
@@ -115,16 +115,16 @@ export function EmberField({ density = 'default', className = '' }) {
       const cx = (Math.sin(t + i * 2.1) * 0.35 + 0.5) * w;
       const cy = (Math.cos(t * 0.6 + i) * 0.5) * h;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(w, h) * 0.85);
-      g.addColorStop(0, 'rgba(255, 140, 40, 0.035)');
-      g.addColorStop(0.5, 'rgba(255, 180, 60, 0.015)');
-      g.addColorStop(1, 'rgba(255, 140, 40, 0)');
+      g.addColorStop(0, 'rgba(50, 220, 100, 0.04)');
+      g.addColorStop(0.5, 'rgba(80, 255, 120, 0.02)');
+      g.addColorStop(1, 'rgba(50, 220, 100, 0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     }
     // Deep base glow at the bottom — embers rising from heat
     const baseG = ctx.createLinearGradient(0, h * 0.6, 0, h);
-    baseG.addColorStop(0, 'rgba(255, 100, 30, 0)');
-    baseG.addColorStop(1, 'rgba(255, 100, 30, 0.04)');
+    baseG.addColorStop(0, 'rgba(30, 180, 80, 0)');
+    baseG.addColorStop(1, 'rgba(30, 180, 80, 0.05)');
     ctx.fillStyle = baseG;
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
@@ -148,7 +148,7 @@ export function EmberField({ density = 'default', className = '' }) {
     ctx.fill();
     // Hot bright core
     ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(255, 240, 200, ${alpha * 0.6})`;
+    ctx.fillStyle = `rgba(200, 255, 220, ${alpha * 0.6})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, size * 0.4, 0, Math.PI * 2);
     ctx.fill();
