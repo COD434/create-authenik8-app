@@ -135,7 +135,14 @@ jobs:
           cache: npm
 
       - name: Install and build the generator
-        run: npm ci --prefer-offline --no-audit --no-fund && npm run build
+        run: (npm ci --prefer-offline --no-audit --no-fund && npm run build) 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: fresh-build-log-${{ matrix.preset }}
+          path: build.log
 
       - name: Generate, install, and build a clean project
         run: npm run test:fresh -- ${{ matrix.preset }}
