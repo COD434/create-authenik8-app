@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "projectName": "demo",
+  "generatedBy": {
+    "package": "create-authenik8-app",
+    "version": "2.4.4"
+  },
+  "engine": {
+    "package": "authenik8-core",
+    "version": "2.0.7"
+  },
+  "preset": "fullstack",
+  "packageManager": "npm",
+  "runtime": "node",
+  "database": "postgresql",
+  "features": {
+    "prisma": true,
+    "oauthProviders": [
+      "google",
+      "github"
+    ],
+    "pm2": false,
+    "frontend": "next"
+  }
+}

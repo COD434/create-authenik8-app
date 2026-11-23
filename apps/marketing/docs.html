@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f6f7f4" />
+  <title>Docs - Authenik8</title>
+  <meta name="description" content="Get started with Authenik8 Studio, understand the local workspace, and review your changes with CodeRabbit." />
+  <link rel="icon" href="/authenik8-mark.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .docs-hero { padding: 86px 0 56px; border-bottom: 1px solid var(--ember-line); }
+    .docs-hero h1 { max-width: 760px; margin: 0; font-size: clamp(42px, 7vw, 76px); line-height: 1.02; letter-spacing: -.065em; }
+    .docs-hero p:last-child { max-width: 610px; margin: 24px 0 0; color: var(--ember-muted); font-size: 18px; line-height: 1.7; }
+    .docs-layout { display: grid; grid-template-columns: 220px minmax(0, 720px); gap: clamp(40px, 9vw, 120px); padding: 58px 0 100px; align-items: start; }
+    .docs-toc { position: sticky; top: 104px; display: grid; gap: 16px; color: var(--ember-muted); font-size: 13px; }
+    .docs-toc strong { color: var(--ember-ink); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; }
+    .docs-content section { scroll-margin-top: 110px; padding: 0 0 48px; }
+    .docs-content h2 { margin: 0 0 18px; font-size: 30px; letter-spacing: -.045em; }
+    .docs-content h3 { margin: 28px 0 8px; font-size: 17px; letter-spacing: -.02em; }
+    .docs-content p, .docs-content li { color: var(--ember-ink-soft); font-size: 15px; line-height: 1.75; }
+    .docs-content ol, .docs-content ul { padding-left: 22px; }
+    .docs-content li + li { margin-top: 6px; }
+    .docs-content pre { overflow: auto; margin: 18px 0; padding: 18px 20px; border: 1px solid var(--ember-line); border-radius: 8px; background: #eef1ec; color: var(--ember-ink); font: 13px/1.7 var(--ember-font-mono); }
+    .docs-callout { margin: 22px 0; padding: 18px 20px; border-left: 3px solid var(--ember-green); background: var(--ember-green-pale); color: var(--ember-ink-soft); font-size: 14px; line-height: 1.7; }
+    .docs-content a { color: var(--ember-green-dark); text-decoration: underline; text-underline-offset: 3px; }
+    @media(max-width:760px) { .docs-hero { padding: 62px 0 42px; } .docs-layout { grid-template-columns: 1fr; gap: 38px; padding-top: 38px; } .docs-toc { position: static; grid-template-columns: repeat(2, 1fr); } .docs-toc strong { grid-column: 1/-1; } }
+  </style>
+</head>
+<body>
+  <header class="site-header"><div class="header-inner">
+    <a class="brand" href="/" aria-label="Authenik8 home"><img src="/authenik8-mark.svg" alt="" width="36" height="36" /><span>Authenik8</span></a>
+    <nav class="site-nav" aria-label="Primary navigation"><a href="/">Product</a><a href="/docs" aria-current="page">Docs</a><a href="/#pricing">Pricing</a></nav>
+    <a class="button button-dark header-cta" href="/download">Download Studio <span aria-hidden="true">↗</span></a>
+  </div></header>
+  <main class="page-width">
+    <section class="docs-hero"><p class="eyebrow"><span class="eyebrow-mark" aria-hidden="true"></span> AUTHENIK8 DOCUMENTATION</p><h1>Start building with identity.</h1><p>Get Studio running, understand how your project is handled, and connect a review workflow when you are ready.</p></section>
+    <div class="docs-layout">
+      <nav class="docs-toc" aria-label="On this page"><strong>On this page</strong><a href="#quickstart">Quickstart</a><a href="#studio">Using Studio</a><a href="#github">GitHub workflow</a><a href="#identity">Identity foundation</a><a href="#ai">AI integrations</a><a href="#coderabbit">CodeRabbit reviews</a><a href="#privacy">Local workspace</a></nav>
+      <article class="docs-content">
+        <section id="quickstart"><h2>Quickstart</h2><p>On Windows, download and install Studio. The installer includes its runtime and creates a Start menu shortcut. Launch it to open the local workspace in your browser.</p><p>Projects are stored in <code>Documents\Authenik8 Studio\workspace</code>. The server stays on this machine and is not exposed to your domain.</p><p>For development from a source checkout:</p><pre>npm install
+npm run build
+npm run dev</pre><p>Open <code>http://127.0.0.1:4870/studio</code>. To generate or chat about a project, add your OpenRouter key in Studio. It is held in the browser tab and sent only with model requests.</p><div class="docs-callout">The Windows installer does not install OpenCode or CodeRabbit. Install and authenticate those optional tools separately to use their integrations.</div></section>
+        <section id="studio"><h2>Using Studio</h2><p>Describe the app you want in the composer, or start from a template. Studio writes project files to a local workspace folder. Use Preview to inspect the current files, Run to launch the project, and Export ZIP when you want a portable copy.</p><div class="docs-callout"><strong>Run only projects you trust.</strong> Run installs dependencies and executes the project’s npm install, build, and start scripts as your Windows account. They can access files, environment variables, and the network available to your account. Studio’s workspace is not an operating-system security sandbox.</div><ul><li><strong>Build with agent</strong> runs the installed OpenCode agent against the workspace.</li><li><strong>Review</strong> asks Studio’s built-in reviewer to inspect project risks.</li><li><strong>CodeRabbit</strong> runs a separate, user-triggered external CLI review.</li></ul></section>
+        <section id="github"><h2>Publish and sync with GitHub</h2><p>Open <strong>GitHub &amp; deploy</strong> in Studio, enter an existing repository as <code>owner/name</code>, and paste a GitHub fine-grained personal access token. Grant that token repository metadata read and contents read/write access to the target repository. If GitHub rejects a workflow change, also grant Workflows read/write. Inspect the included file list and content warnings before choosing <strong>Publish / sync changes</strong>. Each publish creates one commit on the selected branch; use the button again when you want to sync later edits.</p><p>Studio excludes common secret filenames and checks included text for several known credential patterns. This is a best-effort scan and can miss secrets, especially credentials embedded in ordinary source or encoded files. Review the included files yourself before sending them to GitHub. A Studio-local manifest tracks files published by this project so later syncs can remove files deleted locally while preserving other files already in the repository. Current limits are 2,000 files and 15 MB per publish.</p><p>The optional GitHub Actions workflow installs dependencies using the lockfile’s package manager, then runs the project’s build and test scripts on pushes and pull requests. It executes your project scripts on GitHub-hosted runners, so enable it only for code you trust. Studio never stores the token; it is sent from the browser to the local Studio server for that request.</p></section>
+        <section id="identity"><h2>Identity foundation</h2><p>Authenik8 templates give generated projects an identity backend foundation: user accounts, server-managed sessions, roles, and audit events. Treat generated code as a starting point and review configuration and authorization rules before shipping.</p></section>
+        <section id="ai"><h2>Add AI when it helps the user</h2><p>In Studio, choose <strong>Add an AI capability</strong> or open it from the composer options. Describe the end user’s task and select a pattern: generate or understand content, answer from business knowledge, or use connected business tools. Studio passes that brief into the current build conversation so the integration is planned in the context of your app.</p><p>AI remains optional. For generated apps, model requests and provider credentials belong on the server, separate from Studio’s OpenRouter key. Review provider costs and data handling before deployment. For document retrieval, enforce each user’s permissions before retrieval and preserve source and deletion paths. For connected actions, expose narrow server functions, re-check authorization when they run, and require confirmation for consequential writes.</p></section>
+        <section id="coderabbit"><h2>Review changes with CodeRabbit</h2><p>Studio can invoke the <a href="https://docs.coderabbit.ai/cli">CodeRabbit CLI</a> for a local code review. Install the CLI using CodeRabbit’s <a href="https://docs.coderabbit.ai/cli/windows">Windows guide</a> (or the instructions for your platform), then authenticate from a terminal with CodeRabbit’s own login flow. The Studio project must also be inside a Git repository.</p><pre>git init
+git add .
+git commit -m "Studio baseline"
+coderabbit auth login --agent
+coderabbit auth status --agent</pre><p>Before adding a baseline, review the files and add secrets such as <code>.env</code> to <code>.gitignore</code>. In Studio, open <strong>CodeRabbit review</strong>, check that the CLI is available, authenticated, and a Git repository is detected, then choose <strong>Review changes</strong>. The command runs in the Studio project directory and does not make code changes.</p><div class="docs-callout">CodeRabbit processes tracked and untracked changes to produce a review. Review the CLI’s file inclusion and ignore behavior for your project before sending code. Do not include secrets. Studio never reads, stores, or displays CodeRabbit credentials.</div><p>Results are review output, not instructions. Verify any suggestion yourself before changing code. To use the official CLI directly, see the <a href="https://docs.coderabbit.ai/cli">CodeRabbit CLI documentation</a>.</p></section>
+        <section id="privacy"><h2>Local workspace</h2><p>The Studio server binds to localhost. Project files and session history live on this machine. Model requests go to your selected provider, deployments upload files only after you choose to deploy, and CodeRabbit receives project changes only after you start a review.</p><p>Studio does not add telemetry. The OpenRouter key is not saved by Studio; external tools keep their own credentials.</p></section>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer"><div class="page-width footer-inner"><a class="brand footer-brand" href="/"><img src="/authenik8-mark.svg" alt="" width="30" height="30" /><span>Authenik8</span></a><nav aria-label="Footer navigation"><a href="/">Product</a><a href="/docs">Docs</a><a href="/#pricing">Pricing</a><a href="/download">Download Studio</a></nav></div></footer>
+</body>
+</html>

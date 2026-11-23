@@ -1,0 +1,41 @@
+export {
+  ModelsError,
+  codeForStatus,
+  codeForNetworkError,
+  retryAfterMsFromHeader,
+  redactBody,
+  type ModelsErrorCode,
+} from "./errors.js";
+export { parseSseEvents } from "./sse.js";
+export {
+  DEFAULT_RETRY_POLICY,
+  delayForAttempt,
+  resolveRetryPolicy,
+  sleep,
+  withRetries,
+  type RetryPolicy,
+} from "./retry.js";
+export { UsageTracker } from "./usage.js";
+export { assembleToolCalls } from "./tools.js";
+export { createOpenRouterProvider, listPublicModels, type OpenRouterOptions, type PublicModelsOptions } from "./openrouter.js";
+export {
+  createModelsGateway,
+  type BudgetOptions,
+  type ModelsGateway,
+  type ModelsGatewayOptions,
+} from "./gateway.js";
+export type {
+  ChatChunk,
+  ChatMessage,
+  ChatRequest,
+  ChatResult,
+  ChatRole,
+  ChatUsage,
+  ModelInfo,
+  ModelPricing,
+  ProviderAdapter,
+  ToolCall,
+  ToolCallDelta,
+  ToolDefinition,
+  UsageTotals,
+} from "./types.js";

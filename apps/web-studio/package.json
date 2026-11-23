@@ -1,0 +1,30 @@
+{
+  "name": "@authenik8/web-studio",
+  "version": "0.1.0",
+  "description": "Localhost ChatGPT-style builder UI: describe an app, stream a secure Authenik8 project into existence. BYOK free OpenRouter models.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "start": "node dist/server.js",
+    "prune:subagents": "node dist/prune-subagents.js"
+  },
+  "dependencies": {
+    "@authenik8/agent-adapter": "0.1.0",
+    "@authenik8/design": "0.1.0",
+    "@authenik8/engineering-canon": "0.1.0",
+    "@authenik8/models": "0.1.0",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

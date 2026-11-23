@@ -1,0 +1,99 @@
+name: Release Windows Studio
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  windows-installer:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build Studio and marketing assets
+        run: |
+          npm ci
+          npm run build
+          npm test
+      - name: Stage portable application and Node runtime
+        run: node scripts/package-windows-studio.mjs
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $env:APP_VERSION = "${{ github.ref_name }}" -replace '^v', ''
+          $env:APP_STAGE = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-studio'
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" apps/desktop/windows/setup.iss
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: windows-studio-installer
+          path: dist/windows-studio/Authenik8-Studio-Setup.exe
+          if-no-files-found: error
+          retention-days: 1
+
+  publish-release:
+    needs: windows-installer
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: windows-studio-installer
+          path: dist/windows-studio
+      - name: Check signing configuration
+        id: signing
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: |
+          $configured = ![string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_BASE64) -and ![string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERT_PASSWORD)
+          "configured=$($configured.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - name: Sign installer
+        if: steps.signing.outputs.configured == 'true'
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+        run: |
+          $installer = Join-Path $env:GITHUB_WORKSPACE 'dist\windows-studio\Authenik8-Studio-Setup.exe'
+          $cert = Join-Path $env:RUNNER_TEMP 'authenik8-signing.pfx'
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Filter signtool.exe -Recurse | Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } | Sort-Object FullName | Select-Object -Last 1 -ExpandProperty FullName
+          if (!$signtool) { throw 'Windows SDK signtool.exe was not found.' }
+          try {
+            [System.IO.File]::WriteAllBytes($cert, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERT_BASE64))
+            & $signtool sign /fd SHA256 /tr https://timestamp.digicert.com /td SHA256 /f $cert /p $env:WINDOWS_SIGNING_CERT_PASSWORD $installer
+            if ($LASTEXITCODE -ne 0) { throw 'signtool failed to sign the installer.' }
+            & $signtool verify /pa $installer
+            if ($LASTEXITCODE -ne 0) { throw 'signtool could not verify the signed installer.' }
+          } finally {
+            Remove-Item -LiteralPath $cert -Force -ErrorAction SilentlyContinue
+          }
+      - name: Create installer checksum
+        shell: pwsh
+        run: |
+          $installer = 'dist/windows-studio/Authenik8-Studio-Setup.exe'
+          $hash = (Get-FileHash -Algorithm SHA256 $installer).Hash.ToLowerInvariant()
+          "$hash  Authenik8-Studio-Setup.exe" | Set-Content -NoNewline 'dist/windows-studio/Authenik8-Studio-Setup.exe.sha256'
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: |
+            dist/windows-studio/Authenik8-Studio-Setup.exe
+            dist/windows-studio/Authenik8-Studio-Setup.exe.sha256
+          generate_release_notes: true
+          body: |
+            Windows installer signing: ${{ steps.signing.outputs.configured == 'true' && 'Authenticode signature verified.' || 'Unsigned. Verify the SHA-256 checksum before installing.' }}
