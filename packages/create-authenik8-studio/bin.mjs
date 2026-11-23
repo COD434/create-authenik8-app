@@ -13,7 +13,7 @@
  */
 import { createServer } from "node:net";
 import { spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync, unlinkSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 const usage = [
@@ -64,7 +64,7 @@ export async function studioAlreadyRunning(port) {
   }
 }
 
-export function openInBrowser(url) {
+export async function openInBrowser(url) {
   try {
     if (process.platform === "win32") {
       // `start` treats its first quoted argument as a window title.
@@ -74,12 +74,19 @@ export function openInBrowser(url) {
     } else {
       spawn("xdg-open", [url], { detached: true, stdio: "ignore" }).unref();
     }
+    return true;
   } catch {
-    console.log(`Open this in your browser: ${url}`);
+    // Best effort: a missing browser helper must not fail the launch. The
+    // caller prints the URL as the honest fallback, and the studio keeps running.
+    return false;
   }
 }
 
-export async function boot(argv = []) {
+export function studioUrl(url) {
+  return `${url.replace(/\/+$/, "")}/studio`;
+}
+
+function parseBootArgs(argv) {
   let requested = null;
   let openBrowser = true;
   for (let index = 0; index < argv.length; index += 1) {
@@ -102,14 +109,34 @@ export async function boot(argv = []) {
       process.exit(1);
     }
   }
+  return { requested, openBrowser };
+}
 
+/** Watch the stop file: its presence shuts the studio down and cleans up. */
+function watchStopFile(server, stopFile) {
+  writeFileSync(`${stopFile}.pid`, String(process.pid), "utf8");
+  const poll = setInterval(() => {
+    if (!existsSync(stopFile)) return;
+    try { unlinkSync(stopFile); } catch { /* the stop helper may retry */ }
+    clearInterval(poll);
+    server.close(() => process.exit(0));
+    server.closeAllConnections();
+  }, 300);
+  poll.unref();
+  process.on("exit", () => {
+    try { unlinkSync(`${stopFile}.pid`); } catch { /* already removed */ }
+  });
+}
+
+export async function boot(argv = []) {
+  const { requested, openBrowser } = parseBootArgs(argv);
   const preferred = requested ?? Number(process.env.PORT ?? 4870);
 
   // Idempotent launch: if our studio already answers on the preferred port,
   // adopt it (reopen the tab when asked) instead of spawning a second
   // process that would strand a stale fallback instance on the next port.
   if (await studioAlreadyRunning(preferred)) {
-    const url = `http://127.0.0.1:${preferred}`;
+    const url = studioUrl(`http://127.0.0.1:${preferred}`);
     console.log(`Authenik8 is already running: ${url} (reusing it).`);
     if (openBrowser) openInBrowser(url);
     process.exit(0);
@@ -124,7 +151,18 @@ export async function boot(argv = []) {
 
   try {
     const studio = await import("@authenik8/web-studio");
-    studio.startStudio({ port, onReady: (url) => { if (openBrowser) openInBrowser(url); } });
+    const server = studio.startStudio({
+      port,
+      onReady: async (url) => {
+        if (!openBrowser) return;
+        const opened = await openInBrowser(studioUrl(url));
+        if (!opened) console.log(`Open this in your browser: ${url}`);
+      },
+    });
+    const stopFile = process.env.AUTHENIK8_STOP_FILE;
+    if (stopFile !== undefined && stopFile !== "") {
+      watchStopFile(server, stopFile);
+    }
   } catch (error) {
     if (error?.code === "ERR_MODULE_NOT_FOUND") {
       console.error("Authenik8 web-studio could not be loaded. If you are running from a clone of the workspace:");

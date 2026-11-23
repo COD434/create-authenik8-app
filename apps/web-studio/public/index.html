@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
   <title>Authenik8</title>
-  <link rel="icon" type="image/svg+xml" href="/authenik8-mark.svg" />
+  <link rel="icon" type="image/svg+xml" href="/studio/authenik8-mark.svg" />
   <script>
     // Resolve appearance before the first paint. The CSS carries both themes,
     // so a stored choice must never flash the other one on startup.
@@ -20,7 +20,7 @@
       document.documentElement.dataset.themeChoice = choice;
     })();
   </script>
-  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/studio/style.css" />
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to workspace</a>
@@ -31,7 +31,7 @@
     <aside id="sidebar" class="sidebar" aria-label="Workspace navigation">
       <div class="sidebar-head">
         <div class="brand">
-          <img src="/authenik8-mark.svg" alt="" width="32" height="32" />
+          <img src="/studio/authenik8-mark.svg" alt="" width="32" height="32" />
           <span class="brand-copy">
             <strong>Authenik8</strong>
             <span>Studio</span>
@@ -56,6 +56,10 @@
           <button id="agent-btn" class="nav-item" type="button" title="Build with agent">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
             <span class="nav-label">Build with agent</span>
+          </button>
+          <button id="ai-integration-btn" class="nav-item" type="button" title="Plan an AI capability for this app">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1M3.6 3.6l1.5 1.5m5.8 5.8 1.5 1.5m0-8.8-1.5 1.5m-5.8 5.8-1.5 1.5"/><circle cx="8" cy="8" r="3.1"/></svg>
+            <span class="nav-label">Add an AI capability</span>
           </button>
           <button id="subagents-btn" class="nav-item" type="button" title="Subagent runs">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3.5" r="1.6"/><circle cx="12" cy="3.5" r="1.6"/><circle cx="8" cy="12.5" r="1.6"/><path d="M4 5.1v1.4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V5.1M8 8.5v2.4"/></svg>
@@ -83,17 +87,25 @@
             <span class="nav-label">Run project</span>
             <span class="nav-state" data-nav-state="run"></span>
           </button>
+          <button id="coderabbit-btn" class="nav-item" type="button" title="Review project changes with CodeRabbit">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m8 1.7 1.5 4.1 4.3 2.2-4.3 2.2L8 14.3l-1.5-4.1L2.2 8l4.3-2.2L8 1.7Z"/><path d="m12.8 1.7.5 1.4 1.4.6-1.4.6-.5 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4Z"/></svg>
+            <span class="nav-label">CodeRabbit review</span>
+          </button>
           <a id="export-btn" class="nav-item export" href="/api/export" download title="Export project as a ZIP">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.4v7.4M5 7l3 3 3-3M2.8 13.4h10.4"/></svg>
             <span class="nav-label">Export ZIP</span>
           </a>
+          <button id="import-btn" class="nav-item" type="button" title="Import a frontend ZIP into this project">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.6M5 5.6l3-3 3 3M2.8 10.2v3.2h10.4v-3.2"/></svg>
+            <span class="nav-label">Import ZIP</span>
+          </button>
         </section>
 
         <section class="nav-group" aria-labelledby="nav-ship">
           <h2 id="nav-ship" class="group-label">Ship</h2>
-          <button id="ship-btn" class="nav-item" type="button" title="Ship project">
+          <button id="ship-btn" class="nav-item" type="button" title="GitHub, data, and deployment integrations">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.6 2.2c1.9-.5 3.7-.3 4.2.2s.7 2.3.2 4.2c-.6 2.2-2.4 4-4.6 4.6l-1.7-1.7-1.7-1.7c.6-2.2 2.4-4 4.6-4.6Z"/><circle cx="10.6" cy="5.4" r="1.2"/><path d="M5.9 10.1 2.4 13.6M4.8 7.8l-2.1.4-.9 2.9 3.1-.3M8.2 11.2l-.4 2.1-2.9.9.3-3.1"/></svg>
-            <span class="nav-label">Ship project</span>
+            <span class="nav-label">GitHub & deploy</span>
             <span id="ship-state" class="nav-state nav-state-text">Not set</span>
           </button>
         </section>
@@ -107,13 +119,6 @@
           </button>
         </section>
 
-        <section class="nav-group" aria-labelledby="nav-plan">
-          <h2 id="nav-plan" class="group-label">Plan</h2>
-          <button id="pricing-btn" class="nav-item" type="button" title="Pricing and waitlist">
-            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.4 2.4h4.2l6.9 6.9-4.2 4.2-6.9-6.9V2.4Z"/><circle cx="5.4" cy="5.4" r="1.1"/></svg>
-            <span class="nav-label">Pricing and waitlist</span>
-          </button>
-        </section>
       </div>
 
       <div class="sidebar-foot">
@@ -137,7 +142,7 @@
           <nav class="crumbs" aria-label="Breadcrumb">
             <span class="crumb-muted">Workspace</span>
             <span class="crumb-sep" aria-hidden="true">/</span>
-            <span class="crumb-current" aria-current="page">Local sandbox</span>
+            <span class="crumb-current" aria-current="page">Local workspace</span>
           </nav>
           <span id="workspace-status" class="status-chip" data-tone="idle">
             <span class="status-dot" aria-hidden="true"></span>
@@ -165,13 +170,32 @@
       <main id="main" class="workspace-main">
         <section class="chat" aria-label="Conversation">
           <div id="messages" class="messages" aria-live="polite"></div>
+<div id="tools" class="tools" hidden></div>
 
           <div id="welcome" class="welcome">
             <div class="welcome-inner">
-              <img src="/authenik8-logo.svg" alt="" width="58" height="58" />
-              <p class="eyebrow">Authenik8 Studio</p>
-              <h1>What are we building today?</h1>
-              <p class="welcome-sub">Describe the idea. Authenik8 turns it into a real project in a sandbox on this machine, with identity, sessions, and authorization on a backend you own.</p>
+              <img src="/studio/authenik8-logo.svg" alt="" width="58" height="58" />
+              <p class="eyebrow">Identity-aware AI development</p>
+              <h1>AI agents that <span class="welcome-accent">know who they are.</span></h1>
+              <p class="welcome-sub">Authenik8 gives every project rotating JWTs, server-side sessions, role-based access, and audit trails. No second users table. No identity layer bolted on.</p>
+
+              <div class="welcome-links" aria-label="Authenik8 links">
+                <a class="welcome-link primary" href="/docs">Read the docs</a>
+                <a class="welcome-link" href="https://github.com/authenik8/create-authenik8-app">Install the CLI</a>
+              </div>
+
+              <ul class="welcome-features" aria-label="Authenik8 features">
+                <li>Rotating JWTs</li>
+                <li>Server-side sessions</li>
+                <li>Roles and audit trails</li>
+                <li>Local-first · BYOK · no telemetry</li>
+              </ul>
+
+              <div class="welcome-build">
+                <p class="eyebrow">Authenik8 Studio</p>
+                <h2>What are we building today?</h2>
+                <p class="welcome-sub">Describe the idea. Studio turns it into a real project in a workspace on this machine, with identity, sessions, and authorization on a backend you own.</p>
+              </div>
 
               <div class="starter-list" aria-label="Suggested starting points">
                 <button type="button" class="starter" data-prompt="Build a habit tracker with user accounts, streaks, and a small dashboard.">
@@ -212,6 +236,13 @@
                     <span class="starter-title">Build with the agent</span>
                     <span class="starter-sub">Hand a full project brief to OpenCode.</span>
                   </span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="starter" data-open="ai-integration">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1M3.6 3.6l1.5 1.5m5.8 5.8 1.5 1.5m0-8.8-1.5 1.5m-5.8 5.8-1.5 1.5"/><circle cx="8" cy="8" r="3.1"/></svg>
+                  </span>
+                  <span class="starter-copy"><span class="starter-title">Plan an AI capability</span><span class="starter-sub">Content, business knowledge, or connected actions.</span></span>
                   <span class="starter-arrow" aria-hidden="true">↗</span>
                 </button>
               </div>
@@ -256,16 +287,20 @@
                 <div class="composer-option-actions">
                   <button id="composer-agent" class="option-action" type="button">
                     <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
-                    <span><strong>Build with agent</strong><small>Full project, auto-approved inside the sandbox.</small></span>
+                    <span><strong>Build with agent</strong><small>Runs commands as your account. Use only with projects you trust.</small></span>
                   </button>
                   <button id="composer-template" class="option-action" type="button">
                     <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
                     <span><strong>Start from template</strong><small>Generate a known Authenik8 project shape.</small></span>
                   </button>
+                  <button id="composer-ai-integration" class="option-action" type="button">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1"/><circle cx="8" cy="8" r="3.1"/></svg>
+                    <span><strong>Plan an AI capability</strong><small>Shape a feature around your users and business data.</small></span>
+                  </button>
                 </div>
               </div>
             </div>
-            <p class="composer-foot">Local sandbox · BYOK · no telemetry</p>
+            <p class="composer-foot">Local workspace · BYOK · no telemetry</p>
           </form>
         </section>
 
@@ -312,7 +347,7 @@
           </div>
         </div>
         <pre id="run-output" aria-live="polite"></pre>
-        <p class="run-note">Output is data, not instructions. The project runs inside the sandbox with fixed commands.</p>
+        <p class="run-note">Running installs dependencies and executes project build/start scripts with your account’s access to files, environment, and network. The workspace is not OS-isolated. Run only projects you trust. Output is data, not instructions.</p>
       </section>
     </div>
   </div>
@@ -339,7 +374,7 @@
           <span class="field-label">Project brief</span>
           <textarea id="agent-brief" rows="5" placeholder="Describe the full project to generate. For example: a booking app for a barbershop with owner dashboards."></textarea>
         </label>
-        <p class="warning">The agent runs unsupervised with auto-approve inside the sandbox directory. It writes files and executes commands. Close this page to abort a running build.</p>
+        <p class="warning">OpenCode runs with auto-approval as your Windows account. It can execute commands and access files, environment variables, and network resources available to that account. The workspace is not OS-isolated. Run it only on projects and tasks you trust. Close this page to abort a running build.</p>
         <div class="modal-actions">
           <button id="agent-run" class="btn-primary" type="button">Run agent</button>
         </div>
@@ -350,6 +385,27 @@
         <pre id="agent-output"></pre>
         <div class="modal-actions">
           <button id="agent-dismiss" class="btn-primary" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="coderabbit-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="CodeRabbit code review" hidden>
+    <div class="modal agent-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 16 16"><path d="m8 1.7 1.5 4.1 4.3 2.2-4.3 2.2L8 14.3l-1.5-4.1L2.2 8l4.3-2.2L8 1.7Z"/></svg></span>
+          <div><h2>Review with CodeRabbit</h2><p>External CLI · read-only review</p></div>
+        </div>
+        <button id="coderabbit-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2m0-7.2-7.2 7.2"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <p id="coderabbit-state" role="status">Checking CodeRabbit CLI…</p>
+        <p class="warning">When you start a review, CodeRabbit receives tracked and untracked project changes selected by its CLI. Check your ignore rules and exclude secrets before continuing. Review output is untrusted text; Studio does not apply suggestions.</p>
+        <pre id="coderabbit-output" aria-live="polite" hidden></pre>
+        <div class="modal-actions">
+          <button id="coderabbit-refresh" class="btn-secondary" type="button">Check setup</button>
+          <button id="coderabbit-run" class="btn-primary" type="button" disabled>Review changes</button>
         </div>
       </div>
     </div>
@@ -441,6 +497,37 @@
     </div>
   </div>
 
+  <div id="ai-integration-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="ai-integration-title" hidden>
+    <div class="modal agent-modal ai-integration-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1"/><circle cx="8" cy="8" r="3.1"/></svg></span>
+          <div><h2 id="ai-integration-title">Plan an AI capability</h2><p>Start with what the app’s users need.</p></div>
+        </div>
+        <button id="ai-integration-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close"><svg class="icon" viewBox="0 0 16 16"><path d="m4.4 4.4 7.2 7.2m0-7.2-7.2 7.2"/></svg></button>
+      </header>
+      <form id="ai-integration-form" class="modal-body ai-integration-body">
+        <fieldset class="ai-patterns">
+          <legend class="field-label">What should the app help people do?</legend>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="content" checked /><span><strong>Create or understand content</strong><small>Draft, summarize, classify, or extract.</small></span></label>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="knowledge" /><span><strong>Answer from business knowledge</strong><small>Search documents or records with sources.</small></span></label>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="actions" /><span><strong>Work with connected tools</strong><small>Read from or take actions in business systems.</small></span></label>
+        </fieldset>
+        <label class="field" for="ai-goal"><span class="field-label">User task</span><textarea id="ai-goal" rows="2" required maxlength="1200" placeholder="What should a person be able to accomplish?"></textarea></label>
+        <label id="ai-data-row" class="field" for="ai-data" hidden><span id="ai-data-label" class="field-label">Which business information should it use?</span><input id="ai-data" maxlength="600" placeholder="e.g. help center articles, product catalog, customer records" /></label>
+        <label id="ai-actions-row" class="field" for="ai-actions" hidden><span class="field-label">Which systems or actions should it connect to?</span><input id="ai-actions" maxlength="600" placeholder="e.g. look up an order in Shopify, draft a HubSpot note" /></label>
+        <label class="field" for="ai-access"><span class="field-label">Who can use it, and what may they access?</span><input id="ai-access" maxlength="600" placeholder="e.g. signed-in support agents can search their assigned accounts" /></label>
+        <div class="ai-integration-row">
+          <label class="field" for="ai-provider"><span class="field-label">AI provider</span><select id="ai-provider"><option value="undecided">Choose during planning</option><option value="openai-compatible">OpenAI-compatible endpoint</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="other">Another provider</option></select></label>
+          <p class="field-note">Studio’s OpenRouter key is only for building. A deployed app needs its own server-side provider credentials.</p>
+        </div>
+        <label id="ai-approval-row" class="ai-approval" hidden><input id="ai-approval" type="checkbox" checked /><span>Require a person to confirm before the AI changes business data.</span></label>
+        <p id="ai-form-error" class="key-status" role="alert" hidden></p>
+        <div class="modal-actions"><button id="ai-integration-start" class="btn-primary" type="submit">Continue in builder</button></div>
+      </form>
+    </div>
+  </div>
+
   <div id="subagents-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Subagent runs" hidden>
     <div class="modal subagents-modal">
       <header class="modal-head">
@@ -473,77 +560,6 @@
     </div>
   </div>
 
-  <div id="pricing-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Authenik8 plans" hidden>
-    <div class="modal agent-modal pricing-modal">
-      <header class="modal-head">
-        <div class="modal-title">
-          <span class="modal-icon" aria-hidden="true">
-            <svg class="icon" viewBox="0 0 16 16"><path d="M2.4 2.4h4.2l6.9 6.9-4.2 4.2-6.9-6.9V2.4Z"/><circle cx="5.4" cy="5.4" r="1.1"/></svg>
-          </span>
-          <div>
-            <h2>Authenik8 plans</h2>
-            <p>The local studio is free today.</p>
-          </div>
-        </div>
-        <button id="pricing-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
-          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
-        </button>
-      </header>
-
-      <div class="pricing-body">
-        <p class="pricing-lede">Planned pricing. The local studio is free today. Paid plans add a hosted workspace, team handoff, and premium templates.</p>
-        <div class="pricing-grid">
-          <section class="pricing-card">
-            <h3>Local</h3>
-            <p class="pricing-price">$0</p>
-            <p class="pricing-meta">BYOK, free forever</p>
-            <ul>
-              <li>Unlimited local projects</li>
-              <li>Sandboxed files and preview</li>
-              <li>Export ZIP</li>
-              <li>Design audit</li>
-            </ul>
-            <button class="pricing-cta current" type="button" disabled>You are here</button>
-          </section>
-          <section class="pricing-card featured">
-            <span class="pricing-badge">Next</span>
-            <h3>Pro</h3>
-            <p class="pricing-price">$12<span>/mo</span></p>
-            <p class="pricing-meta">or $99 a year</p>
-            <ul>
-              <li>Everything in Local</li>
-              <li>SaaS Starter template</li>
-              <li>Custom design-system generator</li>
-              <li>Commercial client license</li>
-            </ul>
-            <button class="pricing-cta" type="button" data-plan="Pro">Copy waitlist note</button>
-          </section>
-          <section class="pricing-card">
-            <h3>Cloud</h3>
-            <p class="pricing-price">$19<span>/mo</span></p>
-            <p class="pricing-meta">hosted, BYOK</p>
-            <ul>
-              <li>Hosted workspace</li>
-              <li>One-click deploy and custom domain</li>
-              <li>Project history</li>
-              <li>No key storage</li>
-            </ul>
-            <button class="pricing-cta" type="button" data-plan="Cloud">Copy waitlist note</button>
-          </section>
-        </div>
-        <div class="pricing-team">
-          <strong>Team and agency</strong>
-          <span>Shared design systems, white-label handoff, and priority support. Planned at $79/mo for 3 seats and $199/mo for 10 seats.</span>
-        </div>
-      </div>
-
-      <footer class="pricing-foot">
-        <p id="pricing-status" class="pricing-status" role="status" aria-live="polite"></p>
-        <p class="pricing-note">No telemetry. The local studio never sends your key or project anywhere except the model provider you choose. <a class="pricing-waitlist-link" href="https://github.com/COD434/create-authenik8-app/issues/new?title=Studio%20waitlist&amp;body=Plan%3A%20%0AUse%20case%3A%20" target="_blank" rel="noopener">Open the waitlist issue</a></p>
-      </footer>
-    </div>
-  </div>
-
   <div id="ship-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Ship project" hidden>
     <div class="modal ship-modal">
       <header class="modal-head">
@@ -552,8 +568,8 @@
             <svg class="icon" viewBox="0 0 16 16"><path d="M9.6 2.2c1.9-.5 3.7-.3 4.2.2s.7 2.3.2 4.2c-.6 2.2-2.4 4-4.6 4.6l-1.7-1.7-1.7-1.7c.6-2.2 2.4-4 4.6-4.6Z"/><circle cx="10.6" cy="5.4" r="1.2"/><path d="M5.9 10.1 2.4 13.6M4.8 7.8l-2.1.4-.9 2.9 3.1-.3M8.2 11.2l-.4 2.1-2.9.9.3-3.1"/></svg>
           </span>
           <div>
-            <h2>Ship project</h2>
-            <p>Managed Postgres and static hosting, with tokens used per request.</p>
+            <h2>Connect project</h2>
+            <p>Sync to GitHub, configure data, and publish static sites.</p>
           </div>
         </div>
         <button id="ship-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
@@ -561,8 +577,9 @@
         </button>
       </header>
 
-      <div class="ship-tabs" role="tablist" aria-label="Ship destinations">
-        <button id="ship-tab-supabase" class="ship-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="ship-panel-supabase" data-ship-tab="supabase">Supabase</button>
+      <div class="ship-tabs" role="tablist" aria-label="Project integrations">
+        <button id="ship-tab-github" class="ship-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="ship-panel-github" data-ship-tab="github">GitHub</button>
+        <button id="ship-tab-supabase" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-supabase" data-ship-tab="supabase" tabindex="-1">Supabase</button>
         <button id="ship-tab-vercel" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-vercel" data-ship-tab="vercel" tabindex="-1">Vercel</button>
         <button id="ship-tab-netlify" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-netlify" data-ship-tab="netlify" tabindex="-1">Netlify</button>
       </div>
@@ -574,7 +591,61 @@
         </div>
         <p id="ship-static-note" class="warning" hidden></p>
 
-        <section id="ship-panel-supabase" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-supabase">
+        <section id="ship-panel-github" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-github">
+          <p class="ship-lede">Publish the current Studio project to an existing GitHub repository in one commit. Click Publish again when you want to sync later changes.</p>
+          <label class="field" for="ship-github-token">
+            <span class="field-label">GitHub fine-grained token</span>
+            <input id="ship-github-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" />
+          </label>
+          <p class="ship-help">The token is used for each request only and is never saved. For CI, grant repository metadata read and Actions read. Publishing also needs Contents read/write; adding the workflow needs Workflows read/write. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token</a>.</p>
+          <label class="field" for="ship-github-repository">
+            <span class="field-label">Repository</span>
+            <input id="ship-github-repository" type="text" autocomplete="off" spellcheck="false" placeholder="your-account/project-name" />
+          </label>
+          <div class="github-field-row">
+            <label class="field" for="ship-github-branch">
+              <span class="field-label">Branch <em>blank uses default</em></span>
+              <input id="ship-github-branch" type="text" autocomplete="off" spellcheck="false" placeholder="main" />
+            </label>
+            <label class="field" for="ship-github-message">
+              <span class="field-label">Commit message</span>
+              <input id="ship-github-message" type="text" autocomplete="off" spellcheck="false" value="Build from Authenik8 Studio" />
+            </label>
+          </div>
+          <details class="github-file-details">
+            <summary id="ship-github-files-summary">Loading files to publish…</summary>
+            <ul id="ship-github-files" class="github-file-list"></ul>
+          </details>
+          <p class="ship-help">Studio skips common secret filenames and checks included text for several credential patterns. This cannot catch every secret. Inspect the filenames and file contents before publishing; anything included is sent to GitHub.</p>
+          <label class="check-row github-option">
+            <input id="ship-github-actions" type="checkbox" />
+            <span>Add a GitHub Actions workflow that runs the Node build and test scripts on pushes and pull requests.</span>
+          </label>
+          <label class="check-row github-option">
+            <input id="ship-github-reviewed" type="checkbox" />
+            <span>I reviewed the included filenames and contents, checked any credential warnings, and am ready to publish them to GitHub.</span>
+          </label>
+          <div class="modal-actions">
+            <button id="ship-github-verify" class="btn-secondary" type="button">Verify access</button>
+            <button id="ship-github-publish" class="btn-primary" type="button">Publish / sync changes</button>
+          </div>
+          <p id="ship-github-result" class="ship-result" role="status" aria-live="polite"></p>
+
+          <section class="github-ci" aria-labelledby="github-ci-title">
+            <div class="github-ci-head">
+              <div>
+                <h3 id="github-ci-title">GitHub Actions</h3>
+                <p>Load recent runs, then inspect failed job logs for common build and test errors.</p>
+              </div>
+              <button id="github-ci-load" class="btn-secondary" type="button">Load runs</button>
+            </div>
+            <ul id="github-ci-runs" class="github-ci-runs" aria-label="Recent GitHub Actions runs"></ul>
+            <p id="github-ci-status" class="github-ci-status" role="status" aria-live="polite">Uses the repository and token above. CI diagnosis requires Actions read access.</p>
+            <div id="github-ci-results" class="github-ci-results"></div>
+          </section>
+        </section>
+
+        <section id="ship-panel-supabase" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-supabase" hidden>
           <p class="ship-lede">Supabase is used for managed Postgres, Storage, and Realtime. Authenik8 keeps users, sessions, roles, and authorization.</p>
           <div class="ship-status" role="status" aria-live="polite">
             <span class="status-dot" id="ship-supabase-dot" data-tone="idle" aria-hidden="true"></span>
@@ -595,10 +666,9 @@
             <span class="field-label">Database connection string <em>optional</em></span>
             <input id="ship-supabase-db" type="password" autocomplete="off" spellcheck="false" placeholder="postgresql://postgres:...@db.abcd.supabase.co:5432/postgres" />
           </label>
-          <p class="ship-help">The public key is checked against the project REST endpoint. The database string is shape-checked and written to the sandbox <code>.env</code> only when you save. The Studio does not open the database or store either value.</p>
+          <p class="ship-help">The public key is checked against the project REST endpoint. The database string is shape-checked and written to the sandbox <code>.env</code>. The Studio does not open the database or store either value.</p>
           <div class="modal-actions">
-            <button id="ship-supabase-verify" class="btn-secondary" type="button">Verify only</button>
-            <button id="ship-supabase-save" class="btn-primary" type="button">Verify and save</button>
+            <button id="ship-supabase-save" class="btn-primary" type="button">Connect Supabase</button>
           </div>
           <p id="ship-supabase-result" class="ship-result" role="status" aria-live="polite"></p>
         </section>
@@ -718,9 +788,10 @@
         <section class="settings-section">
           <h3>Workspace</h3>
           <ul class="trust-list">
-            <li>Files live in a local sandbox on this machine.</li>
+            <li>Files live in a local workspace on this machine.</li>
             <li>The server binds to localhost only.</li>
             <li>Project preview scripts run in an isolated origin.</li>
+            <li>Running a project executes its scripts with your account’s permissions; this is not an OS security sandbox.</li>
             <li>There is no telemetry and no hosted account.</li>
           </ul>
         </section>
@@ -735,6 +806,44 @@
 
   <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="false"></div>
 
-  <script src="/app.js"></script>
+  <dialog id="import-dialog" class="modal import-modal" aria-labelledby="import-title">
+    <header class="modal-head">
+      <div class="modal-title">
+        <span class="modal-icon" aria-hidden="true">↑</span>
+        <div>
+          <h2 id="import-title">Import a project ZIP</h2>
+          <p>Bring in a frontend from another tool, then connect it to this project.</p>
+        </div>
+      </div>
+      <button id="import-close" class="icon-btn modal-close" type="button" aria-label="Close import dialog">×</button>
+    </header>
+    <div class="modal-body">
+      <p class="import-help">Studio previews the archive before writing files. A shared top-level folder is removed automatically. Dependencies, Git history, environment files, and key files are skipped.</p>
+      <label class="field" for="import-file">
+        <span>Project archive</span>
+        <input id="import-file" type="file" accept=".zip,application/zip" />
+      </label>
+      <p id="import-status" class="import-status" role="status" aria-live="polite">Choose a ZIP archive up to 32 MB.</p>
+      <ul id="import-files" class="import-file-list" hidden></ul>
+      <div class="modal-actions import-actions">
+        <button id="import-cancel" class="btn-secondary" type="button">Cancel</button>
+        <button id="import-new" class="btn-secondary" type="button" disabled>Import new files</button>
+        <button id="import-replace" class="btn-primary" type="button" disabled hidden>Replace conflicts and import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/studio/app-state.js"></script>
+<script src="/studio/app-ui.js"></script>
+<script src="/studio/app-chat.js"></script>
+<script src="/studio/app-preview.js"></script>
+<script src="/studio/app-agent.js"></script>
+<script src="/studio/app-template.js"></script>
+<script src="/studio/app-review.js"></script>
+<script src="/studio/app-run.js"></script>
+<script src="/studio/app-shell.js"></script>
+<script src="/studio/app-ship.js"></script>
+<script src="/studio/app-palette.js"></script>
+<script src="/studio/app-boot.js"></script>
 </body>
 </html>
