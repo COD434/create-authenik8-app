@@ -1,6 +1,6 @@
 :root {
   color-scheme: light;
-  /* Ember theme — warm glowing coals. The visual identity of Authenik8. */
+  /* Ember theme  -  warm glowing coals. The visual identity of Authenik8. */
   --ember-bg: #faf7f2;
   --ember-bg-deep: #f3ede4;
   --ember-white: #fff;
@@ -94,7 +94,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 }
 .button-dark:hover { background: #332b22; }
 
-/* Hero — dark atmospheric section with ember particles */
+/* Hero  -  dark atmospheric section with ember particles */
 .hero {
   position: relative;
   display: grid;
@@ -329,7 +329,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .public-team a { color: var(--ember-amber-dark); text-decoration: underline; text-underline-offset: 3px; }
 .plan-footnote { max-width: 1000px; margin: 15px auto 0; color: var(--ember-muted); font-size: 11px; line-height: 1.7; }
 
-/* Trust — dark forest section with ember accents */
+/* Trust  -  dark forest section with ember accents */
 .trust-section { padding: 84px 0; background: var(--ember-forest); color: #f5efe5; }
 .trust-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 100px; align-items: start; }
 .trust-copy .eyebrow { color: var(--ember-amber); }
@@ -353,7 +353,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .site-footer p, .copyright { margin: 0; color: var(--ember-muted); font-size: 10px; }
 .site-footer nav { display: flex; gap: 20px; color: var(--ember-ink-soft); font-size: 10px; }
 
-/* Responsive — ember theme adapts at every breakpoint */
+/* Responsive  -  ember theme adapts at every breakpoint */
 @media (max-width: 1000px) {
   .hero { grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr); gap: 36px; }
   .hero h1 { font-size: clamp(46px, 5.8vw, 62px); }
@@ -451,7 +451,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .copyright { grid-column: 1 / -1; grid-row: 4; }
 }
 
-/* --- Ember field — the living layer of the theme --- */
+/* --- Ember field  -  the living layer of the theme --- */
 .ember-section { position: relative; }
 .ember-mount {
   position: absolute;
