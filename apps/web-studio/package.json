@@ -17,7 +17,7 @@
     "@authenik8/design": "0.1.0",
     "@authenik8/engineering-canon": "0.1.0",
     "@authenik8/models": "0.1.0",
-    "zod": "^3.24.0"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
