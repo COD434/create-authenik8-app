@@ -1,24 +1,109 @@
 {
-  "name": "authenik8",
-  "private": true,
-  "version": "0.0.0",
-  "description": "Authenik8 ecosystem workspace: identity-aware AI development foundations.",
+  "name": "create-authenik8-app",
+  "version": "2.4.4",
+  "description": " Fast Express + TypeScript auth starter with secure JWT, refresh rotation, Redis, RBAC, OAuth & Prisma.\nPowered by the Authenik8 Identity Engine.",
+  "bin": {
+    "create-authenik8-app": "dist/src/bin/cli.js"
+  },
+  "keywords": [
+    "cli",
+    "create-app",
+    "express",
+    "node",
+    "typescript",
+    "prisma",
+    "auth",
+    "authentication",
+    "scaffold",
+    "boilerplate",
+    "starter",
+    "backend",
+    "jwt",
+    "redis",
+    "api",
+    "nodejs-cli",
+    "project-generator",
+    "fullstack-backend"
+  ],
+  "license": "MIT",
+  "author": "Karabo Seeisa",
   "type": "module",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
+  "engines": {
+    "node": "^20.19 || ^22.12 || >=24"
+  },
+  "dependencies": {
+    "@inquirer/core": "^11.2.1",
+    "authenik8-core": "2.0.7",
+    "chalk": "^6.0.0",
+    "fs-extra": "^11.3.4",
+    "inquirer": "^12.11.1",
+    "ioredis": "^5.10.1",
+    "ora": "^8.2.0",
+    "zod": "^4.4.3"
+  },
+  "files": [
+    "assets/logo.svg",
+    "dist/",
+    "studio/",
+    "templates/"
   ],
   "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
+    "build": "npm run clean && tsc && npm run build:studio && npm run build:workspaces",
+    "build:studio": "tsc -p tsconfig.studio.json --noEmit && node scripts/build-studio.mjs",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:studio:package": "node scripts/verify-studio-package.mjs",
+    "test:templates": "node --import tsx --test tests/template-servers.test.mjs",
+    "test:fresh": "node scripts/verify-fresh-project.mjs",
+    "build:workspaces": "npm run build --workspaces --if-present",
     "dev": "npm run dev --workspace @authenik8/marketing",
-    "build": "npm run build --workspaces --if-present",
     "package:windows": "npm run build && node scripts/package-windows-studio.mjs",
-    "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "canon:audit": "node packages/engineering-canon/dist/cli.js . --baseline canon-baseline.json",
     "canon:baseline": "node packages/engineering-canon/dist/cli.js . --write-baseline canon-baseline.json",
     "canon:test": "npm run test --workspace @authenik8/engineering-canon"
   },
-  "engines": {
-    "node": ">=22"
-  }
+  "devDependencies": {
+    "@astryxdesign/core": "0.1.9",
+    "@astryxdesign/theme-neutral": "0.1.9",
+    "@readme/openapi-parser": "6.3.0",
+    "@types/express": "^5.0.6",
+    "@types/fs-extra": "^11.0.4",
+    "@types/node": "^26.5.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/supertest": "^7.2.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "axe-core": "4.12.1",
+    "bcryptjs": "^2.4.3",
+    "esbuild": "0.28.1",
+    "fast-check": "^4.8.0",
+    "ioredis-mock": "^8.13.1",
+    "jose": "6.2.3",
+    "jsdom": "28.1.0",
+    "lucide-react": "1.27.0",
+    "pino": "^9.14.0",
+    "pino-http": "^10.5.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "supertest": "^7.2.2",
+    "tsx": "^4.23.13",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/COD434/create-authenik8-app.git"
+  },
+  "overrides": {
+    "brace-expansion": "2.0.3",
+    "js-yaml": "^4.3.2"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
 }
