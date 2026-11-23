@@ -3,12 +3,12 @@ import { createRoot } from 'react-dom/client';
 
 // Green ember palette - glowing green coals.
 const EMBERS = [
-  [50, 220, 100],   // bright green
-  [80, 255, 120],   // vivid green
-  [30, 180, 80],    // deep green
-  [120, 255, 160],  // pale green glow
-  [60, 200, 90],    // forest green
-  [100, 240, 140],  // mint green
+  [36, 106, 67],    // dark green (logo primary)
+  [57, 201, 120],   // bright green (logo ring)
+  [23, 73, 47],     // deep dark green
+  [189, 246, 212],  // pale green (logo inner ring)
+  [39, 138, 82],    // mid green
+  [30, 90, 55],     // forest dark green
 ];
 
 // Particles per density tier, scaled further by viewport area below.
@@ -115,16 +115,16 @@ export function EmberField({ density = 'default', className = '' }) {
       const cx = (Math.sin(t + i * 2.1) * 0.35 + 0.5) * w;
       const cy = (Math.cos(t * 0.6 + i) * 0.5) * h;
       const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.min(w, h) * 0.85);
-      g.addColorStop(0, 'rgba(50, 220, 100, 0.04)');
-      g.addColorStop(0.5, 'rgba(80, 255, 120, 0.02)');
-      g.addColorStop(1, 'rgba(50, 220, 100, 0)');
+      g.addColorStop(0, 'rgba(36, 106, 67, 0.04)');
+      g.addColorStop(0.5, 'rgba(57, 201, 120, 0.02)');
+      g.addColorStop(1, 'rgba(36, 106, 67, 0)');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, w, h);
     }
     // Deep base glow at the bottom — embers rising from heat
     const baseG = ctx.createLinearGradient(0, h * 0.6, 0, h);
-    baseG.addColorStop(0, 'rgba(30, 180, 80, 0)');
-    baseG.addColorStop(1, 'rgba(30, 180, 80, 0.05)');
+    baseG.addColorStop(0, 'rgba(23, 73, 47, 0)');
+    baseG.addColorStop(1, 'rgba(23, 73, 47, 0.05)');
     ctx.fillStyle = baseG;
     ctx.fillRect(0, 0, w, h);
     ctx.restore();
@@ -148,7 +148,7 @@ export function EmberField({ density = 'default', className = '' }) {
     ctx.fill();
     // Hot bright core
     ctx.shadowBlur = 0;
-    ctx.fillStyle = `rgba(200, 255, 220, ${alpha * 0.6})`;
+    ctx.fillStyle = `rgba(189, 246, 212, ${alpha * 0.6})`;
     ctx.beginPath();
     ctx.arc(p.x, p.y, size * 0.4, 0, Math.PI * 2);
     ctx.fill();

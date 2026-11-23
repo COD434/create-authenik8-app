@@ -9,11 +9,11 @@
   --ember-muted: #8a7e72;
   --ember-line: #e2dbd0;
   --ember-forest: #0e1a14;
-  --ember-green: #22c55e;
-  --ember-green-dark: #16a34a;
-  --ember-green-pale: #dcfce7;
-  --ember-glow: rgba(34, 197, 94, 0.12);
-  --ember-glow-strong: rgba(34, 197, 94, 0.25);
+  --ember-green: #246a43;
+  --ember-green-dark: #17492f;
+  --ember-green-pale: #e8f5e9;
+  --ember-glow: rgba(36, 106, 67, 0.12);
+  --ember-glow-strong: rgba(36, 106, 67, 0.25);
   --ember-font-sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   --ember-font-mono: ui-monospace, "Cascadia Code", Consolas, monospace;
   --ember-radius: 7px;
@@ -107,8 +107,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   inset: 0;
   z-index: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 30% 50%, rgba(34, 197, 94, 0.08), transparent),
-    radial-gradient(ellipse 60% 50% at 80% 30%, rgba(80, 255, 120, 0.06), transparent),
+    radial-gradient(ellipse 80% 60% at 30% 50%, rgba(36, 106, 67, 0.08), transparent),
+    radial-gradient(ellipse 60% 50% at 80% 30%, rgba(57, 201, 120, 0.06), transparent),
     linear-gradient(180deg, rgba(14, 26, 20, 0.03), transparent 40%);
   pointer-events: none;
 }
