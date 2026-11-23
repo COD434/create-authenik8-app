@@ -373,9 +373,8 @@ button, a { -webkit-tap-highlight-color: transparent; }
   .hero .product-stage { grid-column: 1; grid-row: auto; width: 100%; }
   .hero h1 { max-width: 600px; font-size: clamp(47px, 9vw, 66px); }
   .hero-lede { max-width: 560px; }
-  .studio-window { grid-template-columns: 138px minmax(0, 1fr); }
-  .studio-sidebar { padding-inline: 10px; }
-  .sidebar-item { gap: 7px; padding-inline: 7px; font-size: 9px; }
+  .studio-window { grid-template-columns: 1fr; }
+  .studio-sidebar { display: none; }
   .principles-inner { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding-top: 17px; padding-bottom: 17px; }
   .principles-label { grid-column: 1 / -1; }
   .principles-inner > div { gap: 7px; font-size: 10px; }
