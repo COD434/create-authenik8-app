@@ -1257,6 +1257,75 @@ kbd {
 .model-control select:focus { outline: none; }
 .model-control:focus-within { border-color: var(--focus); }
 
+.mode-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--elevated);
+}
+.mode-btn {
+  height: 22px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.mode-btn:hover { color: var(--text-2); }
+.mode-btn.is-active { background: var(--accent); color: #fff; }
+.mode-btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* Collapsible reasoning ("Thinking") block above the assistant answer. */
+.reasoning-block {
+  margin: 0 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--elevated);
+  font-size: 12px;
+}
+.reasoning-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.reasoning-toggle .chevron { transition: transform 120ms ease; }
+.reasoning-block.open .reasoning-toggle .chevron { transform: rotate(90deg); }
+.reasoning-body {
+  display: none;
+  padding: 0 10px 8px;
+  color: var(--text-3);
+  white-space: pre-wrap;
+  line-height: 1.5;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.reasoning-block.open .reasoning-body { display: block; }
+.reasoning-block.streaming .reasoning-toggle::after {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
+
 .model-note {
   color: var(--text-3);
   font-size: 10.5px;

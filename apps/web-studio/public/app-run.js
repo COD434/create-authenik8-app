@@ -205,6 +205,44 @@ composer.addEventListener("submit", async (event) => {
     currentAssistant.classList.add("thinking");
   };
 
+  // Collapsible "Thinking" block: reasoning streams in here, collapsed by
+  // default, and is finalized (streaming dot removed) when the answer starts.
+  let reasoningBlock = null;
+  let reasoningBody = null;
+  let sawReasoning = false;
+  const appendReasoning = (text) => {
+    sawReasoning = true;
+    if (reasoningBlock === null) {
+      reasoningBlock = document.createElement("div");
+      reasoningBlock.className = "reasoning-block streaming open";
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.className = "reasoning-toggle";
+      toggle.setAttribute("aria-expanded", "true");
+      toggle.innerHTML = '<svg class="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Thinking</span>';
+      toggle.addEventListener("click", () => {
+        const open = reasoningBlock.classList.toggle("open");
+        toggle.setAttribute("aria-expanded", String(open));
+      });
+      reasoningBody = document.createElement("div");
+      reasoningBody.className = "reasoning-body";
+      reasoningBlock.append(toggle, reasoningBody);
+      messagesEl.appendChild(reasoningBlock);
+    }
+    reasoningBody.textContent += text;
+    reasoningBody.scrollTop = reasoningBody.scrollHeight;
+    autoScroll();
+  };
+  const finishReasoning = () => {
+    if (reasoningBlock !== null) {
+      reasoningBlock.classList.remove("streaming", "open");
+      const toggle = reasoningBlock.querySelector(".reasoning-toggle");
+      if (toggle) toggle.setAttribute("aria-expanded", "false");
+      reasoningBlock = null;
+      reasoningBody = null;
+    }
+  };
+
   const flushDelta = () => {
     renderFrame = 0;
     if (pendingDelta.length === 0 || currentAssistant === null) return;
@@ -229,7 +267,7 @@ composer.addEventListener("submit", async (event) => {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
-      body: JSON.stringify({ model, message: prompt }),
+      body: JSON.stringify({ model, message: prompt, mode: chatMode }),
       signal: chatController.signal,
     });
     if (!res.ok) {
@@ -262,7 +300,11 @@ composer.addEventListener("submit", async (event) => {
             }
             lastRound = payload.round;
           }
+          if (payload.reasoning !== undefined) {
+            appendReasoning(payload.reasoning);
+          }
           if (payload.delta !== undefined) {
+            finishReasoning();
             queueDelta(payload.delta);
           }
           if (payload.tool !== undefined) {
@@ -335,12 +377,14 @@ composer.addEventListener("submit", async (event) => {
     }
 
     if (!finished) finishCurrentAssistant();
-    if (!sawText) {
+    finishReasoning();
+    if (!sawText && !sawReasoning) {
       const empty = addMessage("assistant", "(empty response)");
       attachCopyButton(empty);
     }
   } catch (error) {
     finishCurrentAssistant();
+    finishReasoning();
     if (error instanceof Error && error.name === "AbortError") {
       outcome = "stopped";
       addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");

@@ -86,6 +86,8 @@ export type ChatUsage = {
 export type ChatChunk = {
   /** Incremental text content, or null for non-content chunks. */
   delta: string | null;
+  /** Incremental reasoning/thinking content, or null when absent. */
+  reasoning: string | null;
   /** Tool-call fragments when this chunk carries them, else null. */
   toolCalls: ToolCallDelta[] | null;
   /** Provider finish reason on the terminating chunk, else null. */
@@ -101,6 +103,8 @@ export type ChatRequest = {
   tools?: readonly ToolDefinition[];
   temperature?: number;
   maxTokens?: number;
+  /** Request reasoning/thinking output from models that support it. */
+  reasoning?: boolean;
   signal?: AbortSignal;
 };
 

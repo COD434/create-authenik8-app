@@ -195,10 +195,10 @@ afterAll(async () => {
   });
 });
 
-export function chat(message: string, model = "free/model-a"): Promise<Response> {
+export function chat(message: string, model = "free/model-a", mode?: string): Promise<Response> {
   return fetch(`${base}/api/chat`, {
     method: "POST",
     headers: { "content-type": "application/json", "X-OpenRouter-Key": KEY },
-    body: JSON.stringify({ model, message }),
+    body: JSON.stringify({ model, message, ...(mode !== undefined ? { mode } : {}) }),
   });
 }

@@ -193,7 +193,7 @@ describe("gateway error accounting and abstraction", () => {
         },
         openChatStream: async () =>
           (async function* () {
-            yield { delta: "hi", toolCalls: null, finishReason: null, usage: null };
+            yield { delta: "hi", reasoning: null, toolCalls: null, finishReason: null, usage: null };
           })(),
       }),
       budget: { maxRequests: 5 },

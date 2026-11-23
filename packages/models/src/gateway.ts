@@ -44,14 +44,25 @@ export type ModelsGateway = {
   usage(): UsageTotals;
 };
 
-export function createModelsGateway(options: ModelsGatewayOptions): ModelsGateway {
-  const provider = options.provider;
-  const maxSpendUsd = options.budget?.maxSpendUsd;
-  const maxRequests = options.budget?.maxRequests;
-  const policy = resolveRetryPolicy(options.retry);
-  const tracker = new UsageTracker();
+function classify(error: unknown): { retryable: boolean; retryAfterMs: number | null } {
+  if (error instanceof ModelsError) {
+    return { retryable: error.retryable, retryAfterMs: error.retryAfterMs };
+  }
+  return { retryable: false, retryAfterMs: null };
+}
 
-  function assertBudget(): void {
+function recordSettled(tracker: UsageTracker, usage: ChatUsage | null): void {
+  if (usage !== null) tracker.record(usage);
+  tracker.recordRequest();
+}
+
+/** Fail closed on the session budget before any provider call is made. */
+function budgetGuard(
+  maxRequests: number | undefined,
+  maxSpendUsd: number | undefined,
+  tracker: UsageTracker,
+): () => void {
+  return function assertBudget(): void {
     if (maxRequests !== undefined && tracker.totals().requests >= maxRequests) {
       throw new ModelsError({
         code: "request_limit_exceeded",
@@ -65,73 +76,86 @@ export function createModelsGateway(options: ModelsGatewayOptions): ModelsGatewa
         message: `Estimated spend ${costUsd.toFixed(6)} USD reached the session budget cap`,
       });
     }
+  };
+}
+
+type GatewayRuntime = {
+  provider: ProviderAdapter;
+  policy: RetryPolicy;
+  tracker: UsageTracker;
+  assertBudget: () => void;
+};
+
+async function chatOnce(runtime: GatewayRuntime, request: ChatRequest): Promise<ChatResult> {
+  runtime.assertBudget();
+  try {
+    const result = await withRetries(
+      runtime.policy,
+      () => runtime.provider.chatCompletion(request),
+      classify,
+      request.signal,
+    );
+    recordSettled(runtime.tracker, result.usage);
+    return result;
+  } catch (error) {
+    recordSettled(runtime.tracker, null);
+    throw error;
+  }
+}
+
+async function* streamOnce(runtime: GatewayRuntime, request: ChatRequest): AsyncIterable<ChatChunk> {
+  runtime.assertBudget();
+  let established: AsyncIterable<ChatChunk>;
+  try {
+    established = await withRetries(
+      runtime.policy,
+      () => runtime.provider.openChatStream(request),
+      classify,
+      request.signal,
+    );
+  } catch (error) {
+    recordSettled(runtime.tracker, null);
+    throw error;
   }
 
-  function classify(error: unknown): { retryable: boolean; retryAfterMs: number | null } {
-    if (error instanceof ModelsError) {
-      return { retryable: error.retryable, retryAfterMs: error.retryAfterMs };
+  let lastUsage: ChatUsage | null = null;
+  try {
+    for await (const chunk of established) {
+      if (chunk.usage) lastUsage = chunk.usage;
+      yield chunk;
     }
-    return { retryable: false, retryAfterMs: null };
+  } finally {
+    // Runs on completion, early consumer break, and mid-stream errors.
+    recordSettled(runtime.tracker, lastUsage);
   }
+}
 
-  function recordSettled(usage: ChatUsage | null): void {
-    if (usage !== null) tracker.record(usage);
-    tracker.recordRequest();
-  }
+export function createModelsGateway(options: ModelsGatewayOptions): ModelsGateway {
+  const tracker = new UsageTracker();
+  const runtime: GatewayRuntime = {
+    provider: options.provider,
+    policy: resolveRetryPolicy(options.retry),
+    tracker,
+    assertBudget: budgetGuard(options.budget?.maxRequests, options.budget?.maxSpendUsd, tracker),
+  };
 
   return {
-    providerId: provider.id,
+    providerId: runtime.provider.id,
 
     listModels(): Promise<ModelInfo[]> {
-      return provider.listModels();
+      return runtime.provider.listModels();
     },
 
-    async chat(request: ChatRequest): Promise<ChatResult> {
-      assertBudget();
-      try {
-        const result = await withRetries(
-          policy,
-          () => provider.chatCompletion(request),
-          classify,
-          request.signal,
-        );
-        recordSettled(result.usage);
-        return result;
-      } catch (error) {
-        recordSettled(null);
-        throw error;
-      }
+    chat(request: ChatRequest): Promise<ChatResult> {
+      return chatOnce(runtime, request);
     },
 
-    async *chatStream(request: ChatRequest): AsyncIterable<ChatChunk> {
-      assertBudget();
-      let established: AsyncIterable<ChatChunk>;
-      try {
-        established = await withRetries(
-          policy,
-          () => provider.openChatStream(request),
-          classify,
-          request.signal,
-        );
-      } catch (error) {
-        recordSettled(null);
-        throw error;
-      }
-
-      let lastUsage: ChatUsage | null = null;
-      try {
-        for await (const chunk of established) {
-          if (chunk.usage) lastUsage = chunk.usage;
-          yield chunk;
-        }
-      } finally {
-        // Runs on completion, early consumer break, and mid-stream errors.
-        recordSettled(lastUsage);
-      }
+    chatStream(request: ChatRequest): AsyncIterable<ChatChunk> {
+      return streamOnce(runtime, request);
     },
 
     usage(): UsageTotals {
-      return tracker.totals();
+      return runtime.tracker.totals();
     },
   };
 }

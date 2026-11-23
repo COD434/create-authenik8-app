@@ -264,6 +264,12 @@
                     <label class="sr-only" for="model">Model</label>
                     <select id="model" disabled><option>loading free models…</option></select>
                   </div>
+                  <div class="mode-control" role="group" aria-label="Assistant mode">
+                    <button type="button" class="mode-btn" data-mode="think" aria-pressed="false" title="Reason without tools">Think</button>
+                    <button type="button" class="mode-btn" data-mode="plan" aria-pressed="false" title="Produce a build plan">Plan</button>
+                    <button type="button" class="mode-btn is-active" data-mode="build" aria-pressed="true" title="Build with full tools">Build</button>
+                    <button type="button" class="mode-btn" data-mode="debug" aria-pressed="false" title="Diagnose and fix">Debug</button>
+                  </div>
                   <span id="model-note" class="model-note">Free models</span>
                 </div>
                 <div class="composer-right">

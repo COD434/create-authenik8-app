@@ -34,10 +34,30 @@ import { executeToolBatch, planToolBatches } from "../tool-loop.js";
 type ParentToolCall = ReturnType<typeof assembleToolCalls>[number];
 type Gateway = Pick<ModelsGateway, "listModels" | "chatStream">;
 
+const CHAT_MODES = ["think", "plan", "build", "debug"] as const;
+export type ChatMode = (typeof CHAT_MODES)[number];
+
 const chatBodySchema = z.object({
   model: z.string().min(1).max(120),
   message: z.string().min(1).max(32_000),
+  mode: z.enum(CHAT_MODES).optional().default("build"),
 });
+
+/**
+ * Mode preambles shape the model's behavior without changing the tool
+ * contract. `think` reasons without tools; `plan` only updates the plan;
+ * `build` (default) has full tool access; `debug` focuses on diagnosis.
+ */
+const MODE_PREAMBLES: Record<ChatMode, string> = {
+  think:
+    "Mode: THINK. Reason carefully about the request before acting. Do not call any tools. Explain your understanding, the options, trade-offs, and a recommended approach in clear prose. Ask a blocking question only if you cannot proceed without an answer.",
+  plan:
+    "Mode: PLAN. Produce a concrete build plan. Call update_plan once with 3 to 8 short, ordered steps, then briefly explain the plan. Do not write files or call build_project in this mode; the plan is the deliverable.",
+  build:
+    "Mode: BUILD. Implement the request with real, runnable files in small verifiable steps, using the full tool set.",
+  debug:
+    "Mode: DEBUG. Diagnose the problem before changing anything. Read the relevant files and error output, identify the root cause, then make the smallest fix and verify it. Prefer read_file and review_project first; explain what was wrong and what you changed.",
+};
 
 const FINAL_TOOL_BUDGET_INSTRUCTION =
   "Tool budget reached. Do not call tools. Summarize what you completed, what remains, and the next step. Do not claim work you did not do. Use plain punctuation, no em dashes.";
@@ -95,6 +115,7 @@ type GenerationContext = {
   leases: LeaseManager;
   log: SessionLog;
   maxToolRounds: number;
+  mode: ChatMode;
   res: import("node:http").ServerResponse;
   runner: Runner;
   signal: AbortSignal;
@@ -123,22 +144,32 @@ async function streamModelRound(
   let text = "";
   const fragments: ToolCallDelta[] = [];
   let error: unknown = null;
-  sseEvent(context.res, { round });
+  sseEvent(context.res, { round, mode: context.mode });
+
+  // Mode shapes the tool surface: think has no tools, plan only updates the
+  // plan, build/debug get the full set. Reasoning is requested in think mode
+  // (and build/debug when the model supports it) so the UI can show thinking.
+  const modeTools = finalRound || context.mode === "think"
+    ? undefined
+    : context.mode === "plan"
+      ? PARENT_TOOL_DEFINITIONS.filter((tool) => tool.name === "update_plan")
+      : PARENT_TOOL_DEFINITIONS;
+  const systemPrompt = `${MODE_PREAMBLES[context.mode]} ${SYSTEM_PROMPT}${finalRound ? ` ${FINAL_TOOL_BUDGET_INSTRUCTION}` : ""}`;
+
   try {
     for await (const chunk of context.gateway.chatStream({
       model,
       messages: [
-        {
-          role: "system",
-          content: finalRound
-            ? `${SYSTEM_PROMPT} ${FINAL_TOOL_BUDGET_INSTRUCTION}`
-            : SYSTEM_PROMPT,
-        },
+        { role: "system", content: systemPrompt },
         ...messages,
       ],
-      ...(finalRound ? {} : { tools: PARENT_TOOL_DEFINITIONS }),
+      ...(modeTools !== undefined ? { tools: modeTools } : {}),
+      ...(context.mode === "think" ? { reasoning: true } : {}),
       signal: context.signal,
     })) {
+      if (chunk.reasoning !== null) {
+        sseEvent(context.res, { reasoning: chunk.reasoning });
+      }
       if (chunk.delta !== null) {
         text += chunk.delta;
         sseEvent(context.res, { delta: chunk.delta });
@@ -421,7 +452,7 @@ async function runGeneration(context: GenerationContext, model: string): Promise
  */
 async function readChatRequest(
   ctx: RouteContext,
-): Promise<{ key: string; model: string; message: string } | null> {
+): Promise<{ key: string; model: string; message: string; mode: ChatMode } | null> {
   const { req, res, session } = ctx;
   if (session.chatBusy || session.agentBusy) {
     sendJson(res, 409, { error: "Another build is already in progress" });
@@ -447,7 +478,7 @@ async function readChatRequest(
     sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
     return null;
   }
-  return { key, model: parsed.data.model, message: parsed.data.message };
+  return { key, model: parsed.data.model, message: parsed.data.message, mode: parsed.data.mode };
 }
 
 /** Commit the user turn before streaming so history stays replayable. */
@@ -533,6 +564,7 @@ export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
       leases,
       log,
       maxToolRounds,
+      mode: request.mode,
       res,
       runner,
       signal: abort.signal,

@@ -434,3 +434,41 @@ describe("context compaction", () => {
   });
 });
 
+describe("assistant modes", () => {
+  it("passes the mode preamble and gates think-mode tools", async () => {
+    state.script = [[...textRound]];
+    capturedRequests.length = 0;
+
+    const res = await chat("explain this app", "free/model-a", "think");
+    expect(res.status).toBe(200);
+    await res.text();
+
+    expect(capturedRequests[0]?.messages[0]?.content).toContain("Mode: THINK");
+    expect(capturedRequests[0]?.tools).toBeUndefined();
+    expect(capturedRequests[0]?.reasoning).toBe(true);
+  });
+
+  it("restricts plan mode to update_plan and omits reasoning by default", async () => {
+    state.script = [[...textRound]];
+    capturedRequests.length = 0;
+
+    const res = await chat("build this app", "free/model-a", "plan");
+    expect(res.status).toBe(200);
+    await res.text();
+
+    expect(capturedRequests[0]?.messages[0]?.content).toContain("Mode: PLAN");
+    expect(capturedRequests[0]?.tools?.map((tool) => tool.name)).toEqual(["update_plan"]);
+    expect(capturedRequests[0]?.reasoning).toBeUndefined();
+  });
+
+  it("includes mode in the SSE stream so the UI can react", async () => {
+    state.script = [[...textRound]];
+    capturedRequests.length = 0;
+
+    const res = await chat("explain this app", "free/model-a", "think");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain('"mode":"think"');
+  });
+});
+
