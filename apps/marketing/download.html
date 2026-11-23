@@ -9,15 +9,18 @@
   <link rel="icon" href="/authenik8-mark.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/style.css" />
   <style>
-    .download-hero { max-width: 780px; padding: clamp(74px, 11vw, 132px) 0 100px; }
-    .download-hero h1 { margin: 0; font-size: clamp(42px, 7vw, 76px); line-height: 1.02; letter-spacing: -.065em; }
-    .download-hero > p:not(.eyebrow) { max-width: 620px; margin: 22px 0; color: var(--ember-muted); font-size: 17px; line-height: 1.7; }
-    .download-card { display: grid; gap: 14px; max-width: 520px; margin-top: 32px; padding: 24px; border: 1px solid var(--ember-line); border-radius: 12px; background: white; }
+    .download-hero { max-width: 780px; padding: clamp(64px, 10vw, 110px) 0 56px; }
+    .download-hero h1 { margin: 0; font-size: clamp(34px, 6vw, 56px); line-height: 1.02; letter-spacing: -.045em; }
+    .download-hero > p:not(.eyebrow) { max-width: 620px; margin: 22px 0; color: var(--ink-soft); font-size: 16px; line-height: 1.7; }
+    .download-card { display: grid; gap: 14px; max-width: 520px; margin-top: 28px; padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); }
     .download-card strong { font-size: 18px; }
-    .download-card p { margin: 0; color: var(--ember-muted); font-size: 14px; line-height: 1.6; }
+    .download-card p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
     .download-meta { font-size: 12px !important; }
-    .download-alternative { margin-top: 22px !important; font-size: 13px !important; }
-    .download-alternative code { padding: 3px 6px; border-radius: 4px; background: #eef1ec; color: var(--ember-ink); font-family: var(--ember-font-mono); }
+    .download-alternative { margin-top: 18px !important; font-size: 13px !important; }
+    .download-alternative code { padding: 3px 6px; border-radius: 4px; background: var(--bg-deep); color: var(--ink); font-family: var(--font-mono); }
+    @media (max-width: 520px) {
+      .download-card { padding: 20px 16px; }
+    }
   </style>
 </head>
 <body>
