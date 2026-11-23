@@ -80,7 +80,7 @@ describe("static UI and auth boundary", () => {
 
     // The shell is split into ordered classic scripts; join them so the
     // structural guards below stay about behavior, not file layout.
-    const scriptPaths = [...html.matchAll(/<script src="([^"]+)"><\/script\s*>/gi)]
+    const scriptPaths = [...html.matchAll(/<script\b[^>]*\bsrc="([^"]+)"[^>]*>[\s\S]*?<\/script\b[^>]*>/gi)]
       .map((match) => match[1])
       .filter((value): value is string => value !== undefined);
     expect(scriptPaths.length).toBeGreaterThan(1);
