@@ -36,7 +36,14 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build CLI
-        run: npm run build
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: build-log-${{ runner.os }}
+          path: build.log
 
       - name: Verify packaged Studio
         run: npm run test:studio:package
@@ -79,7 +86,14 @@ jobs:
         run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Build CLI
-        run: npm run build
+        run: npm run build 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: build-log-${{ runner.os }}
+          path: build.log
 
       - name: Verify packaged Studio
         run: npm run test:studio:package
@@ -121,10 +135,24 @@ jobs:
           cache: npm
 
       - name: Install and build the generator
-        run: npm ci --prefer-offline --no-audit --no-fund && npm run build
+        run: (npm ci --prefer-offline --no-audit --no-fund && npm run build) 2>&1 | tee build.log
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: fresh-build-log-${{ matrix.preset }}
+          path: build.log
 
       - name: Generate, install, and build a clean project
-        run: npm run test:fresh -- ${{ matrix.preset }}
+        run: npm run test:fresh -- ${{ matrix.preset }} 2>&1 | tee fresh.log
+
+      - name: Upload fresh log
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: fresh-log-${{ matrix.preset }}
+          path: fresh.log
 
   release:
     name: Semantic Release & Publish

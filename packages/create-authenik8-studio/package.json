@@ -1,0 +1,26 @@
+{
+  "name": "create-authenik8-studio",
+  "version": "0.1.0",
+  "description": "One-liner launcher for the Authenik8 Studio Web builder: picks a free port, boots the localhost studio, opens the browser tab. BYOK, no telemetry.",
+  "type": "module",
+  "bin": {
+    "create-authenik8-studio": "bin.mjs"
+  },
+  "files": [
+    "bin.mjs",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@authenik8/web-studio": "0.1.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "MIT"
+}

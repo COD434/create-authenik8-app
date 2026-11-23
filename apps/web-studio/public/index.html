@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-theme-choice="system">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <title>Authenik8</title>
+  <link rel="icon" type="image/svg+xml" href="/studio/authenik8-mark.svg" />
+  <script>
+    // Resolve appearance before the first paint. The CSS carries both themes,
+    // so a stored choice must never flash the other one on startup.
+    (function () {
+      var choice = "system";
+      try {
+        var stored = window.localStorage.getItem("authenik8-theme");
+        if (stored === "dark" || stored === "light" || stored === "system") choice = stored;
+      } catch (error) { /* storage can be blocked; system remains the default */ }
+      var dark = choice === "dark" || (choice === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.themeChoice = choice;
+    })();
+  </script>
+  <link rel="stylesheet" href="/studio/style.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to workspace</a>
+
+  <div id="app-shell" class="app-shell">
+    <div id="scrim" class="sidebar-scrim" hidden></div>
+
+    <aside id="sidebar" class="sidebar" aria-label="Workspace navigation">
+      <div class="sidebar-head">
+        <div class="brand">
+          <img src="/studio/authenik8-mark.svg" alt="" width="32" height="32" />
+          <span class="brand-copy">
+            <strong>Authenik8</strong>
+            <span>Studio</span>
+          </span>
+        </div>
+        <button id="sidebar-toggle" class="icon-btn sidebar-toggle" type="button" title="Collapse sidebar" aria-label="Collapse sidebar" aria-expanded="true" aria-controls="sidebar">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="1.8" y="2.4" width="12.4" height="11.2" rx="2.2"/><path d="M6.2 2.6v10.8M4 6.3H2.9M4 9.7H2.9"/></svg>
+        </button>
+      </div>
+
+      <div class="sidebar-scroll">
+        <section class="nav-group" aria-labelledby="nav-build">
+          <h2 id="nav-build" class="group-label">Build</h2>
+          <button id="new-chat" class="nav-item nav-primary" type="button" title="New session">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.2v9.6M3.2 8h9.6"/></svg>
+            <span class="nav-label">New session</span>
+          </button>
+          <button id="template-btn" class="nav-item" type="button" title="New from template">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+            <span class="nav-label">New from template</span>
+          </button>
+          <button id="agent-btn" class="nav-item" type="button" title="Build with agent">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
+            <span class="nav-label">Build with agent</span>
+          </button>
+          <button id="ai-integration-btn" class="nav-item" type="button" title="Plan an AI capability for this app">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1M3.6 3.6l1.5 1.5m5.8 5.8 1.5 1.5m0-8.8-1.5 1.5m-5.8 5.8-1.5 1.5"/><circle cx="8" cy="8" r="3.1"/></svg>
+            <span class="nav-label">Add an AI capability</span>
+          </button>
+          <button id="subagents-btn" class="nav-item" type="button" title="Subagent runs">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="3.5" r="1.6"/><circle cx="12" cy="3.5" r="1.6"/><circle cx="8" cy="12.5" r="1.6"/><path d="M4 5.1v1.4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V5.1M8 8.5v2.4"/></svg>
+            <span class="nav-label">Subagent runs</span>
+          </button>
+        </section>
+
+        <section id="plan-panel" class="plan-panel" aria-label="Build plan" hidden>
+          <div class="plan-head">
+            <span>Build plan</span>
+            <span id="plan-count" class="plan-count"></span>
+          </div>
+          <ol id="plan-steps" class="plan-steps"></ol>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-workspace">
+          <h2 id="nav-workspace" class="group-label">Workspace</h2>
+          <button id="preview-btn" class="nav-item" type="button" title="Preview project">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.3 8s2.4-4.2 6.7-4.2S14.7 8 14.7 8s-2.4 4.2-6.7 4.2S1.3 8 1.3 8Z"/><circle cx="8" cy="8" r="1.9"/></svg>
+            <span class="nav-label">Preview</span>
+            <span class="nav-state" data-nav-state="preview"></span>
+          </button>
+          <button id="run-btn" class="nav-item" type="button" title="Run project">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.4"/><path d="M6.6 5.4v5.2l4.2-2.6-4.2-2.6Z"/></svg>
+            <span class="nav-label">Run project</span>
+            <span class="nav-state" data-nav-state="run"></span>
+          </button>
+          <button id="coderabbit-btn" class="nav-item" type="button" title="Review project changes with CodeRabbit">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m8 1.7 1.5 4.1 4.3 2.2-4.3 2.2L8 14.3l-1.5-4.1L2.2 8l4.3-2.2L8 1.7Z"/><path d="m12.8 1.7.5 1.4 1.4.6-1.4.6-.5 1.4-.6-1.4-1.4-.6 1.4-.6.6-1.4Z"/></svg>
+            <span class="nav-label">CodeRabbit review</span>
+          </button>
+          <a id="export-btn" class="nav-item export" href="/api/export" download title="Export project as a ZIP">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.4v7.4M5 7l3 3 3-3M2.8 13.4h10.4"/></svg>
+            <span class="nav-label">Export ZIP</span>
+          </a>
+          <button id="import-btn" class="nav-item" type="button" title="Import a frontend ZIP into this project">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.6M5 5.6l3-3 3 3M2.8 10.2v3.2h10.4v-3.2"/></svg>
+            <span class="nav-label">Import ZIP</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-ship">
+          <h2 id="nav-ship" class="group-label">Ship</h2>
+          <button id="ship-btn" class="nav-item" type="button" title="GitHub, data, and deployment integrations">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.6 2.2c1.9-.5 3.7-.3 4.2.2s.7 2.3.2 4.2c-.6 2.2-2.4 4-4.6 4.6l-1.7-1.7-1.7-1.7c.6-2.2 2.4-4 4.6-4.6Z"/><circle cx="10.6" cy="5.4" r="1.2"/><path d="M5.9 10.1 2.4 13.6M4.8 7.8l-2.1.4-.9 2.9 3.1-.3M8.2 11.2l-.4 2.1-2.9.9.3-3.1"/></svg>
+            <span class="nav-label">GitHub & deploy</span>
+            <span id="ship-state" class="nav-state nav-state-text">Not set</span>
+          </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-connect">
+          <h2 id="nav-connect" class="group-label">Connect</h2>
+          <button id="connect-btn" class="nav-item" type="button" title="OpenRouter connection">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="5.2" cy="8" r="2.5"/><path d="M7.7 8h6.1M11.3 8v2.1M9.2 8v1.5"/></svg>
+            <span class="nav-label">OpenRouter</span>
+            <span id="connect-state" class="nav-state nav-state-text">No key</span>
+          </button>
+        </section>
+
+      </div>
+
+      <div class="sidebar-foot">
+        <div class="sidebar-status" title="Local workspace status">
+          <span class="status-dot" data-tone="ok" aria-hidden="true"></span>
+          <span id="usage-line">local · BYOK · no telemetry</span>
+        </div>
+        <button id="settings-btn" class="nav-item settings-item" type="button" title="Settings">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1"/></svg>
+          <span class="nav-label">Settings</span>
+        </button>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button id="sidebar-open" class="icon-btn mobile-only" type="button" title="Open navigation" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.6 4.4h10.8M2.6 8h10.8M2.6 11.6h10.8"/></svg>
+          </button>
+          <nav class="crumbs" aria-label="Breadcrumb">
+            <span class="crumb-muted">Workspace</span>
+            <span class="crumb-sep" aria-hidden="true">/</span>
+            <span class="crumb-current" aria-current="page">Local workspace</span>
+          </nav>
+          <span id="workspace-status" class="status-chip" data-tone="idle">
+            <span class="status-dot" aria-hidden="true"></span>
+            <span id="workspace-status-text" aria-live="polite">Conversation</span>
+          </span>
+        </div>
+        <div class="topbar-right">
+          <button id="palette-open" class="command-trigger" type="button" title="Open commands (Ctrl/Cmd + K)">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7.2" cy="7.2" r="4.3"/><path d="m10.5 10.5 3 3"/></svg>
+            <span class="command-trigger-label">Commands</span>
+            <kbd id="palette-key">Ctrl K</kbd>
+          </button>
+          <label class="theme-control" title="Appearance">
+            <svg class="icon theme-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.5v1.4M8 13.1v1.4M1.5 8h1.4M13.1 8h1.4M3.4 3.4l1 1M11.6 11.6l1 1M12.6 3.4l-1 1M4.4 11.6l-1 1"/></svg>
+            <span class="sr-only">Appearance</span>
+            <select id="theme-select">
+              <option value="system">System</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </label>
+        </div>
+      </header>
+
+      <main id="main" class="workspace-main">
+        <section class="chat" aria-label="Conversation">
+          <div id="messages" class="messages" aria-live="polite"></div>
+<div id="tools" class="tools" hidden></div>
+
+          <div id="welcome" class="welcome">
+            <div class="welcome-inner">
+              <img src="/studio/authenik8-logo.svg" alt="" width="58" height="58" />
+              <p class="eyebrow">Identity-aware AI development</p>
+              <h1>AI agents that <span class="welcome-accent">know who they are.</span></h1>
+              <p class="welcome-sub">Authenik8 gives every project rotating JWTs, server-side sessions, role-based access, and audit trails. No second users table. No identity layer bolted on.</p>
+
+              <div class="welcome-links" aria-label="Authenik8 links">
+                <a class="welcome-link primary" href="/docs">Read the docs</a>
+                <a class="welcome-link" href="https://github.com/authenik8/create-authenik8-app">Install the CLI</a>
+              </div>
+
+              <ul class="welcome-features" aria-label="Authenik8 features">
+                <li>Rotating JWTs</li>
+                <li>Server-side sessions</li>
+                <li>Roles and audit trails</li>
+                <li>Local-first · BYOK · no telemetry</li>
+              </ul>
+
+              <div class="welcome-build">
+                <p class="eyebrow">Authenik8 Studio</p>
+                <h2>What are we building today?</h2>
+                <p class="welcome-sub">Describe the idea. Studio turns it into a real project in a workspace on this machine, with identity, sessions, and authorization on a backend you own.</p>
+              </div>
+
+              <div class="starter-list" aria-label="Suggested starting points">
+                <button type="button" class="starter" data-prompt="Build a habit tracker with user accounts, streaks, and a small dashboard.">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><rect x="2.4" y="3" width="11.2" height="10.4" rx="2"/><path d="M5.3 7.4h5.4M5.3 10.1h3.2M5.2 1.6v2.4M10.8 1.6v2.4"/></svg>
+                  </span>
+                  <span class="starter-copy">
+                    <span class="starter-title">A habit tracker with accounts</span>
+                    <span class="starter-sub">Streaks, sessions, and a small dashboard.</span>
+                  </span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="starter" data-prompt="Build a booking API for a barbershop with owner dashboards.">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M3 13.2V5.4l5-3.2 5 3.2v7.8"/><path d="M6.2 13.2V9.4h3.6v3.8"/></svg>
+                  </span>
+                  <span class="starter-copy">
+                    <span class="starter-title">A barbershop booking API</span>
+                    <span class="starter-sub">Owner dashboards and protected routes.</span>
+                  </span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="starter" data-open="template">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+                  </span>
+                  <span class="starter-copy">
+                    <span class="starter-title">Start from a template</span>
+                    <span class="starter-sub">Generate the Authenik8 auth backend first.</span>
+                  </span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="starter" data-open="agent">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
+                  </span>
+                  <span class="starter-copy">
+                    <span class="starter-title">Build with the agent</span>
+                    <span class="starter-sub">Hand a full project brief to OpenCode.</span>
+                  </span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+                <button type="button" class="starter" data-open="ai-integration">
+                  <span class="starter-icon" aria-hidden="true">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1M3.6 3.6l1.5 1.5m5.8 5.8 1.5 1.5m0-8.8-1.5 1.5m-5.8 5.8-1.5 1.5"/><circle cx="8" cy="8" r="3.1"/></svg>
+                  </span>
+                  <span class="starter-copy"><span class="starter-title">Plan an AI capability</span><span class="starter-sub">Content, business knowledge, or connected actions.</span></span>
+                  <span class="starter-arrow" aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <form id="composer" class="composer">
+            <div class="composer-panel">
+              <textarea id="prompt" rows="1" placeholder="Describe what to build." spellcheck="false" aria-label="Message"></textarea>
+              <div class="composer-bar">
+                <div class="composer-left">
+                  <button id="composer-expand" class="composer-option" type="button" aria-expanded="false" aria-controls="composer-options">
+                    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h10M3 8h10M3 11h6"/><circle cx="12.4" cy="11" r="1.3"/></svg>
+                    <span>Options</span>
+                    <svg class="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.5 6.2 3.5 3.6 3.5-3.6"/></svg>
+                  </button>
+                  <div class="model-control">
+                    <span class="model-dot" aria-hidden="true"></span>
+                    <label class="sr-only" for="model">Model</label>
+                    <select id="model" disabled><option>loading free models…</option></select>
+                  </div>
+                  <div class="mode-control" role="group" aria-label="Assistant mode">
+                    <button type="button" class="mode-btn" data-mode="think" aria-pressed="false" title="Reason without tools">Think</button>
+                    <button type="button" class="mode-btn" data-mode="plan" aria-pressed="false" title="Produce a build plan">Plan</button>
+                    <button type="button" class="mode-btn is-active" data-mode="build" aria-pressed="true" title="Build with full tools">Build</button>
+                    <button type="button" class="mode-btn" data-mode="debug" aria-pressed="false" title="Diagnose and fix">Debug</button>
+                  </div>
+                  <span id="model-note" class="model-note">Free models</span>
+                </div>
+                <div class="composer-right">
+                  <span class="composer-hint">Enter to send</span>
+                  <button id="stop" class="btn-stop" type="button" hidden>Stop</button>
+                  <button id="send" class="btn-send" type="submit" disabled aria-label="Send">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="composer-options" class="composer-options" hidden>
+                <div class="connection-block">
+                  <label class="field" for="key">
+                    <span class="field-label">OpenRouter key <em>only needed to send</em></span>
+                    <input id="key" type="password" autocomplete="off" placeholder="sk-or-…" />
+                  </label>
+                  <p class="field-note">Free tier: 50 requests a day. The key stays in this tab's memory. It is never stored, logged, or sent anywhere except OpenRouter.</p>
+                  <p id="key-status" class="key-status" role="status">No key in this tab.</p>
+                </div>
+                <div class="composer-option-actions">
+                  <button id="composer-agent" class="option-action" type="button">
+                    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
+                    <span><strong>Build with agent</strong><small>Runs commands as your account. Use only with projects you trust.</small></span>
+                  </button>
+                  <button id="composer-template" class="option-action" type="button">
+                    <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+                    <span><strong>Start from template</strong><small>Generate a known Authenik8 project shape.</small></span>
+                  </button>
+                  <button id="composer-ai-integration" class="option-action" type="button">
+                    <svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1"/><circle cx="8" cy="8" r="3.1"/></svg>
+                    <span><strong>Plan an AI capability</strong><small>Shape a feature around your users and business data.</small></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p class="composer-foot">Local workspace · BYOK · no telemetry</p>
+          </form>
+        </section>
+
+        <section id="preview-pane" class="preview-pane" aria-hidden="true" aria-label="Project preview">
+          <header class="preview-bar">
+            <div class="preview-heading">
+              <span class="status-dot" data-tone="ok" aria-hidden="true"></span>
+              <span>Sandbox preview</span>
+            </div>
+            <div class="preview-actions">
+              <div class="viewport-switch" role="group" aria-label="Preview viewport">
+                <button id="preview-desktop" class="viewport-btn is-active" type="button" data-viewport="desktop" aria-pressed="true" title="Desktop width">Desktop</button>
+                <button id="preview-tablet" class="viewport-btn" type="button" data-viewport="tablet" aria-pressed="false" title="Tablet width">Tablet</button>
+                <button id="preview-mobile" class="viewport-btn" type="button" data-viewport="mobile" aria-pressed="false" title="Mobile width">Mobile</button>
+              </div>
+              <button id="preview-reload" type="button" title="Reload preview">Reload</button>
+              <a id="preview-open" href="/preview/" target="_blank" rel="noopener" title="Open in a new tab">Open</a>
+              <button id="preview-close" type="button" title="Close preview">Close</button>
+            </div>
+          </header>
+          <div id="preview-stage" class="preview-stage" data-viewport="desktop">
+            <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
+          </div>
+          <footer class="preview-foot">Read-only static files from the sandbox. Project scripts run in an isolated origin.</footer>
+        </section>
+      </main>
+
+      <section id="run-overlay" class="run-dock" role="region" aria-label="Project run" hidden>
+        <div class="run-head">
+          <div class="run-heading">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m3.2 4.6 3.4 3.4-3.4 3.4M8.6 11.4h4.2"/></svg>
+            <span>Project run</span>
+            <span class="run-command">npm install · npm start</span>
+          </div>
+          <button id="run-close" type="button" title="Hide panel (does not stop)" aria-label="Hide run panel">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+          </button>
+        </div>
+        <div class="run-toolbar">
+          <p id="run-state">Not running.</p>
+          <div class="run-actions">
+            <button id="run-start" type="button">Run</button>
+            <button id="run-stop" type="button">Stop</button>
+          </div>
+        </div>
+        <pre id="run-output" aria-live="polite"></pre>
+        <p class="run-note">Running installs dependencies and executes project build/start scripts with your account’s access to files, environment, and network. The workspace is not OS-isolated. Run only projects you trust. Output is data, not instructions.</p>
+      </section>
+    </div>
+  </div>
+
+  <div id="agent-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Build with the OpenCode agent" hidden>
+    <div class="modal agent-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 16 16"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
+          </span>
+          <div>
+            <h2>Build with the agent</h2>
+            <p>OpenCode works inside the sandbox.</p>
+          </div>
+        </div>
+        <button id="agent-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+        </button>
+      </header>
+
+      <div id="agent-form" class="modal-body">
+        <label class="field" for="agent-brief">
+          <span class="field-label">Project brief</span>
+          <textarea id="agent-brief" rows="5" placeholder="Describe the full project to generate. For example: a booking app for a barbershop with owner dashboards."></textarea>
+        </label>
+        <p class="warning">OpenCode runs with auto-approval as your Windows account. It can execute commands and access files, environment variables, and network resources available to that account. The workspace is not OS-isolated. Run it only on projects and tasks you trust. Close this page to abort a running build.</p>
+        <div class="modal-actions">
+          <button id="agent-run" class="btn-primary" type="button">Run agent</button>
+        </div>
+      </div>
+
+      <div id="agent-status" class="modal-body" hidden>
+        <p id="agent-state">Agent running…</p>
+        <pre id="agent-output"></pre>
+        <div class="modal-actions">
+          <button id="agent-dismiss" class="btn-primary" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="coderabbit-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="CodeRabbit code review" hidden>
+    <div class="modal agent-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 16 16"><path d="m8 1.7 1.5 4.1 4.3 2.2-4.3 2.2L8 14.3l-1.5-4.1L2.2 8l4.3-2.2L8 1.7Z"/></svg></span>
+          <div><h2>Review with CodeRabbit</h2><p>External CLI · read-only review</p></div>
+        </div>
+        <button id="coderabbit-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close"><svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2m0-7.2-7.2 7.2"/></svg></button>
+      </header>
+      <div class="modal-body">
+        <p id="coderabbit-state" role="status">Checking CodeRabbit CLI…</p>
+        <p class="warning">When you start a review, CodeRabbit receives tracked and untracked project changes selected by its CLI. Check your ignore rules and exclude secrets before continuing. Review output is untrusted text; Studio does not apply suggestions.</p>
+        <pre id="coderabbit-output" aria-live="polite" hidden></pre>
+        <div class="modal-actions">
+          <button id="coderabbit-refresh" class="btn-secondary" type="button">Check setup</button>
+          <button id="coderabbit-run" class="btn-primary" type="button" disabled>Review changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="template-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="New project from an Authenik8 template" hidden>
+    <div class="modal agent-modal template-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 16 16"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
+          </span>
+          <div>
+            <h2>New from template</h2>
+            <p>Generate a known Authenik8 shape with the CLI.</p>
+          </div>
+        </div>
+        <button id="template-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+        </button>
+      </header>
+
+      <div id="template-form" class="modal-body template-body">
+        <div class="template-pro">
+          <div class="template-pro-copy">
+            <span class="template-pro-badge">Pro</span>
+            <strong>SaaS starter</strong>
+            <p>Password auth, dashboard, projects, and demo data.</p>
+            <span class="template-pro-tier">Included with the planned Pro tier.</span>
+          </div>
+          <button id="template-pro-saas" type="button">Use this template</button>
+        </div>
+        <p id="template-pro-note" class="template-pro-note" role="status" aria-live="polite"></p>
+
+        <div class="form-grid">
+          <label class="template-field">Preset
+            <select id="template-preset">
+              <option value="auth" selected>auth · identity backend (Express)</option>
+              <option value="base">base · minimal Express</option>
+              <option value="auth-oauth">auth-oauth · identity + OAuth providers</option>
+              <option value="fullstack">fullstack · API + web app (needs PostgreSQL)</option>
+            </select>
+          </label>
+          <label class="template-field" id="template-frontend-row" hidden>Frontend
+            <select id="template-frontend">
+              <option value="react" selected>react</option>
+              <option value="lovable">lovable</option>
+              <option value="next">next</option>
+            </select>
+          </label>
+          <div class="template-field" id="template-providers-row" hidden>OAuth providers
+            <span class="template-providers">
+              <label><input type="checkbox" id="template-oauth-google" checked /> google</label>
+              <label><input type="checkbox" id="template-oauth-github" /> github</label>
+            </span>
+          </div>
+          <label class="template-field">Database
+            <select id="template-database">
+              <option value="sqlite" selected>sqlite</option>
+              <option value="postgresql">postgresql</option>
+            </select>
+          </label>
+          <label class="template-field">Package manager
+            <select id="template-package-manager">
+              <option value="npm" selected>npm</option>
+              <option value="pnpm">pnpm</option>
+              <option value="bun">bun</option>
+            </select>
+          </label>
+        </div>
+        <div class="check-row">
+          <label class="template-check"><input type="checkbox" id="template-prisma" checked /> Prisma</label>
+          <label class="template-check" id="template-demo-row" hidden><input type="checkbox" id="template-demo" /> Seed demo data (three projects)</label>
+        </div>
+      </div>
+
+      <div id="template-status" class="modal-body template-body" hidden>
+        <p id="template-state"></p>
+        <pre id="template-output"></pre>
+        <div class="modal-actions">
+          <button id="template-dismiss" class="btn-primary" type="button">Close</button>
+        </div>
+      </div>
+
+      <div id="template-actions" class="modal-actions template-actions">
+        <p class="warning">This replaces the sandbox and resets the chat. Runs locally; nothing is uploaded.</p>
+        <button id="template-run" class="btn-primary" type="button">Generate project</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ai-integration-overlay" class="overlay" role="dialog" aria-modal="true" aria-labelledby="ai-integration-title" hidden>
+    <div class="modal agent-modal ai-integration-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1"/><circle cx="8" cy="8" r="3.1"/></svg></span>
+          <div><h2 id="ai-integration-title">Plan an AI capability</h2><p>Start with what the app’s users need.</p></div>
+        </div>
+        <button id="ai-integration-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close"><svg class="icon" viewBox="0 0 16 16"><path d="m4.4 4.4 7.2 7.2m0-7.2-7.2 7.2"/></svg></button>
+      </header>
+      <form id="ai-integration-form" class="modal-body ai-integration-body">
+        <fieldset class="ai-patterns">
+          <legend class="field-label">What should the app help people do?</legend>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="content" checked /><span><strong>Create or understand content</strong><small>Draft, summarize, classify, or extract.</small></span></label>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="knowledge" /><span><strong>Answer from business knowledge</strong><small>Search documents or records with sources.</small></span></label>
+          <label class="ai-pattern"><input type="radio" name="ai-pattern" value="actions" /><span><strong>Work with connected tools</strong><small>Read from or take actions in business systems.</small></span></label>
+        </fieldset>
+        <label class="field" for="ai-goal"><span class="field-label">User task</span><textarea id="ai-goal" rows="2" required maxlength="1200" placeholder="What should a person be able to accomplish?"></textarea></label>
+        <label id="ai-data-row" class="field" for="ai-data" hidden><span id="ai-data-label" class="field-label">Which business information should it use?</span><input id="ai-data" maxlength="600" placeholder="e.g. help center articles, product catalog, customer records" /></label>
+        <label id="ai-actions-row" class="field" for="ai-actions" hidden><span class="field-label">Which systems or actions should it connect to?</span><input id="ai-actions" maxlength="600" placeholder="e.g. look up an order in Shopify, draft a HubSpot note" /></label>
+        <label class="field" for="ai-access"><span class="field-label">Who can use it, and what may they access?</span><input id="ai-access" maxlength="600" placeholder="e.g. signed-in support agents can search their assigned accounts" /></label>
+        <div class="ai-integration-row">
+          <label class="field" for="ai-provider"><span class="field-label">AI provider</span><select id="ai-provider"><option value="undecided">Choose during planning</option><option value="openai-compatible">OpenAI-compatible endpoint</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="other">Another provider</option></select></label>
+          <p class="field-note">Studio’s OpenRouter key is only for building. A deployed app needs its own server-side provider credentials.</p>
+        </div>
+        <label id="ai-approval-row" class="ai-approval" hidden><input id="ai-approval" type="checkbox" checked /><span>Require a person to confirm before the AI changes business data.</span></label>
+        <p id="ai-form-error" class="key-status" role="alert" hidden></p>
+        <div class="modal-actions"><button id="ai-integration-start" class="btn-primary" type="submit">Continue in builder</button></div>
+      </form>
+    </div>
+  </div>
+
+  <div id="subagents-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Subagent runs" hidden>
+    <div class="modal subagents-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 16 16"><circle cx="4" cy="3.5" r="1.6"/><circle cx="12" cy="3.5" r="1.6"/><circle cx="8" cy="12.5" r="1.6"/><path d="M4 5.1v1.4a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2V5.1M8 8.5v2.4"/></svg>
+          </span>
+          <div>
+            <h2 id="subagents-title">Subagent runs</h2>
+            <p>Read-only transcripts from child work.</p>
+          </div>
+        </div>
+        <button id="subagents-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+        </button>
+      </header>
+
+      <div id="subagents-list-view">
+        <p class="subagents-hint">Read-only transcripts from explorer, reviewer, and builder children. <strong>Newest 50 runs max.</strong> Stored locally under <code>.authenik8/subagents</code>.</p>
+        <div id="subagents-list" class="subagents-list"></div>
+      </div>
+
+      <div id="subagents-transcript-view" hidden>
+        <div class="subagents-transcript-head">
+          <button id="subagents-back" type="button">Back to list</button>
+          <span id="subagents-meta" class="subagents-meta"></span>
+        </div>
+        <div id="subagents-transcript" class="subagents-transcript"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ship-overlay" class="overlay" role="dialog" aria-modal="true" aria-label="Ship project" hidden>
+    <div class="modal ship-modal">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 16 16"><path d="M9.6 2.2c1.9-.5 3.7-.3 4.2.2s.7 2.3.2 4.2c-.6 2.2-2.4 4-4.6 4.6l-1.7-1.7-1.7-1.7c.6-2.2 2.4-4 4.6-4.6Z"/><circle cx="10.6" cy="5.4" r="1.2"/><path d="M5.9 10.1 2.4 13.6M4.8 7.8l-2.1.4-.9 2.9 3.1-.3M8.2 11.2l-.4 2.1-2.9.9.3-3.1"/></svg>
+          </span>
+          <div>
+            <h2>Connect project</h2>
+            <p>Sync to GitHub, configure data, and publish static sites.</p>
+          </div>
+        </div>
+        <button id="ship-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+        </button>
+      </header>
+
+      <div class="ship-tabs" role="tablist" aria-label="Project integrations">
+        <button id="ship-tab-github" class="ship-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="ship-panel-github" data-ship-tab="github">GitHub</button>
+        <button id="ship-tab-supabase" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-supabase" data-ship-tab="supabase" tabindex="-1">Supabase</button>
+        <button id="ship-tab-vercel" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-vercel" data-ship-tab="vercel" tabindex="-1">Vercel</button>
+        <button id="ship-tab-netlify" class="ship-tab" type="button" role="tab" aria-selected="false" aria-controls="ship-panel-netlify" data-ship-tab="netlify" tabindex="-1">Netlify</button>
+      </div>
+
+      <div class="ship-body">
+        <div class="ship-project-row">
+          <span id="ship-project" class="ship-project" role="status">Reading the sandbox...</span>
+          <button id="ship-refresh" class="ship-refresh" type="button">Refresh</button>
+        </div>
+        <p id="ship-static-note" class="warning" hidden></p>
+
+        <section id="ship-panel-github" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-github">
+          <p class="ship-lede">Publish the current Studio project to an existing GitHub repository in one commit. Click Publish again when you want to sync later changes.</p>
+          <label class="field" for="ship-github-token">
+            <span class="field-label">GitHub fine-grained token</span>
+            <input id="ship-github-token" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_…" />
+          </label>
+          <p class="ship-help">The token is used for each request only and is never saved. For CI, grant repository metadata read and Actions read. Publishing also needs Contents read/write; adding the workflow needs Workflows read/write. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create a token</a>.</p>
+          <label class="field" for="ship-github-repository">
+            <span class="field-label">Repository</span>
+            <input id="ship-github-repository" type="text" autocomplete="off" spellcheck="false" placeholder="your-account/project-name" />
+          </label>
+          <div class="github-field-row">
+            <label class="field" for="ship-github-branch">
+              <span class="field-label">Branch <em>blank uses default</em></span>
+              <input id="ship-github-branch" type="text" autocomplete="off" spellcheck="false" placeholder="main" />
+            </label>
+            <label class="field" for="ship-github-message">
+              <span class="field-label">Commit message</span>
+              <input id="ship-github-message" type="text" autocomplete="off" spellcheck="false" value="Build from Authenik8 Studio" />
+            </label>
+          </div>
+          <details class="github-file-details">
+            <summary id="ship-github-files-summary">Loading files to publish…</summary>
+            <ul id="ship-github-files" class="github-file-list"></ul>
+          </details>
+          <p class="ship-help">Studio skips common secret filenames and checks included text for several credential patterns. This cannot catch every secret. Inspect the filenames and file contents before publishing; anything included is sent to GitHub.</p>
+          <label class="check-row github-option">
+            <input id="ship-github-actions" type="checkbox" />
+            <span>Add a GitHub Actions workflow that runs the Node build and test scripts on pushes and pull requests.</span>
+          </label>
+          <label class="check-row github-option">
+            <input id="ship-github-reviewed" type="checkbox" />
+            <span>I reviewed the included filenames and contents, checked any credential warnings, and am ready to publish them to GitHub.</span>
+          </label>
+          <div class="modal-actions">
+            <button id="ship-github-verify" class="btn-secondary" type="button">Verify access</button>
+            <button id="ship-github-publish" class="btn-primary" type="button">Publish / sync changes</button>
+          </div>
+          <p id="ship-github-result" class="ship-result" role="status" aria-live="polite"></p>
+
+          <section class="github-ci" aria-labelledby="github-ci-title">
+            <div class="github-ci-head">
+              <div>
+                <h3 id="github-ci-title">GitHub Actions</h3>
+                <p>Load recent runs, then inspect failed job logs for common build and test errors.</p>
+              </div>
+              <button id="github-ci-load" class="btn-secondary" type="button">Load runs</button>
+            </div>
+            <ul id="github-ci-runs" class="github-ci-runs" aria-label="Recent GitHub Actions runs"></ul>
+            <p id="github-ci-status" class="github-ci-status" role="status" aria-live="polite">Uses the repository and token above. CI diagnosis requires Actions read access.</p>
+            <div id="github-ci-results" class="github-ci-results"></div>
+          </section>
+        </section>
+
+        <section id="ship-panel-supabase" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-supabase" hidden>
+          <p class="ship-lede">Supabase is used for managed Postgres, Storage, and Realtime. Authenik8 keeps users, sessions, roles, and authorization.</p>
+          <div class="ship-status" role="status" aria-live="polite">
+            <span class="status-dot" id="ship-supabase-dot" data-tone="idle" aria-hidden="true"></span>
+            <div>
+              <strong id="ship-supabase-state">Checking the sandbox...</strong>
+              <span id="ship-supabase-detail">No values are read back from the environment.</span>
+            </div>
+          </div>
+          <label class="field" for="ship-supabase-url">
+            <span class="field-label">Project URL</span>
+            <input id="ship-supabase-url" type="url" autocomplete="off" spellcheck="false" placeholder="https://abcd.supabase.co" />
+          </label>
+          <label class="field" for="ship-supabase-key">
+            <span class="field-label">Anon or publishable key <em>public</em></span>
+            <input id="ship-supabase-key" type="password" autocomplete="off" spellcheck="false" placeholder="Paste the public key" />
+          </label>
+          <label class="field" for="ship-supabase-db">
+            <span class="field-label">Database connection string <em>optional</em></span>
+            <input id="ship-supabase-db" type="password" autocomplete="off" spellcheck="false" placeholder="postgresql://postgres:...@db.abcd.supabase.co:5432/postgres" />
+          </label>
+          <p class="ship-help">The public key is checked against the project REST endpoint. With a database string, Studio saves the connection and pushes your Prisma schema (<code>npm run db:migrate</code>) to Supabase in one step. Use the direct connection (port 5432), not the pooler, for migrations.</p>
+          <div class="modal-actions">
+            <button id="ship-supabase-save" class="btn-primary" type="button">Connect &amp; Deploy Supabase</button>
+          </div>
+          <p id="ship-supabase-result" class="ship-result" role="status" aria-live="polite"></p>
+        </section>
+
+        <section id="ship-panel-vercel" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-vercel" hidden>
+          <p class="ship-lede">Publish the static sandbox to a Vercel production deployment. Only browser files are uploaded: no dotfiles, dependencies, or local server.</p>
+          <label class="field" for="ship-vercel-token">
+            <span class="field-label">Vercel access token</span>
+            <input id="ship-vercel-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a token with deploy access" />
+          </label>
+          <label class="field" for="ship-vercel-name">
+            <span class="field-label">Project name <em>optional</em></span>
+            <input id="ship-vercel-name" type="text" autocomplete="off" spellcheck="false" placeholder="my-authenik8-site" />
+          </label>
+          <p class="ship-help">The token is sent to Vercel for this deploy only. Inline deploys are capped at 3 MB of static files.</p>
+          <div class="modal-actions">
+            <button id="ship-vercel-deploy" class="btn-primary" type="button">Deploy to Vercel</button>
+          </div>
+          <p id="ship-vercel-result" class="ship-result" role="status" aria-live="polite"></p>
+          <p id="ship-vercel-detect" class="ship-detect"></p>
+        </section>
+
+        <section id="ship-panel-netlify" class="ship-panel" role="tabpanel" aria-labelledby="ship-tab-netlify" hidden>
+          <p class="ship-lede">Create a Netlify site and upload a ZIP of the static sandbox. An existing site id updates that site instead of creating another one.</p>
+          <label class="field" for="ship-netlify-token">
+            <span class="field-label">Netlify access token</span>
+            <input id="ship-netlify-token" type="password" autocomplete="off" spellcheck="false" placeholder="Paste a personal access token" />
+          </label>
+          <label class="field" for="ship-netlify-name">
+            <span class="field-label">Site name <em>optional</em></span>
+            <input id="ship-netlify-name" type="text" autocomplete="off" spellcheck="false" placeholder="my-authenik8-site" />
+          </label>
+          <label class="field" for="ship-netlify-site">
+            <span class="field-label">Existing site id <em>optional</em></span>
+            <input id="ship-netlify-site" type="text" autocomplete="off" spellcheck="false" placeholder="Leave empty to create a site" />
+          </label>
+          <p class="ship-help">The token is sent to Netlify for this deploy only. The ZIP contains browser files only and is capped at 20 MB.</p>
+          <div class="modal-actions">
+            <button id="ship-netlify-deploy" class="btn-primary" type="button">Deploy to Netlify</button>
+          </div>
+          <p id="ship-netlify-result" class="ship-result" role="status" aria-live="polite"></p>
+          <p id="ship-netlify-detect" class="ship-detect"></p>
+        </section>
+      </div>
+
+      <footer class="modal-foot">
+        <span class="modal-foot-note">Tokens and keys are never saved or logged.</span>
+        <button id="ship-done" class="btn-secondary" type="button">Done</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="palette-overlay" class="overlay palette-overlay" hidden>
+    <div class="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+      <div class="palette-search">
+        <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7.2" cy="7.2" r="4.3"/><path d="m10.5 10.5 3 3"/></svg>
+        <input id="palette-input" type="text" placeholder="Search actions" autocomplete="off" spellcheck="false" aria-label="Search actions" aria-controls="palette-list" aria-autocomplete="list" />
+        <kbd>Esc</kbd>
+      </div>
+      <div class="palette-results">
+        <p class="palette-label">Actions</p>
+        <div id="palette-list" class="palette-list" role="listbox" aria-label="Actions"></div>
+      </div>
+      <div class="palette-foot" aria-hidden="true">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>Enter</kbd> run</span>
+        <span><kbd>Esc</kbd> close</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="settings-overlay" class="overlay" hidden>
+    <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <header class="modal-head">
+        <div class="modal-title">
+          <span class="modal-icon" aria-hidden="true">
+            <svg class="icon" viewBox="0 0 16 16"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1"/></svg>
+          </span>
+          <div>
+            <h2 id="settings-title">Settings</h2>
+            <p>Workspace preferences for this local studio.</p>
+          </div>
+        </div>
+        <button id="settings-close" class="icon-btn modal-close" type="button" title="Close" aria-label="Close">
+          <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m4.4 4.4 7.2 7.2M11.6 4.4l-7.2 7.2"/></svg>
+        </button>
+      </header>
+
+      <div class="settings-body">
+        <section class="settings-section">
+          <h3>Appearance</h3>
+          <p>Choose an appearance or follow the operating system.</p>
+          <div id="settings-theme" class="segmented" role="group" aria-label="Appearance">
+            <button type="button" data-theme-choice="system" aria-pressed="false">System</button>
+            <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>Connection</h3>
+          <p>The OpenRouter key is held in this tab's memory only. It is not stored, logged, or sent anywhere except the provider you choose.</p>
+          <div class="settings-line">
+            <span id="settings-key-state">No key in this tab.</span>
+            <button id="settings-connect" class="btn-secondary" type="button">Open connection</button>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h3>Keyboard</h3>
+          <dl class="shortcut-list">
+            <div><dt>Send message</dt><dd><kbd>Enter</kbd></dd></div>
+            <div><dt>New line</dt><dd><kbd>Shift</kbd> <kbd>Enter</kbd></dd></div>
+            <div><dt>Command palette</dt><dd id="shortcut-palette"><kbd>Ctrl</kbd> <kbd>K</kbd></dd></div>
+            <div><dt>Close dialog</dt><dd><kbd>Esc</kbd></dd></div>
+          </dl>
+        </section>
+
+        <section class="settings-section">
+          <h3>Workspace</h3>
+          <ul class="trust-list">
+            <li>Files live in a local workspace on this machine.</li>
+            <li>The server binds to localhost only.</li>
+            <li>Project preview scripts run in an isolated origin.</li>
+            <li>Running a project executes its scripts with your account’s permissions; this is not an OS security sandbox.</li>
+            <li>There is no telemetry and no hosted account.</li>
+          </ul>
+        </section>
+      </div>
+
+      <footer class="modal-foot">
+        <span class="modal-foot-note">Authenik8 Studio · local and project-aware</span>
+        <button id="settings-done" class="btn-primary" type="button">Done</button>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast-region" class="toast-region" aria-live="polite" aria-atomic="false"></div>
+
+  <dialog id="import-dialog" class="modal import-modal" aria-labelledby="import-title">
+    <header class="modal-head">
+      <div class="modal-title">
+        <span class="modal-icon" aria-hidden="true">↑</span>
+        <div>
+          <h2 id="import-title">Import a project ZIP</h2>
+          <p>Bring in a frontend from another tool, then connect it to this project.</p>
+        </div>
+      </div>
+      <button id="import-close" class="icon-btn modal-close" type="button" aria-label="Close import dialog">×</button>
+    </header>
+    <div class="modal-body">
+      <p class="import-help">Studio previews the archive before writing files. A shared top-level folder is removed automatically. Dependencies, Git history, environment files, and key files are skipped.</p>
+      <label class="field" for="import-file">
+        <span>Project archive</span>
+        <input id="import-file" type="file" accept=".zip,application/zip" />
+      </label>
+      <p id="import-status" class="import-status" role="status" aria-live="polite">Choose a ZIP archive up to 32 MB.</p>
+      <ul id="import-files" class="import-file-list" hidden></ul>
+      <div class="modal-actions import-actions">
+        <button id="import-cancel" class="btn-secondary" type="button">Cancel</button>
+        <button id="import-new" class="btn-secondary" type="button" disabled>Import new files</button>
+        <button id="import-replace" class="btn-primary" type="button" disabled hidden>Replace conflicts and import</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="/studio/app-state.js"></script>
+<script src="/studio/app-ui.js"></script>
+<script src="/studio/app-chat.js"></script>
+<script src="/studio/app-preview.js"></script>
+<script src="/studio/app-agent.js"></script>
+<script src="/studio/app-template.js"></script>
+<script src="/studio/app-review.js"></script>
+<script src="/studio/app-run.js"></script>
+<script src="/studio/app-shell.js"></script>
+<script src="/studio/app-ship.js"></script>
+<script src="/studio/app-palette.js"></script>
+<script src="/studio/app-boot.js"></script>
+</body>
+</html>

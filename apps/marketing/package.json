@@ -1,0 +1,24 @@
+{
+  "name": "@authenik8/marketing",
+  "version": "1.0.0",
+  "description": "Authenik8 marketing site: straight to the point, no fluff.",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "npm run build && node dev-server.cjs"
+  },
+  "files": [
+    "index.html",
+    "docs.html",
+    "download.html",
+    "pricing.html",
+    "style.css",
+    "authenik8-mark.svg",
+    "dist"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  }
+}

@@ -1,0 +1,19 @@
+<svg width="488" height="488" viewBox="96 96 488 488" role="img" aria-label="Authenik8 mark" xmlns="http://www.w3.org/2000/svg">
+  <title>Authenik8 mark</title>
+  <desc>The Authenik8 security badge: the interlocked A and 8 filling the frame, trimmed of the poster dot grid and dashed ring.</desc>
+  <defs>
+    <radialGradient id="badgeFill" cx="50%" cy="42%" r="64%">
+      <stop offset="0" stop-color="#246a43" />
+      <stop offset="1" stop-color="#17492f" />
+    </radialGradient>
+  </defs>
+  <circle cx="340" cy="340" r="240" fill="url(#badgeFill)" />
+  <circle cx="340" cy="340" r="240" fill="none" stroke="#39c978" stroke-width="5" />
+  <circle cx="340" cy="340" r="224" fill="none" stroke="#bdf6d4" stroke-width="1.4" opacity="0.28" />
+  <polygon points="226 490 262 490 342 260 322 260" fill="#f7fff9" />
+  <polygon points="356 260 336 260 418 490 454 490" fill="#f7fff9" />
+  <rect x="270" y="388" width="98" height="32" rx="5" fill="#f7fff9" />
+  <rect x="360" y="262" width="92" height="96" rx="36" fill="#a7dfbf" />
+  <rect x="354" y="362" width="102" height="112" rx="42" fill="#a7dfbf" />
+  <rect x="358" y="349" width="94" height="22" rx="5" fill="#a7dfbf" />
+</svg>

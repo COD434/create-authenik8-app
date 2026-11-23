@@ -49,7 +49,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist', { recursive: true, force: true })\"",
-    "build": "npm run clean && tsc && npm run build:studio",
+    "build": "npm run clean && tsc && npm run build:studio && npm run build:workspaces",
     "build:studio": "tsc -p tsconfig.studio.json --noEmit && node scripts/build-studio.mjs",
     "prepublishOnly": "npm run build",
     "test": "vitest run",
@@ -57,7 +57,14 @@
     "test:coverage": "vitest run --coverage",
     "test:studio:package": "node scripts/verify-studio-package.mjs",
     "test:templates": "node --import tsx --test tests/template-servers.test.mjs",
-    "test:fresh": "node scripts/verify-fresh-project.mjs"
+    "test:fresh": "node scripts/verify-fresh-project.mjs",
+    "build:workspaces": "npm run build --workspaces --if-present",
+    "dev": "npm run dev --workspace @authenik8/marketing",
+    "package:windows": "npm run build && node scripts/package-windows-studio.mjs",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "canon:audit": "node packages/engineering-canon/dist/cli.js . --baseline canon-baseline.json",
+    "canon:baseline": "node packages/engineering-canon/dist/cli.js . --write-baseline canon-baseline.json",
+    "canon:test": "npm run test --workspace @authenik8/engineering-canon"
   },
   "devDependencies": {
     "@astryxdesign/core": "0.1.9",
@@ -94,5 +101,9 @@
   "overrides": {
     "brace-expansion": "2.0.3",
     "js-yaml": "^4.3.2"
-  }
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ]
 }

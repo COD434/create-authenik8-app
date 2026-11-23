@@ -29,7 +29,6 @@
     "doctor:lovable": "node scripts/doctor-lovable.mjs",
     "export:lovable-client": "npm run build:packages && node scripts/export-lovable-client.mjs",
     "db:generate": "npm run prisma:generate -w @authenik8/api",
-
     "setup": "node scripts/run-local.mjs setup",
     "db:migrate": "node scripts/run-local.mjs migrate",
     "db:migrate:apply": "npm run prisma:migrate -w @authenik8/api",
@@ -37,7 +36,6 @@
     "db:seed:apply": "npm run prisma:seed -w @authenik8/api",
     "db:studio": "node scripts/run-local.mjs studio",
     "db:studio:apply": "npm run prisma:studio -w @authenik8/api",
-
     "docker:up": "docker compose up -d --wait",
     "docker:down": "docker compose down"
   },
@@ -48,17 +46,16 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-
     "find-my-way": "9.7.0",
     "valibot": "1.4.2",
     "deepmerge-ts": "^8.0.0",
     "js-yaml": "^4.3.2",
-    "mysql2": "^3.23.1"
+    "mysql2": "^3.23.1",
+    "effect": "3.22.5"
   },
   "allowScripts": {
     "prisma@7.10.0": true,
     "@prisma/engines@7.10.0": true,
-
     "esbuild": true
   }
 }

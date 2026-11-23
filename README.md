@@ -1,76 +1,45 @@
-<div align="center">
+# authenik8
 
-![create-authenik8-app logo](https://raw.githubusercontent.com/COD434/create-authenik8-app/main/assets/logo.svg)
+Authenik8 ecosystem workspace: identity-aware AI development foundations.
+Blueprint and rationale: `docs/ecosystem/` in the `create-authenik8-app`
+repository (Stage 2b). This workspace grows *around* the generator CLI; the
+CLI repo keeps its own contract and boundaries.
 
-<h1>create-authenik8-app</h1>
+## Packages
 
-<p><strong>Generate a secure Express API or a connected React + Express application from one CLI.</strong></p>
+| Package | Purpose | Status |
+| --- | --- | --- |
+| `@authenik8/models` | Provider-independent BYOK model gateway: discovery, streaming, usage accounting, budgets, retry | M1 — initial OpenRouter adapter |
+| `@authenik8/mcp` | Read-only, identity-aware planning/validation tools over MCP stdio: `get_supported_features`, `plan_authenik8_project`, `validate_project_spec`, `get_project_contract` | M2 — read-only planning surface |
+| `@authenik8/design` | Design systems as versionable data: validated tokens, DESIGN.md brand specs, WCAG contrast checks with stable IDs (`A8-DS-###`) — plus 4 agent skills (`design-audit`, `design-init`, `design-css`, `design-contrast-fix`) wired into OpenCode via the `skills` config | M3 — data format + checks + agent skills |
+| `@authenik8/agent-adapter` | Documented runtime-swap contract over coding agents (OpenCode first): structured runs, timeout/abort kills, opt-in auto-approve | M4 — interface + OpenCode adapter |
+| `@authenik8/web-studio` | Localhost app builder with BYOK OpenRouter, user-triggered OpenCode and CodeRabbit workflows, GitHub repository sync with optional Actions CI, Supabase settings, and static deploys to Vercel/Netlify | M5 — local Studio integrations |
+| `create-authenik8-studio` | One-liner launcher: picks a free port, boots Studio Web, opens the browser (`npx create-authenik8-studio`; `--port`/`--no-open`) | M5 v4.2 — launcher |
 
-<p>Authenik8 provides production-minded identity flows, stateful JWT rotation, Redis-backed sessions, Prisma, OAuth, and a complete fullstack application preset.</p>
+Planned: `apps/studio` growth, additional runtimes behind the same
+`AgentRuntime` contract, design-agent skills consuming `@authenik8/design`.
 
+## Development
 
-
-![NPM Downloads](https://img.shields.io/npm/dw/create-authenik8-app)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/COD434/create-authenik8-app/badge)](https://securityscorecards.dev/viewer/?uri=github.com/COD434/create-authenik8-app)
-![CI](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml/badge.svg)
-[![Coverage](https://img.shields.io/badge/coverage-80%25-green)](https://github.com/COD434/create-authenik8-app/actions/workflows/ci.yml)
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12678/badge)](https://www.bestpractices.dev/projects/12678)
-
-</div>
-See a real generated project in [create-authenik8-app-example](https://github.com/COD434/create-authenik8-app-example).
-
-## Quickstart
+Node 22+. This workspace uses npm workspaces (the blueprint suggested pnpm;
+npm was chosen for the current toolchain — equivalent for a single-package
+start).
 
 ```bash
-npx create-authenik8-app my-app
+npm install
+npm run dev
+# marketing homepage: http://127.0.0.1:4870/
+# builder studio:     http://127.0.0.1:4870/studio
+npm run build
+npm run test
 ```
 
-Choose the fullstack application for a connected React and Express project, or select one of the focused Express API presets. Start with the [quickstart guide](docs/quickstart.md) for requirements and generated-project commands.
+## Security posture
 
-## Documentation
-
-
-### Create and maintain projects
-
-- [Quickstart](docs/quickstart.md)
-- [Non-interactive generation](docs/non-interactive-generation.md)
-- [Project diagnostics](docs/project-diagnostics.md)
-- [Local security dashboard](docs/local-security-dashboard.md)
-- [Operational auth maintenance](docs/operational-maintenance.md)
-- [Post-generation recipes](docs/post-generation-recipes.md)
-- [Upgrade planning and CI policy](docs/upgrades-and-ci.md)
-- [CLI reference](docs/cli-reference.md)
-
-### Choose an application shape
-
-- [Presets](docs/presets.md)
-- [Fullstack App Kit](docs/fullstack-app-kit.md)
-- [Lovable frontend integration](docs/lovable.md)
-- [Core authentication features](docs/authentication-features.md)
-- [Why create-authenik8-app](docs/why-create-authenik8-app.md)
-- [Requirements](docs/requirements.md)
-
-### Configure authentication
-
-- [Environment variables](docs/environment-variables.md)
-- [RBAC example](docs/rbac-example.md)
-- [Identity Engine](docs/identity-engine.md)
-- [Using authenik8-core](docs/authenik8-core.md)
-- [Threat model](docs/threat-model.md)
-
-
-### Operate and evaluate
-
-- [Testing](docs/testing.md)
-- [Production enhancements](docs/production-enhancements.md)
-- [Authenik8 compared with Passport.js](docs/authenik8-vs-passport.md)
-- [Project notes](docs/notes.md)
-- [Roadmap](docs/roadmap.md)
-
-## Contributing and support
-
-- [Contributing](CONTRIBUTING.md)
-- [Testing this repository](TESTING.md)
-- [Security policy](SECURITY.md)
-- [Code of conduct](CODE_OF_CONDUCT.md)
-- [Changelog](CHANGELOG.md)
+- BYOK only in M1: the user's provider key is passed per call, is never
+  logged, never embedded in errors, and is only sent to the validated
+  provider base URL (HTTPS, non-private hosts — SSRF-guarded).
+- No telemetry. GitHub and hosting tokens are supplied per request and are not
+  stored by Studio. Supabase settings are written to the local project `.env`
+  only after the user chooses Save. GitHub publish skips environment files and
+  common private-key files; review the included file list before publishing.
