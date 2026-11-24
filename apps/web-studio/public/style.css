@@ -1761,6 +1761,11 @@ kbd {
   from { opacity: 0; transform: translateY(8px) scale(0.995); }
   to { opacity: 1; transform: none; }
 }
+/* Author display rules must not resurrect a closed native <dialog>: the UA
+   sheet only hides it at a lower priority than .modal's display rule. */
+dialog.modal:not([open]) {
+  display: none;
+}
 
 .modal-head {
   display: flex;

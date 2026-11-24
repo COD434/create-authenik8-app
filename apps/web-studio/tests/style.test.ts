@@ -46,6 +46,15 @@ describe("style.css structure", () => {
     expect(braceDepthAt(source, guard)).toBe(0);
   });
 
+  it("keeps native dialogs hidden while closed, despite the shared .modal display rule", () => {
+    const source = withoutComments(css);
+    const guard = source.indexOf("dialog.modal:not([open])");
+    expect(guard).toBeGreaterThan(-1);
+    // A UA-sheet display:none loses to .modal's author display:flex, which
+    // painted the import dialog over the Studio before it was opened.
+    expect(braceDepthAt(source, guard)).toBe(0);
+  });
+
   it("skins every runtime surface the client can show", () => {
     // The template wizard reuses the modal chrome: its output, status line,
     // and buttons must share the terminal/pill styling, not fall out raw.
