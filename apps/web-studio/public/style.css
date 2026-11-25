@@ -3762,3 +3762,14 @@ input[type="checkbox"] { accent-color: var(--accent); }
   background: var(--hover);
   color: var(--text-1);
 }
+
+.exec-empty {
+  width: min(100%, var(--column));
+  margin: 24px auto;
+  padding: 16px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-btn);
+  color: var(--text-3);
+  font-size: 13px;
+  text-align: center;
+}

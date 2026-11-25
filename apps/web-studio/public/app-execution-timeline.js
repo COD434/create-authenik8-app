@@ -181,7 +181,19 @@
     const statusEl = document.getElementById("execution-timeline-status");
     if (!enabled) { root.hidden = true; if (head) head.hidden = true; return; }
     const activities = executionStore.list();
-    if (activities.length === 0) { root.hidden = true; root.replaceChildren(); if (head) head.hidden = true; return; }
+    if (activities.length === 0) {
+      const welcomeVisible = document.getElementById("welcome")?.hidden === false;
+      root.hidden = welcomeVisible;
+      if (head) head.hidden = true;
+      root.replaceChildren();
+      if (!welcomeVisible) {
+        const empty = document.createElement("div");
+        empty.className = "exec-empty";
+        empty.textContent = "Execution activity will appear here.";
+        root.appendChild(empty);
+      }
+      return;
+    }
     const shouldStick = nearBottom(root);
     root.hidden = false;
     if (head) head.hidden = false;
