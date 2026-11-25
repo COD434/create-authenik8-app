@@ -234,7 +234,6 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       if (window.STUDIO_EXECUTION_TIMELINE) {
         currentAssistant.textContent = finalSource;
         msgModel.status = "done";
-        attachAssistantActions(currentAssistant, { regenerate: true });
         attachMsgModel();
       } else {
         renderRichText(currentAssistant, finalSource);
