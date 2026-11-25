@@ -170,8 +170,10 @@ function addToolLine(name, id, scroll = true) {
   summary.className = "tool-summary";
   summary.textContent = "running…";
   el.append(icon, label, summary);
-  messagesEl.appendChild(el);
-  if (scroll) autoScroll();
+  if (!window.STUDIO_EXECUTION_TIMELINE) {
+    messagesEl.appendChild(el);
+    if (scroll) autoScroll();
+  }
   return el;
 }
 
