@@ -10,6 +10,8 @@ const MARKETING_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)),
 /** Ordered classic scripts that make up the Studio shell (see index.html). */
 const STUDIO_APP_SCRIPTS = [
   "state",
+  "execution-store",
+  "execution-timeline",
   "ui",
   "chat",
   "preview",

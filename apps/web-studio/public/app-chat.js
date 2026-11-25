@@ -35,27 +35,102 @@ function renderPlan(plan) {
   planPanel.hidden = false;
 }
 
-// Pull code or answers out of a finished reply without selecting text.
-function attachCopyButton(bubble) {
+// Message actions: copy/regenerate. Real actions only, no fake controls.
+function attachAssistantActions(bubble, options = {}) {
   const row = bubble.parentElement;
   if (row === null || !row.classList.contains("msg-row")) return;
-  if (row.querySelector(".msg-copy") !== null) return;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "msg-copy";
-  btn.textContent = "Copy";
-  btn.addEventListener("click", async () => {
+  if (row.querySelector(".msg-actions") !== null) return;
+  const actions = document.createElement("div");
+  actions.className = "msg-actions";
+
+  const copyIcon = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.2" y="5.2" width="7.2" height="8.4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.6 2.8H4.8A1.4 1.4 0 0 0 3.4 4.2v7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  const checkIcon = '<svg class="icon icon-check-swap" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.2 6.7 11.4 12.7 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "msg-action";
+  copy.dataset.action = "copy";
+  copy.innerHTML = copyIcon + "<span>Copy</span>";
+  copy.addEventListener("click", async () => {
+    copy.classList.remove("is-confirming");
     try {
       await navigator.clipboard.writeText(bubble.dataset.copyText ?? bubble.textContent);
-      btn.textContent = "Copied";
+      copy.innerHTML = checkIcon + "<span>Copied</span>";
+      copy.classList.add("is-confirming");
       notify("Reply copied", "ok");
     } catch {
-      btn.textContent = "Blocked";
+      copy.innerHTML = copyIcon + "<span>Blocked</span>";
       notify("Clipboard blocked by the browser", "error");
     }
-    window.setTimeout(() => { btn.textContent = "Copy"; }, 1200);
+    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500);
   });
-  row.appendChild(btn);
+  actions.appendChild(copy);
+
+  if (options.regenerate === true) {
+    for (const old of messagesEl.querySelectorAll('.msg-action[data-action="regenerate"]')) old.remove();
+    const regen = document.createElement("button");
+    regen.type = "button";
+    regen.className = "msg-action";
+    regen.dataset.action = "regenerate";
+    regen.textContent = "Regenerate";
+    regen.disabled = chatRunning;
+    regen.addEventListener("click", () => {
+      if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+    });
+    actions.appendChild(regen);
+  }
+
+  row.appendChild(actions);
+}
+
+function attachUserActions(bubble) {
+  const row = bubble.parentElement;
+  if (row === null || !row.classList.contains("msg-row")) return;
+  if (row.querySelector(".msg-actions") !== null) return;
+  const actions = document.createElement("div");
+  actions.className = "msg-actions";
+
+  const copyIcon = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="5.2" y="5.2" width="7.2" height="8.4" rx="1.4" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M10.6 2.8H4.8A1.4 1.4 0 0 0 3.4 4.2v7.6" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+  const checkIcon = '<svg class="icon icon-check-swap" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.2 6.7 11.4 12.7 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.className = "msg-action";
+  copy.dataset.action = "copy";
+  copy.innerHTML = copyIcon + "<span>Copy</span>";
+  copy.addEventListener("click", async () => {
+    copy.classList.remove("is-confirming");
+    try {
+      await navigator.clipboard.writeText(bubble.textContent ?? "");
+      copy.innerHTML = checkIcon + "<span>Copied</span>";
+      copy.classList.add("is-confirming");
+      notify("Reply copied", "ok");
+    } catch {
+      copy.innerHTML = copyIcon + "<span>Blocked</span>";
+      notify("Clipboard blocked by the browser", "error");
+    }
+    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500);
+  });
+  actions.appendChild(copy);
+
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "msg-action";
+  edit.dataset.action = "edit";
+  edit.textContent = "Edit";
+  edit.addEventListener("click", () => {
+    if (chatRunning) return;
+    promptEl.value = bubble.textContent ?? "";
+    promptEl.style.height = "auto";
+    promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
+    promptEl.focus();
+    saveDraft();
+  });
+  actions.appendChild(edit);
+
+  row.appendChild(actions);
+}
+
+function attachCopyButton(bubble) {
+  attachAssistantActions(bubble, { regenerate: false });
 }
 
 // Client-side errors must surface in-band: a silently broken UI is the
@@ -119,9 +194,37 @@ function setToolLine(line, name, ok, summary, transcriptId) {
   line.append(" ", link);
 }
 
+function compactToolArgs(tool) {
+  const raw = typeof tool.arguments === "string" ? tool.arguments : "";
+  if (raw.length === 0) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      if (tool.name === "write_file" && typeof parsed.path === "string") {
+        const size = typeof parsed.content === "string" ? parsed.content.length : 0;
+        return `${parsed.path} (${size} chars)`;
+      }
+      if (typeof parsed.path === "string" && Object.keys(parsed).length === 1) return parsed.path;
+      if (typeof parsed.path === "string") return parsed.path;
+      const keys = Object.keys(parsed).slice(0, 3);
+      if (keys.length > 0) return keys.map((k) => `${k}=${String(parsed[k]).slice(0, 40)}`).join(" ");
+    }
+  } catch {
+    // fall through to truncation
+  }
+  return raw.length > 140 ? `${raw.slice(0, 140)}...` : raw;
+}
+
+function toolIconSvg(status) {
+  if (status === "running") return '<svg class="icon tool-spin" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="20 12" stroke-linecap="round"/><circle class="tool-dot" cx="8" cy="8" r="2.6"/></svg>';
+  if (status === "done") return '<svg class="icon tool-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.2 6.7 11.4 12.7 5.4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  return '<svg class="icon tool-fail" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 5l6 6M11 5 5 11" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
+}
+
 function createToolRecord(tool) {
   const record = document.createElement("div");
   record.className = "tool-record";
+  record.style.willChange = "opacity, transform";
   if (typeof tool.id === "string" && tool.id.length > 0) record.dataset.toolId = tool.id;
 
   const head = document.createElement("div");
@@ -129,18 +232,10 @@ function createToolRecord(tool) {
 
   const icon = document.createElement("span");
   icon.className = "tool-icon";
-  const iconMap = {
-    list_files: "list",
-    read_file: "eye",
-    write_file: "write",
-    design_audit: "check",
-    explore_project: "compass",
-    review_project: "eye",
-    build_project: "hammer",
-    update_plan: "list",
-  };
-  const svgName = iconMap[tool.name] ?? "drive";
-  icon.innerHTML = `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4h8M4 8h5M4 12h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  icon.style.willChange = "transform";
+  const statusValue = tool.phase === "start" ? "running" : tool.ok ? "done" : "failed";
+  icon.innerHTML = toolIconSvg(statusValue);
+  if (statusValue === "running") icon.dataset.status = "running";
 
   const name = document.createElement("span");
   name.className = "tool-name";
@@ -148,21 +243,23 @@ function createToolRecord(tool) {
 
   const status = document.createElement("span");
   status.className = "tool-status";
-  status.textContent = tool.phase === "start" ? "running" : tool.ok ? "done" : "failed";
+  status.textContent = statusValue;
+  status.dataset.status = statusValue;
   head.append(icon, name, status);
 
   const body = document.createElement("div");
   body.className = "tool-body";
-
-  if (tool.phase === "start" && tool.arguments) {
-    const args = document.createElement("pre");
+  const compact = compactToolArgs(tool);
+  if (compact) {
+    const args = document.createElement("div");
     args.className = "tool-args";
-    args.textContent = "arguments: " + tool.arguments;
+    args.textContent = compact;
     body.appendChild(args);
+  } else {
+    body.hidden = true;
   }
 
-  record.appendChild(head);
-  record.appendChild(body);
+  record.append(head, body);
   return record;
 }
 
@@ -172,13 +269,48 @@ function setToolRecord(record, tool) {
   const name = head.querySelector(".tool-name");
   if (name !== null) name.textContent = tool.name;
 
+  const nextStatus = tool.ok ? "done" : "failed";
+  const icon = head.querySelector(".tool-icon");
+  if (icon !== null) {
+    icon.style.willChange = "transform";
+    icon.innerHTML = toolIconSvg(nextStatus);
+    const svg = icon.querySelector(".icon");
+    if (svg) {
+      svg.classList.remove("status-pop");
+      void svg.getBoundingClientRect();
+      svg.classList.add("status-pop");
+    }
+  }
+  const iconStatus = head.querySelector(".tool-icon");
+  if (iconStatus) {
+    if (nextStatus === "running") iconStatus.dataset.status = "running";
+    else iconStatus.dataset.status = "";
+  }
   const status = head.querySelector(".tool-status");
   if (status !== null) {
-    status.textContent = tool.ok ? "done" : "failed";
-    status.dataset.status = tool.ok ? "done" : "failed";
-    status.style.background = tool.ok ? "var(--success)" : "var(--danger)";
+    status.style.willChange = "opacity, transform";
+    status.textContent = nextStatus;
+    status.dataset.status = nextStatus;
+    status.classList.remove("status-pop");
+    // force reflow to restart animation on rapid updates
+    void status.offsetWidth;
+    status.classList.add("status-pop");
+    status.style.willChange = "";
   }
 
+  const body = record.querySelector(".tool-body");
+  if (body === null) return;
+  body.hidden = false;
+  const existingSummary = body.querySelector(".tool-result");
+  if (existingSummary) existingSummary.remove();
+  if (typeof tool.summary === "string" && tool.summary.length > 0) {
+    const summary = document.createElement("div");
+    summary.className = "tool-result";
+    summary.dataset.status = tool.ok ? "done" : "failed";
+    summary.textContent = tool.summary;
+    body.appendChild(summary);
+  }
+  if (!body.childElementCount) body.hidden = true;
 }
 
 function escapeHtml(value) {
@@ -355,41 +487,98 @@ async function restoreHistory() {
     if (epoch !== historyEpoch) return;
     renderPlan(body.plan ?? null);
 
-    let rendered = 0;
-    for (const message of messages) {
-      if (typeof message !== "object" || message === null) continue;
-      if (message.role !== "user" && message.role !== "assistant") continue;
-      if (typeof message.content !== "string") continue;
-      if (message.content.length > 0) {
-        const bubble = addMessage(message.role, message.content);
+    if (typeof executionStore !== "undefined") {
+      executionStore.reset();
+      let seq = 0;
+      for (const message of messages) {
+        if (typeof message !== "object" || message === null) continue;
+        if (message.role === "user" && typeof message.content === "string") {
+          executionStore.applyEvent({ v:1, id:`hist_u_${++seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:`hist_${seq}`, source:"system", kind:"user.message", activityId:`hist_user_${seq}`, state:"completed", payload:{ text: message.content } });
+        }
         if (message.role === "assistant") {
-          formatAssistantMessage(bubble);
-          attachCopyButton(bubble);
+          if (typeof message.content === "string" && message.content.trim().length > 0) {
+            const aid = `hist_assistant_${++seq}`;
+            executionStore.applyEvent({ v:1, id:`hist_ad_${seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:`hist_${seq}`, source:"chat", kind:"assistant.message.delta", activityId:aid, state:"completed", payload:{ text: message.content } });
+            executionStore.applyEvent({ v:1, id:`hist_ac_${seq}`, seq:seq+0.1, ts:new Date().toISOString(), sessionId:"local-session", turnId:`hist_${seq}`, source:"chat", kind:"assistant.message.completed", activityId:aid, state:"completed", payload:{} });
+          }
+          if (Array.isArray(message.toolCalls)) {
+            for (const call of message.toolCalls) {
+              if (typeof call !== "object" || call === null || typeof call.name !== "string") continue;
+              const tid = typeof call.id === "string" ? call.id : `hist_tool_${++seq}`;
+              const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
+              executionStore.applyEvent({ v:1, id:`hist_ts_${++seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:`hist_${seq}`, source:"chat", kind:"tool.started", activityId:tid, state:"running", payload:{ name: call.name, arguments: typeof call.arguments === "string" ? call.arguments : "" } });
+              executionStore.applyEvent({ v:1, id:`hist_td_${++seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:`hist_${seq}`, source:"chat", kind: result && !String(result.content).startsWith("Error:") ? "tool.completed" : "tool.failed", activityId:tid, state: result && !String(result.content).startsWith("Error:") ? "completed" : "failed", payload:{ name: call.name, summary: result ? String(result.content).split("\n")[0] : "", ok: !!(result && !String(result.content).startsWith("Error:")) } });
+            }
+          }
         }
-        rendered++;
-      }
-      if (message.role !== "assistant" || !Array.isArray(message.toolCalls)) continue;
-      for (const call of message.toolCalls) {
-        if (typeof call !== "object" || call === null) continue;
-        if (typeof call.name !== "string" || !SUBAGENT_TOOL_PREFIXES.has(call.name)) continue;
-        const line = addToolLine(call.name, typeof call.id === "string" ? call.id : "", false);
-        const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
-        if (result !== undefined) {
-          const childId = result.childId ?? childIdFromResult(result.content);
-          setToolLine(
-            line,
-            call.name,
-            !result.content.startsWith("Error:"),
-            result.content.split("\n")[0] ?? "",
-            subagentLogId(call.name, childId),
-          );
-        }
-        rendered++;
       }
     }
-    if (epoch !== historyEpoch) return;
-    if (rendered === 0) return;
-    autoScroll();
+
+    messagesEl.classList.add("restoring");
+    try {
+      if (window.STUDIO_EXECUTION_TIMELINE) {
+        scrollToLatest("auto");
+        return;
+      }
+      let rendered = 0;
+      let lastAssistantBubble = null;
+      for (const message of messages) {
+        if (typeof message !== "object" || message === null) continue;
+        if (message.role !== "user" && message.role !== "assistant") continue;
+        if (typeof message.content !== "string") continue;
+        if (message.content.length > 0) {
+          const bubble = addMessage(message.role, message.content);
+          if (message.role === "assistant") {
+            formatAssistantMessage(bubble);
+            if (bubble.textContent.trim().length === 0) {
+              bubble.parentElement?.remove();
+              continue;
+            }
+            attachAssistantActions(bubble, { regenerate: false });
+            lastAssistantBubble = bubble;
+          }
+          rendered++;
+        }
+        if (message.role !== "assistant" || !Array.isArray(message.toolCalls)) continue;
+        for (const call of message.toolCalls) {
+          if (typeof call !== "object" || call === null) continue;
+          if (typeof call.name !== "string" || !SUBAGENT_TOOL_PREFIXES.has(call.name)) continue;
+          const line = addToolLine(call.name, typeof call.id === "string" ? call.id : "", false);
+          const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
+          if (result !== undefined) {
+            const childId = result.childId ?? childIdFromResult(result.content);
+            setToolLine(
+              line,
+              call.name,
+              !result.content.startsWith("Error:"),
+              result.content.split("\n")[0] ?? "",
+              subagentLogId(call.name, childId),
+            );
+          }
+          rendered++;
+        }
+      }
+      if (epoch !== historyEpoch) return;
+      if (lastAssistantBubble !== null) {
+        const actions = lastAssistantBubble.parentElement?.querySelector(".msg-actions");
+        if (actions !== null && actions.querySelector('[data-action="regenerate"]') === null) {
+          const regen = document.createElement("button");
+          regen.type = "button";
+          regen.className = "msg-action";
+          regen.dataset.action = "regenerate";
+          regen.textContent = "Regenerate";
+          regen.disabled = chatRunning;
+          regen.addEventListener("click", () => {
+            if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+          });
+          actions.appendChild(regen);
+        }
+      }
+      if (rendered === 0) return;
+      scrollToLatest("auto");
+    } finally {
+      messagesEl.classList.remove("restoring");
+    }
   } catch {
     // History is an enhancement: a failed read must never block the composer.
   }

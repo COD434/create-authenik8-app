@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import { MAX_IMPORT_ARCHIVE_BYTES, parseProjectZip, ProjectImportError, type ProjectImport } from "../import.js";
 import { readBinaryBody, sendJson } from "../http.js";
@@ -79,12 +81,85 @@ async function applyImport(ctx: RouteContext, imported: ProjectImport): Promise<
   });
 }
 
+const execFileAsync = promisify(execFile);
+const MAX_INSPECTOR_TEXT = 120_000;
+
+async function gitText(sandboxRoot: string, args: string[]): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", args, {
+      cwd: sandboxRoot,
+      windowsHide: true,
+      timeout: 5_000,
+      maxBuffer: MAX_INSPECTOR_TEXT,
+    });
+    return stdout.slice(0, MAX_INSPECTOR_TEXT);
+  } catch {
+    return null;
+  }
+}
+
+function parseChangedFiles(statusText: string): Array<{ status: string; path: string }> {
+  const out: Array<{ status: string; path: string }> = [];
+  for (const line of statusText.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const status = line.slice(0, 2).trim() || line.slice(0, 2);
+    let filePath = line.slice(3).trim();
+    const arrow = filePath.indexOf(" -> ");
+    if (arrow !== -1) filePath = filePath.slice(arrow + 4).trim();
+    if (filePath) out.push({ status, path: filePath });
+  }
+  return out.slice(0, 200);
+}
+
+async function inspectorSnapshot(ctx: RouteContext): Promise<void> {
+  const { deps, res } = ctx;
+  await mkdir(deps.sandboxRoot, { recursive: true });
+  const files = await collectProjectFiles(deps.sandboxRoot);
+  const [status, diff, branch] = await Promise.all([
+    gitText(deps.sandboxRoot, ["status", "--short"]),
+    gitText(deps.sandboxRoot, ["diff", "--unified=2", "--no-color"]),
+    gitText(deps.sandboxRoot, ["branch", "--show-current"]),
+  ]);
+  const changedFiles = status ? parseChangedFiles(status) : [];
+  sendJson(res, 200, {
+    files: files.slice(0, 500).map((f) => ({ path: f.name, bytes: f.data.length })),
+    changedFiles,
+    git: {
+      available: status !== null || diff !== null || branch !== null,
+      branch: (branch ?? "").trim(),
+      status: status ?? "",
+      diff: (diff ?? "").slice(0, MAX_INSPECTOR_TEXT),
+      changedCount: changedFiles.length,
+    },
+  });
+}
+
 /** Project ZIP export and two-phase import (preview, then confirmed apply). */
 export async function handleProjectRoutes(ctx: RouteContext): Promise<boolean> {
   const { req, res, url } = ctx;
 
   if (url.pathname === "/api/export" && req.method === "GET") {
     await exportProject(ctx);
+    return true;
+  }
+
+  if (url.pathname === "/api/project/inspector" && req.method === "GET") {
+    await inspectorSnapshot(ctx);
+    return true;
+  }
+
+  if (url.pathname === "/api/project/diff" && req.method === "GET") {
+    const requested = url.searchParams.get("path") ?? "";
+    const file = resolveInsideSandbox(ctx.deps.sandboxRoot, requested);
+    if (file === null) {
+      sendJson(res, 400, { error: "Invalid path." });
+      return true;
+    }
+    await mkdir(ctx.deps.sandboxRoot, { recursive: true });
+    const rel = path.relative(ctx.deps.sandboxRoot, file).replace(/\\/g, "/");
+    const diff = await gitText(ctx.deps.sandboxRoot, ["diff", "--unified=3", "--no-color", "--", rel]);
+    const staged = await gitText(ctx.deps.sandboxRoot, ["diff", "--cached", "--unified=3", "--no-color", "--", rel]);
+    sendJson(res, 200, { path: rel, diff: diff ?? "", staged: staged ?? "", available: diff !== null || staged !== null });
     return true;
   }
 

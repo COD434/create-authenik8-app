@@ -22,13 +22,23 @@ import {
 } from "./support/studio-harness.js";
 
 describe("build agent route", () => {
-  function runAgent(prompt: string): Promise<Response> {
+  function runAgent(prompt: string, key = "sk-or-test"): Promise<Response> {
     return fetch(`${base}/api/agent`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
       body: JSON.stringify({ prompt }),
     });
   }
+
+  it("rejects agent run without API key", async () => {
+    const res = await fetch(`${base}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: "build something" }),
+    });
+    expect(res.status).toBe(401);
+    expect(agentCalls).toHaveLength(0);
+  });
 
   it("runs the agent in the sandbox with auto-approve and streams the outcome", async () => {
     const pending = runAgent("a barbershop booking app");
@@ -107,7 +117,11 @@ describe("build agent route", () => {
   });
 
   it("rejects malformed JSON with 400 instead of 500", async () => {
-    const res = await fetch(`${base}/api/agent`, { method: "POST", body: "{not json" });
+    const res = await fetch(`${base}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": "sk-or-test" },
+      body: "{not json",
+    });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid JSON body" });
     expect(agentCalls).toHaveLength(0);

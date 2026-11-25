@@ -8,6 +8,14 @@ import {
   type CompactionResult,
 } from "../compaction.js";
 import type { LeaseManager } from "../directory-lease.js";
+import {
+  createLegacyChatAdapterState,
+  createStudioEventStream,
+  fromLegacyChatSseEvent,
+  STUDIO_EVENT_VERSION,
+  type StudioEventStream,
+  type LegacyChatAdapterState,
+} from "../execution-events.js";
 import { abortOnDisconnect, apiKeyFrom, parseJsonBody, readBody, sendJson, sseEvent } from "../http.js";
 import { parsePlanArgs } from "../plan.js";
 import { buildRuntimeContext } from "../runtime-context.js";
@@ -40,6 +48,11 @@ export type ChatMode = (typeof CHAT_MODES)[number];
 const chatBodySchema = z.object({
   model: z.string().min(1).max(120),
   message: z.string().min(1).max(32_000),
+  mode: z.enum(CHAT_MODES).optional().default("build"),
+});
+
+const regenerateBodySchema = z.object({
+  model: z.string().min(1).max(120),
   mode: z.enum(CHAT_MODES).optional().default("build"),
 });
 
@@ -109,6 +122,10 @@ const PARENT_TOOL_DEFINITIONS = [
   buildToolDefinition,
 ];
 
+type StudioEmitter = {
+  emitLegacy: (payload: Record<string, unknown>) => void;
+};
+
 type GenerationContext = {
   deps: WebStudioDeps;
   gateway: Gateway;
@@ -120,6 +137,7 @@ type GenerationContext = {
   runner: Runner;
   signal: AbortSignal;
   compaction: { last: string };
+  studio: StudioEmitter;
 };
 
 type ChildBudget = { used: boolean };
@@ -144,7 +162,7 @@ async function streamModelRound(
   let text = "";
   const fragments: ToolCallDelta[] = [];
   let error: unknown = null;
-  sseEvent(context.res, { round, mode: context.mode });
+  context.studio.emitLegacy({ round, mode: context.mode });
 
   // Mode shapes the tool surface: think has no tools, plan only updates the
   // plan, build/debug get the full set. Reasoning is requested in think mode
@@ -167,16 +185,16 @@ async function streamModelRound(
       ...(context.mode === "think" ? { reasoning: true } : {}),
       signal: context.signal,
     })) {
-      if (chunk.reasoning !== null) {
-        sseEvent(context.res, { reasoning: chunk.reasoning });
+      if (context.mode === "think" && typeof chunk.reasoning === "string" && chunk.reasoning.length > 0) {
+        context.studio.emitLegacy({ reasoning: chunk.reasoning });
       }
       if (chunk.delta !== null) {
         text += chunk.delta;
-        sseEvent(context.res, { delta: chunk.delta });
+        context.studio.emitLegacy({ delta: chunk.delta });
       }
       if (chunk.toolCalls !== null) fragments.push(...chunk.toolCalls);
-      if (chunk.usage !== null) sseEvent(context.res, { usage: chunk.usage });
-      if (chunk.finishReason !== null) sseEvent(context.res, { finishReason: chunk.finishReason });
+      if (chunk.usage !== null) context.studio.emitLegacy({ usage: chunk.usage });
+      if (chunk.finishReason !== null) context.studio.emitLegacy({ finishReason: chunk.finishReason });
     }
   } catch (caught) {
     error = caught;
@@ -286,7 +304,7 @@ async function runToolRound(
   calls: ParentToolCall[],
   context: CallContext,
   log: SessionLog,
-  res: GenerationContext["res"],
+  emitLegacy: StudioEmitter["emitLegacy"],
   signal: AbortSignal,
 ): Promise<void> {
   for (const batch of planToolBatches(calls)) {
@@ -302,7 +320,7 @@ async function runToolRound(
     // Start every call in the batch before awaiting any result:
     // read-only calls overlap, a barrier batch is a single call.
     for (const call of batch.calls) {
-      sseEvent(res, { tool: { id: call.id, name: call.name, phase: "start" } });
+      emitLegacy({ tool: { id: call.id, name: call.name, phase: "start" } });
     }
     const outcomes = await executeToolBatch(batch, (call) => executeParentCall(call, context));
     for (let index = 0; index < batch.calls.length; index++) {
@@ -319,7 +337,7 @@ async function runToolRound(
       } = { role: "tool", content: outcome.result, toolCallId: call.id };
       if (outcome.childId !== undefined) toolMessage.childId = outcome.childId;
       await log.append(toolMessage);
-      sseEvent(res, {
+      emitLegacy({
         tool: {
           id: call.id,
           name: call.name,
@@ -331,7 +349,7 @@ async function runToolRound(
       });
       if (call.name === "update_plan" && outcome.ok) {
         const plan = parsePlanArgs(call.arguments);
-        if (plan !== null) sseEvent(res, { plan });
+        if (plan !== null) emitLegacy({ plan });
       }
     }
   }
@@ -361,7 +379,7 @@ async function prepareTurnMessages(
     const signature = `${compacted.pruned}:${compacted.savedChars}`;
     if (signature !== context.compaction.last) {
       context.compaction.last = signature;
-      sseEvent(context.res, {
+      context.studio.emitLegacy({
         compaction: { pruned: compacted.pruned, savedChars: compacted.savedChars },
       });
     }
@@ -379,9 +397,9 @@ async function finishGeneration(
   const finalText = finalRound && text.trim() === ""
     ? "Tool budget reached. I stopped before making more changes. Send another message to continue."
     : text;
-  if (finalRound && text.trim() === "") sseEvent(context.res, { delta: finalText });
+  if (finalRound && text.trim() === "") context.studio.emitLegacy({ delta: finalText });
   await context.log.append({ role: "assistant", content: finalText });
-  sseEvent(context.res, { done: true, rounds });
+  context.studio.emitLegacy({ done: true, rounds });
 }
 
 /** Run model rounds until the assistant answers, the budget ends, or the client leaves. */
@@ -394,7 +412,7 @@ async function runGeneration(context: GenerationContext, model: string): Promise
     const finalRound = toolRounds >= context.maxToolRounds;
     rounds++;
     if (finalRound) {
-      sseEvent(context.res, {
+      context.studio.emitLegacy({
         note: `Tool budget reached (${context.maxToolRounds} tool rounds). The assistant is wrapping up with what is complete; send another message to continue.`,
       });
     }
@@ -439,7 +457,7 @@ async function runGeneration(context: GenerationContext, model: string): Promise
         budget,
       },
       context.log,
-      context.res,
+      context.studio.emitLegacy,
       context.signal,
     );
     if (context.signal.aborted) return;
@@ -479,6 +497,37 @@ async function readChatRequest(
     return null;
   }
   return { key, model: parsed.data.model, message: parsed.data.message, mode: parsed.data.mode };
+}
+
+async function readRegenerateRequest(
+  ctx: RouteContext,
+): Promise<{ key: string; model: string; mode: ChatMode } | null> {
+  const { req, res, session } = ctx;
+  if (session.chatBusy || session.agentBusy) {
+    sendJson(res, 409, { error: "Another build is already in progress" });
+    return null;
+  }
+  const key = apiKeyFrom(req);
+  if (key === null) {
+    sendJson(res, 401, { error: "Missing X-OpenRouter-Key header" });
+    return null;
+  }
+  const body = await readBody(req);
+  if (body === null) {
+    sendJson(res, 413, { error: "Request body too large" });
+    return null;
+  }
+  const raw = parseJsonBody(body);
+  if (raw === undefined) {
+    sendJson(res, 400, { error: "Invalid JSON body" });
+    return null;
+  }
+  const parsed = regenerateBodySchema.safeParse(raw);
+  if (!parsed.success) {
+    sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
+    return null;
+  }
+  return { key, model: parsed.data.model, mode: parsed.data.mode };
 }
 
 /** Commit the user turn before streaming so history stays replayable. */
@@ -523,12 +572,12 @@ async function runGenerationWithFallback(
     ) {
       // Agent-only providers 403 the whole product: complete this
       // message with the app-traffic router instead of dead-ending.
-      sseEvent(generation.res, {
+      generation.studio.emitLegacy({
         note: `${model} rejects app traffic (agents-only provider), so Authenik8 completed this message with ${FALLBACK_MODEL}. Pick it in the dropdown to keep it.`,
       });
       await runGeneration(generation, FALLBACK_MODEL);
     } else if (!signal.aborted) {
-      sseEvent(generation.res, { error: message });
+      generation.studio.emitLegacy({ error: message });
     }
   }
 }
@@ -539,12 +588,36 @@ async function runGenerationWithFallback(
  */
 export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
   const { deps, leases, maxToolRounds, req, res, runner, session, url } = ctx;
-  if (url.pathname !== "/api/chat" || req.method !== "POST") return false;
+  const isChat = url.pathname === "/api/chat" && req.method === "POST";
+  const isRegenerate = url.pathname === "/api/chat/regenerate" && req.method === "POST";
+  if (!isChat && !isRegenerate) return false;
 
-  const request = await readChatRequest(ctx);
-  if (request === null) return true;
+  let request: { key: string; model: string; mode: ChatMode; message?: string };
+  let log: SessionLog;
+  let turnStart: number;
 
-  const { log, turnStart } = await commitUserTurn(ctx, request.message);
+  if (isRegenerate) {
+    const regen = await readRegenerateRequest(ctx);
+    if (regen === null) return true;
+    log = sessionLog(deps, session);
+    await log.rollbackLastTurn();
+    const history = await log.history();
+    const lastUser = [...history].reverse().find((m) => m.role === "user");
+    if (lastUser === undefined || typeof lastUser.content !== "string" || lastUser.content.length === 0) {
+      sendJson(res, 400, { error: "No user message to regenerate" });
+      return true;
+    }
+    request = { key: regen.key, model: regen.model, mode: regen.mode, message: lastUser.content };
+    turnStart = history.length;
+  } else {
+    const chatReq = await readChatRequest(ctx);
+    if (chatReq === null) return true;
+    const committed = await commitUserTurn(ctx, chatReq.message);
+    log = committed.log;
+    turnStart = committed.turnStart;
+    request = { key: chatReq.key, model: chatReq.model, mode: chatReq.mode, message: chatReq.message };
+  }
+
   session.chatBusy = true;
 
   res.writeHead(200, {
@@ -555,6 +628,18 @@ export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
 
   const abort = new AbortController();
   abortOnDisconnect(res, abort);
+
+  const studioStream: StudioEventStream = createStudioEventStream();
+  const studioState: LegacyChatAdapterState = createLegacyChatAdapterState(
+    "local-session",
+    `turn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const emitLegacy = (payload: Record<string, unknown>): void => {
+    sseEvent(res, payload);
+    const studioEvents = fromLegacyChatSseEvent(payload, studioState, studioStream);
+    if (studioEvents.length > 0) sseEvent(res, { studio: studioEvents });
+  };
+  emitLegacy({ studioProtocol: STUDIO_EVENT_VERSION, turn: { id: studioState.turnId, sessionId: studioState.sessionId } });
 
   try {
     const gateway = deps.gatewayFor(request.key);
@@ -569,13 +654,14 @@ export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
       runner,
       signal: abort.signal,
       compaction: { last: "" },
+      studio: { emitLegacy },
     };
     await runGenerationWithFallback(generation, log, turnStart, request.model, abort.signal);
   } catch (error) {
     // ModelsError messages are key-safe by contract in the models package.
     const message = error instanceof Error ? error.message : "stream failed";
     if (!abort.signal.aborted) {
-      sseEvent(res, { error: message });
+      emitLegacy({ error: message });
     }
   } finally {
     session.chatBusy = false;
