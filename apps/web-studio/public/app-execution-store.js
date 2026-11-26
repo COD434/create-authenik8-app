@@ -86,8 +86,14 @@ const executionStore = (() => {
       case "assistant.message.delta":
         appendText(activity, "text", event.payload?.text);
         break;
+      case "assistant.message.completed":
+        if (activity.text.length === 0) appendText(activity, "text", event.payload?.text);
+        break;
       case "reasoning.delta":
         appendText(activity, "reasoning", event.payload?.text);
+        break;
+      case "reasoning.completed":
+        if (activity.reasoning.length === 0) appendText(activity, "reasoning", event.payload?.text);
         break;
       case "command.output":
       case "test.output":
