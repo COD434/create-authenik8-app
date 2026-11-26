@@ -585,10 +585,16 @@
     }
     if (head) head.hidden = welcomeVisible;
     if (statusEl) {
+      const awaiting = activities.some((activity) => activity.state === "awaiting_approval");
       const running = (typeof chatRunning !== "undefined" && chatRunning)
         || activities.some((activity) => isLive(activity));
-      statusEl.textContent = running ? "Running" : "Idle";
-      statusEl.dataset.tone = running ? "live" : "ok";
+      if (awaiting && !running) {
+        statusEl.textContent = "Waiting for approval";
+        statusEl.dataset.tone = "warn";
+      } else {
+        statusEl.textContent = running ? "Running" : "Idle";
+        statusEl.dataset.tone = running ? "live" : "ok";
+      }
     }
   }
 

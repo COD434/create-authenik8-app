@@ -3852,6 +3852,7 @@ input[type="checkbox"] { accent-color: var(--accent); }
 .execution-timeline-head[hidden] { display: none; }
 .execution-timeline-status { color: var(--text-3); font-weight: 500; }
 .execution-timeline-status[data-tone="live"] { color: var(--accent); }
+.execution-timeline-status[data-tone="warn"] { color: var(--warning); }
 .chat[data-timeline="1"] .execution-timeline-head {
   width: min(100%, var(--column));
   margin: 16px auto 0;
