@@ -3328,12 +3328,6 @@ input[type="checkbox"] { accent-color: var(--accent); }
   .theme-control { padding-left: 6px; }
   .theme-control select { max-width: 66px; }
   .messages { padding: 18px 14px 8px; gap: 18px; }
-  .chat[data-timeline="1"] .execution-timeline { padding: 16px 12px 10px; gap: 12px; }
-  .chat[data-timeline="1"] .execution-timeline-head { margin-top: 12px; padding: 0 12px; }
-  .exec-head { gap: 8px; padding: 8px 12px 6px; }
-  .exec-body,
-  .exec-details-host,
-  .exec-actions { padding-left: 12px; }
   .welcome { padding: 12px 14px 8px; }
   .welcome-inner { padding-top: 8px; }
   .starter-list { grid-template-columns: 1fr; margin-top: 12px; }
@@ -3850,6 +3844,15 @@ input[type="checkbox"] { accent-color: var(--accent); }
   width: min(100%, var(--column));
   margin: 16px auto 0;
   padding: 0 24px;
+}
+
+@media (max-width: 720px) {
+  .chat[data-timeline="1"] .execution-timeline { padding: 16px 12px 10px; gap: 12px; }
+  .chat[data-timeline="1"] .execution-timeline-head { margin-top: 12px; padding: 0 12px; }
+  .exec-head { gap: 8px; padding: 8px 12px 6px; }
+  .exec-body,
+  .exec-details-host,
+  .exec-actions { padding-left: 12px; }
 }
 
 .nav-item.is-active-session {
