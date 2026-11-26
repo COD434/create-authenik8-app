@@ -332,6 +332,19 @@
         try { const p = JSON.parse(activity.payload.arguments); if (typeof p.path === "string") path = p.path; } catch {}
       }
       if (path) actions.appendChild(makeAction("Open diff", () => void openDiff(path)));
+      if (activity.state === "failed") {
+        const retry = makeAction("Retry", () => {
+          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+        });
+        refs.retry = retry;
+        actions.append(retry);
+      }
+    } else if ((activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) && activity.state === "failed") {
+      const retry = makeAction("Retry", () => {
+        if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+      });
+      refs.retry = retry;
+      actions.append(retry);
     } else if (activity.kind === "approval.requested") {
       const approve = makeAction("Approve", () => {});
       approve.disabled = true;
