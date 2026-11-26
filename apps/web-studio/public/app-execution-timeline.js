@@ -92,6 +92,7 @@
     if (isLive(activity)) return "accent";
     if (isReasoning(activity)) return "muted";
     if (activity.kind === "user.message") return "muted";
+    if (isAssistant(activity)) return "muted";
     if (activity.state === "completed") return "success";
     return "muted";
   }
