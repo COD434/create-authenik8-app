@@ -656,6 +656,12 @@ function addMessage(kind, text) {
   };
 
   if (kind === "assistant") {
+    if (timelineActive) {
+      const el = document.createElement("div");
+      el.className = "msg assistant";
+      el.textContent = text;
+      return el;
+    }
     const row = document.createElement("div");
     row.className = "msg-row assistant-row";
     row.dataset.msgId = nextMsgId();
@@ -664,14 +670,18 @@ function addMessage(kind, text) {
     el.className = "msg assistant";
     el.textContent = text;
     row.appendChild(el);
-    if (!timelineActive) {
-      messagesEl.appendChild(row);
-      flipMove(row);
-      autoScroll();
-    }
+    messagesEl.appendChild(row);
+    flipMove(row);
+    autoScroll();
     return el;
   }
   if (kind === "user") {
+    if (timelineActive) {
+      const el = document.createElement("div");
+      el.className = "msg user";
+      el.textContent = text;
+      return el;
+    }
     // The row carries the centered column width; the bubble itself must not
     // inherit the `.msg` auto margins or it lands in the middle of the column.
     const row = document.createElement("div");
@@ -681,16 +691,14 @@ function addMessage(kind, text) {
     el.className = "msg user";
     el.textContent = text;
     row.appendChild(el);
-    if (!timelineActive) {
-      messagesEl.appendChild(row);
-      flipMove(row);
-      if (typeof attachUserActions === "function") attachUserActions(el);
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
-      messagesEl.scrollTo({ top: Math.max(0, row.offsetTop - 24), behavior: reduced ? "auto" : "smooth" });
-      jumpLatestBtn.style.willChange = "opacity, transform";
-      jumpLatestBtn.addEventListener("transitionend", () => { jumpLatestBtn.style.willChange = ""; }, { once: true });
-      updateJumpLatest();
-    }
+    messagesEl.appendChild(row);
+    flipMove(row);
+    if (typeof attachUserActions === "function") attachUserActions(el);
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
+    messagesEl.scrollTo({ top: Math.max(0, row.offsetTop - 24), behavior: reduced ? "auto" : "smooth" });
+    jumpLatestBtn.style.willChange = "opacity, transform";
+    jumpLatestBtn.addEventListener("transitionend", () => { jumpLatestBtn.style.willChange = ""; }, { once: true });
+    updateJumpLatest();
     return el;
   }
   if (timelineActive) {
