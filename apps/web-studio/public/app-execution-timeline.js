@@ -54,11 +54,14 @@
     if (activity.kind.startsWith("tool")) return activity.payload?.summary || activity.payload?.arguments || activity.text || "";
     if (activity.kind.startsWith("command") || activity.kind.startsWith("test")) {
       const t = activity.text || activity.payload?.text || activity.payload?.message || "";
+      if (activity.kind === "command.started" && !t) return activity.payload?.phase ? `Phase: ${activity.payload.phase}` : "Running...";
       if (activity.kind === "command.completed" && !t) {
         const code = activity.payload?.code;
         const ok = activity.payload?.ok;
         if (code !== undefined || ok !== undefined) return `Exit ${code ?? (ok ? 0 : "unknown")}${ok === false ? " (failed)" : ""}`;
       }
+      if (activity.kind === "test.started" && !t) return "Running tests...";
+      if (activity.kind === "test.completed" && !t) return activity.state === "failed" ? "Tests failed" : "Tests completed";
       return t;
     }
     if (activity.kind === "file.changed") return activity.payload?.path || activity.payload?.text || activity.payload?.message || "";
