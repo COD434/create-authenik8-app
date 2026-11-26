@@ -3650,7 +3650,12 @@ input[type="checkbox"] { accent-color: var(--accent); }
 }
 .exec-reasoning-chevron .icon { width: 13px; height: 13px; }
 .exec-card--reasoning details[open] .exec-reasoning-chevron { transform: rotate(90deg); }
-.exec-card--reasoning .exec-body { color: var(--text-2); font-size: 12.5px; }
+.exec-card--reasoning .exec-body {
+  color: var(--text-2);
+  font-size: 12.5px;
+  max-height: 240px;
+  overflow-y: auto;
+}
 
 .exec-actions {
   display: flex;
