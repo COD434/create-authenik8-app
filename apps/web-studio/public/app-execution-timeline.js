@@ -324,6 +324,8 @@
       }
     } else if (activity.kind === "file.changed" && typeof activity.payload?.path === "string" && activity.payload.path) {
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
+    } else if (activity.kind === "diff.updated" && typeof activity.payload?.path === "string" && activity.payload.path) {
+      actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
     } else if (activity.kind.startsWith("tool.") && (activity.payload?.name === "write_file" || activity.payload?.name === "edit_file")) {
       let path = typeof activity.payload?.path === "string" ? activity.payload.path : "";
       if (!path && typeof activity.payload?.arguments === "string") {
