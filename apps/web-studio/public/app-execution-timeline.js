@@ -139,6 +139,16 @@
     return "";
   }
 
+  function formatDuration(ms) {
+    if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "";
+    if (ms < 1000) return `${Math.round(ms)}ms`;
+    const s = ms / 1000;
+    if (s < 60) return `${s < 10 ? s.toFixed(1) : Math.round(s)}s`;
+    const m = Math.floor(s / 60);
+    const rs = Math.round(s % 60);
+    return `${m}m ${rs}s`;
+  }
+
   function stateLabel(activity) {
     if (isAssistant(activity) || isReasoning(activity)) {
       if (activity.state === "running" || activity.state === "queued") {
@@ -150,9 +160,16 @@
     }
     if (activity.state === "running" || activity.state === "queued") return activity.state === "queued" ? "Queued" : "Running";
     if (activity.state === "awaiting_approval") return "Approval";
-    if (activity.state === "failed") return "Failed";
-    if (activity.state === "cancelled") return "Stopped";
-    return "";
+    if (activity.state === "failed") {
+      const d = formatDuration(activity.durationMs);
+      return d ? `Failed · ${d}` : "Failed";
+    }
+    if (activity.state === "cancelled") {
+      const d = formatDuration(activity.durationMs);
+      return d ? `Stopped · ${d}` : "Stopped";
+    }
+    const d = formatDuration(activity.durationMs);
+    return d || "";
   }
 
   function formatPlan(plan) {
