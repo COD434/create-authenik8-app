@@ -77,7 +77,15 @@ const executionStore = (() => {
     }
     activity.source = typeof event.source === "string" ? event.source : activity.source;
     activity.kind = typeof event.kind === "string" ? event.kind : activity.kind;
-    if (typeof event.state === "string") activity.state = event.state;
+    if (typeof event.state === "string") {
+      const incoming = event.state;
+      const currentTerminal = TERMINAL_STATES.has(activity.state);
+      const incomingTerminal = TERMINAL_STATES.has(incoming);
+      // Late output/started events must not downgrade a settled activity.
+      if (!(currentTerminal && !incomingTerminal)) {
+        activity.state = incoming;
+      }
+    }
     if (event.payload && typeof event.payload === "object") {
       activity.payload = { ...activity.payload, ...event.payload };
     }
