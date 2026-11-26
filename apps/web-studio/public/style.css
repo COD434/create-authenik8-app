@@ -3524,6 +3524,13 @@ input[type="checkbox"] { accent-color: var(--accent); }
   border-color: color-mix(in srgb, var(--warning) 30%, var(--border));
   background: color-mix(in srgb, var(--warning) 10%, var(--surface));
 }
+.exec-card[data-state="running"] .exec-icon[data-tone="accent"] {
+  animation: exec-icon-pulse 1.8s var(--ease-in-out) infinite;
+}
+@keyframes exec-icon-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
+}
 .exec-title {
   display: flex;
   flex: 1 1 auto;
