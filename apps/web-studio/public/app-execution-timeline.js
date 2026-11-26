@@ -323,6 +323,11 @@
         refs.retry = retry;
         actions.append(retry);
       }
+    } else if (activity.kind === "plan.updated") {
+      actions.appendChild(makeAction("View plan", () => {
+        const panel = document.getElementById("plan-panel");
+        if (panel && !panel.hidden) panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }));
     } else if (activity.kind === "file.changed" && typeof activity.payload?.path === "string" && activity.payload.path) {
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
     } else if (activity.kind === "diff.updated" && typeof activity.payload?.path === "string" && activity.payload.path) {
