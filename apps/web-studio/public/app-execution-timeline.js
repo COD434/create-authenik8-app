@@ -560,6 +560,8 @@
     if (entry.state.textContent !== state) entry.state.textContent = state;
     entry.state.dataset.state = activity.state || "";
     entry.state.hidden = state.length === 0;
+    const aria = state ? `${label}, ${state}` : label;
+    if (card.getAttribute("aria-label") !== aria) card.setAttribute("aria-label", aria);
 
     renderBody(activity, entry);
     if (!entry.isReasoning) {
