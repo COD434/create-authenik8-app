@@ -326,12 +326,21 @@
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
     } else if (activity.kind === "diff.updated" && typeof activity.payload?.path === "string" && activity.payload.path) {
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
-    } else if (activity.kind.startsWith("tool.") && (activity.payload?.name === "write_file" || activity.payload?.name === "edit_file")) {
-      let path = typeof activity.payload?.path === "string" ? activity.payload.path : "";
-      if (!path && typeof activity.payload?.arguments === "string") {
-        try { const p = JSON.parse(activity.payload.arguments); if (typeof p.path === "string") path = p.path; } catch {}
+    } else if (activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) {
+      const copyTextValue = () => {
+        const current = executionStore.get(activity.id);
+        if (!current) return "";
+        return textFor(current);
+      };
+      const copy = makeAction("Copy", () => void copyText(copy, copyTextValue()));
+      actions.appendChild(copy);
+      if (activity.kind.startsWith("tool.") && (activity.payload?.name === "write_file" || activity.payload?.name === "edit_file")) {
+        let path = typeof activity.payload?.path === "string" ? activity.payload.path : "";
+        if (!path && typeof activity.payload?.arguments === "string") {
+          try { const p = JSON.parse(activity.payload.arguments); if (typeof p.path === "string") path = p.path; } catch {}
+        }
+        if (path) actions.appendChild(makeAction("Open diff", () => void openDiff(path)));
       }
-      if (path) actions.appendChild(makeAction("Open diff", () => void openDiff(path)));
       if (activity.state === "failed") {
         const retry = makeAction("Retry", () => {
           if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
@@ -339,12 +348,6 @@
         refs.retry = retry;
         actions.append(retry);
       }
-    } else if ((activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) && activity.state === "failed") {
-      const retry = makeAction("Retry", () => {
-        if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-      });
-      refs.retry = retry;
-      actions.append(retry);
     } else if (activity.kind === "approval.requested") {
       const approve = makeAction("Approve", () => {});
       approve.disabled = true;
