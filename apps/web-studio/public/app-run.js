@@ -180,9 +180,12 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   closeComposerOptions();
   historyEpoch++; // the live turn owns the transcript from here
 
-  let currentAssistant = addMessage("assistant", "");
-  currentAssistant.classList.add("thinking"); // three dots until the first token
-  currentAssistant.setAttribute("aria-busy", "true");
+  const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
+  let currentAssistant = timelineActive ? document.createElement("div") : addMessage("assistant", "");
+  if (!timelineActive) {
+    currentAssistant.classList.add("thinking"); // three dots until the first token
+    currentAssistant.setAttribute("aria-busy", "true");
+  }
   announceStatus("Response started");
   let streamSource = "";
   let lastStreamRender = 0;
@@ -198,10 +201,11 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   let outcome = "ok";
   let blockSeq = 0;
   const nextBlockId = () => `b_${Date.now().toString(36)}_${++blockSeq}`;
-  let msgModel = { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
+  let msgModel = timelineActive ? null : { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
   let activeTextBlock = null;
   let activeThinkingBlock = null;
   const attachMsgModel = () => {
+    if (timelineActive || msgModel === null) return;
     const row = currentAssistant?.parentElement;
     if (row) row._msgModel = msgModel;
   };
@@ -223,6 +227,14 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       pendingDelta = "";
       autoScroll();
     }
+    if (timelineActive) {
+      activeTextBlock = null;
+      currentAssistant = null;
+      streamSource = "";
+      streamRich = false;
+      lastStreamRender = 0;
+      return;
+    }
     const wasStreaming = currentAssistant.classList.contains("streaming");
     currentAssistant.classList.remove("thinking", "streaming");
     if (wasStreaming) {
@@ -234,24 +246,18 @@ async function executeChatRequest({ endpoint, body, key, model }) {
     const finalSource = streamSource.length > 0 ? streamSource : currentAssistant.textContent;
     if (activeTextBlock) { activeTextBlock.status = "done"; activeTextBlock.text = finalSource; activeTextBlock = null; }
     if (finalSource.trim().length === 0) {
-      msgModel.status = "empty";
+      if (msgModel) msgModel.status = "empty";
       currentAssistant.parentElement?.remove();
     } else {
-      if (window.STUDIO_EXECUTION_TIMELINE) {
-        currentAssistant.textContent = finalSource;
-        msgModel.status = "done";
-        attachMsgModel();
+      renderRichText(currentAssistant, finalSource);
+      currentAssistant.dataset.rich = "true";
+      if (currentAssistant.textContent.trim().length === 0) {
+        if (msgModel) msgModel.status = "empty";
+        currentAssistant.parentElement?.remove();
       } else {
-        renderRichText(currentAssistant, finalSource);
-        currentAssistant.dataset.rich = "true";
-        if (currentAssistant.textContent.trim().length === 0) {
-          msgModel.status = "empty";
-          currentAssistant.parentElement?.remove();
-        } else {
-          msgModel.status = "done";
-          attachAssistantActions(currentAssistant, { regenerate: true });
-          attachMsgModel();
-        }
+        if (msgModel) msgModel.status = "done";
+        attachAssistantActions(currentAssistant, { regenerate: true });
+        attachMsgModel();
       }
     }
     currentAssistant = null;
@@ -261,14 +267,16 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   };
 
   const startAssistant = () => {
-    currentAssistant = addMessage("assistant", "");
-    currentAssistant.classList.add("thinking");
-    currentAssistant.setAttribute("aria-busy", "true");
-    if (currentAssistant.style.willChange === "") currentAssistant.style.willChange = "opacity, transform";
+    currentAssistant = timelineActive ? document.createElement("div") : addMessage("assistant", "");
+    if (!timelineActive) {
+      currentAssistant.classList.add("thinking");
+      currentAssistant.setAttribute("aria-busy", "true");
+      if (currentAssistant.style.willChange === "") currentAssistant.style.willChange = "opacity, transform";
+    }
     streamSource = "";
     streamRich = false;
     lastStreamRender = 0;
-    msgModel = { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
+    msgModel = timelineActive ? null : { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
     activeTextBlock = null;
     activeThinkingBlock = null;
     attachMsgModel();
@@ -315,14 +323,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
     if (chatMode !== "think" || typeof text !== "string" || text.length === 0 || roundHasText) return;
     sawReasoning = true;
     sawReasoningThisRound = true;
-    if (window.STUDIO_EXECUTION_TIMELINE) {
-      if (!activeThinkingBlock) {
-        activeThinkingBlock = { id: nextBlockId(), type: "thinking", status: "streaming", text: "" };
-        msgModel.blocks.push(activeThinkingBlock);
-      }
-      activeThinkingBlock.text += text;
-      return;
-    }
+    if (timelineActive) return; // store already receives reasoning events via payload.studio
     if (reasoningBlock === null) {
       reasoningStartedAt = Date.now();
       reasoningBlock = document.createElement("div");
@@ -368,6 +369,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
     autoScroll();
   };
   const finishReasoning = () => {
+    if (timelineActive) { activeThinkingBlock = null; return; }
     if (reasoningBlock !== null) {
       stopReasoningTimer();
       updateReasoningLabel(true);
@@ -378,12 +380,6 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       activeThinkingBlock = null;
       reasoningBlock = null;
       reasoningBody = null;
-    } else {
-      if (window.STUDIO_EXECUTION_TIMELINE && activeThinkingBlock) {
-        activeThinkingBlock.status = "done";
-        activeThinkingBlock = null;
-      }
-      stopReasoningTimer();
     }
   };
 
@@ -392,25 +388,27 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   const flushDelta = () => {
     renderFrame = 0;
     if (pendingDelta.length === 0 || currentAssistant === null) return;
-    if (activeTextBlock === null) {
-      activeTextBlock = { id: nextBlockId(), type: "text", status: "streaming", text: "" };
-      msgModel.blocks.push(activeTextBlock);
-    }
     streamSource += pendingDelta;
-    activeTextBlock.text = streamSource;
+    if (!timelineActive) {
+      if (activeTextBlock === null) {
+        activeTextBlock = { id: nextBlockId(), type: "text", status: "streaming", text: "" };
+        if (msgModel) msgModel.blocks.push(activeTextBlock);
+      }
+      activeTextBlock.text = streamSource;
+      if (currentAssistant.classList.contains("thinking")) {
+        currentAssistant.classList.remove("thinking");
+        currentAssistant.classList.add("streaming");
+      }
+    }
     pendingDelta = "";
-    if (currentAssistant.classList.contains("thinking")) {
-      currentAssistant.classList.remove("thinking");
-      currentAssistant.classList.add("streaming");
+    if (timelineActive) {
+      autoScroll();
+      return;
     }
     const t0 = performance.now();
-    if (window.STUDIO_EXECUTION_TIMELINE) {
-      currentAssistant.textContent = streamSource;
-    } else {
-      renderRichText(currentAssistant, streamSource);
-      currentAssistant.dataset.rich = "true";
-      streamRich = true;
-    }
+    renderRichText(currentAssistant, streamSource);
+    currentAssistant.dataset.rich = "true";
+    streamRich = true;
     autoScroll();
     const dt = performance.now() - t0;
     if (dt > 12) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1);
@@ -421,7 +419,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   const queueDelta = (delta) => {
     sawText = true;
     if (currentAssistant === null) startAssistant();
-    if (!roundHasText && chatMode === "think" && sawReasoningThisRound) {
+    if (!timelineActive && !roundHasText && chatMode === "think" && sawReasoningThisRound) {
       // Small distinction between reasoning and the answer, mirroring trace order.
       const row = currentAssistant.parentElement;
       if (row?.previousElementSibling?.classList.contains("reasoning-block")) {
@@ -429,7 +427,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       }
     }
     roundHasText = true;
-    if (currentAssistant.classList.contains("thinking")) {
+    if (!timelineActive && currentAssistant.classList.contains("thinking")) {
       currentAssistant.textContent = "";
       currentAssistant.classList.remove("thinking");
       currentAssistant.classList.add("streaming");
@@ -506,13 +504,17 @@ async function executeChatRequest({ endpoint, body, key, model }) {
                 const toolsEl = document.getElementById("tools");
                 if (toolsEl) toolsEl.hidden = true;
               }
-              msgModel.blocks.push({ id: ev.tool.id || nextBlockId(), type: "tool_use", status: "running", name: ev.tool.name, arguments: ev.tool.arguments ?? "" });
-              attachMsgModel();
+              if (msgModel) {
+                msgModel.blocks.push({ id: ev.tool.id || nextBlockId(), type: "tool_use", status: "running", name: ev.tool.name, arguments: ev.tool.arguments ?? "" });
+                attachMsgModel();
+              }
             } else if (ev.type === "tool_end") {
               const toolLine = document.querySelector(`[data-tool-id="${ev.tool.id}"]`);
-              const toolBlock = msgModel.blocks.find((b) => b.type === "tool_use" && b.id === ev.tool.id);
-              if (toolBlock) { toolBlock.status = ev.tool.ok ? "done" : "failed"; toolBlock.summary = ev.tool.summary ?? ""; }
-              attachMsgModel();
+              if (msgModel) {
+                const toolBlock = msgModel.blocks.find((b) => b.type === "tool_use" && b.id === ev.tool.id);
+                if (toolBlock) { toolBlock.status = ev.tool.ok ? "done" : "failed"; toolBlock.summary = ev.tool.summary ?? ""; }
+                attachMsgModel();
+              }
               if (toolLine !== null) {
                 setToolRecord(toolLine, ev.tool);
                 if (ev.tool.patches && ev.tool.patches.length > 0) {
@@ -569,8 +571,10 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       executionStore.settleRunning("cancelled");
     }
     if (!sawText && !sawReasoning) {
-      const empty = addMessage("assistant", "(empty response)");
-      attachAssistantActions(empty, { regenerate: true });
+      if (!timelineActive) {
+        const empty = addMessage("assistant", "(empty response)");
+        attachAssistantActions(empty, { regenerate: true });
+      }
     } else if (!finished && outcome === "ok") {
       addMessage("system", "Response ended before completion. You can regenerate to try again.");
     }
@@ -579,8 +583,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
     finishReasoning();
     if (error instanceof Error && error.name === "AbortError") {
       outcome = "stopped";
-      msgModel.status = "stopped";
-      attachMsgModel();
+      if (msgModel) { msgModel.status = "stopped"; attachMsgModel(); }
       if (typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
       const stopped = addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");
       const retry = document.createElement("button");
@@ -595,8 +598,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       stopped.appendChild(retry);
     } else {
       outcome = "failed";
-      msgModel.status = "failed";
-      attachMsgModel();
+      if (msgModel) { msgModel.status = "failed"; attachMsgModel(); }
       if (typeof executionStore !== "undefined") executionStore.settleRunning("failed");
       addMessage("system-error", error.message);
     }
