@@ -509,30 +509,32 @@ async function executeChatRequest({ endpoint, body, key, model }) {
                 attachMsgModel();
               }
             } else if (ev.type === "tool_end") {
-              const toolLine = document.querySelector(`[data-tool-id="${ev.tool.id}"]`);
               if (msgModel) {
                 const toolBlock = msgModel.blocks.find((b) => b.type === "tool_use" && b.id === ev.tool.id);
                 if (toolBlock) { toolBlock.status = ev.tool.ok ? "done" : "failed"; toolBlock.summary = ev.tool.summary ?? ""; }
                 attachMsgModel();
               }
-              if (toolLine !== null) {
-                setToolRecord(toolLine, ev.tool);
-                if (ev.tool.patches && ev.tool.patches.length > 0) {
-                  const patchesSection = document.createElement("div");
-                  patchesSection.className = "diff-view";
-                  renderDiffs(patchesSection, ev.tool.patches);
-                  toolLine.querySelector(".tool-body").appendChild(patchesSection);
-                }
-                if (typeof ev.tool.childId === "string") {
-                  const transcriptId = subagentLogId(ev.tool.name, ev.tool.childId);
-                  if (transcriptId !== null) {
-                    const link = document.createElement("button");
-                    link.type = "button";
-                    link.className = "tool-transcript-link";
-                    link.textContent = "View transcript";
-                    link.title = `Open transcript ${transcriptId}`;
-                    link.addEventListener("click", () => openSubagentTranscriptFromTool(transcriptId, link));
-                    toolLine.querySelector(".tool-body").appendChild(link);
+              if (!timelineActive) {
+                const toolLine = document.querySelector(`[data-tool-id="${ev.tool.id}"]`);
+                if (toolLine !== null) {
+                  setToolRecord(toolLine, ev.tool);
+                  if (ev.tool.patches && ev.tool.patches.length > 0) {
+                    const patchesSection = document.createElement("div");
+                    patchesSection.className = "diff-view";
+                    renderDiffs(patchesSection, ev.tool.patches);
+                    toolLine.querySelector(".tool-body").appendChild(patchesSection);
+                  }
+                  if (typeof ev.tool.childId === "string") {
+                    const transcriptId = subagentLogId(ev.tool.name, ev.tool.childId);
+                    if (transcriptId !== null) {
+                      const link = document.createElement("button");
+                      link.type = "button";
+                      link.className = "tool-transcript-link";
+                      link.textContent = "View transcript";
+                      link.title = `Open transcript ${transcriptId}`;
+                      link.addEventListener("click", () => openSubagentTranscriptFromTool(transcriptId, link));
+                      toolLine.querySelector(".tool-body").appendChild(link);
+                    }
                   }
                 }
               }
