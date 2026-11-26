@@ -508,18 +508,21 @@
   }
 
   function renderActions(activity, entry, isLastAssistant) {
-    if (!entry.actionRefs) {
-      if (entry.actions) entry.actions.hidden = true;
+    if (!entry.actions) return;
+    const hasActions = entry.actions.childElementCount > 0;
+    if (!hasActions) {
+      entry.actions.hidden = true;
       return;
     }
     const running = typeof chatRunning !== "undefined" && chatRunning;
-    if (entry.actionRefs.edit) entry.actionRefs.edit.disabled = running;
-    if (entry.actionRefs.regenerate) {
+    if (entry.actionRefs?.edit) entry.actionRefs.edit.disabled = running;
+    if (entry.actionRefs?.regenerate) {
       entry.actionRefs.regenerate.hidden = !isLastAssistant;
       entry.actionRefs.regenerate.disabled = running;
     }
-    if (entry.actionRefs.retry) entry.actionRefs.retry.disabled = running;
-    if (entry.actions) entry.actions.hidden = false;
+    if (entry.actionRefs?.retry) entry.actionRefs.retry.disabled = running;
+    const visible = [...entry.actions.children].some((child) => !child.hidden);
+    entry.actions.hidden = !visible;
   }
 
   function updateCard(activity, entry, isLastAssistant) {
