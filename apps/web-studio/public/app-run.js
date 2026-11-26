@@ -181,8 +181,8 @@ async function executeChatRequest({ endpoint, body, key, model }) {
   historyEpoch++; // the live turn owns the transcript from here
 
   const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
-  let currentAssistant = timelineActive ? document.createElement("div") : addMessage("assistant", "");
-  if (!timelineActive) {
+  let currentAssistant = timelineActive ? null : addMessage("assistant", "");
+  if (!timelineActive && currentAssistant) {
     currentAssistant.classList.add("thinking"); // three dots until the first token
     currentAssistant.setAttribute("aria-busy", "true");
   }
