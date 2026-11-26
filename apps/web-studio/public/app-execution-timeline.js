@@ -332,6 +332,12 @@
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
     } else if (activity.kind === "diff.updated" && typeof activity.payload?.path === "string" && activity.payload.path) {
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
+    } else if ((activity.kind === "file.changed" || activity.kind === "diff.updated")) {
+      actions.appendChild(makeAction("Open diffs", () => {
+        const pane = document.getElementById("preview-pane");
+        if (pane && !pane.classList.contains("open")) { pane.classList.add("open"); pane.setAttribute("aria-hidden", "false"); }
+        if (typeof window.setInspectorTab === "function") window.setInspectorTab("diffs");
+      }));
     } else if (activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) {
       const copyTextValue = () => {
         const current = executionStore.get(activity.id);
