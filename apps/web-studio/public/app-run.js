@@ -588,16 +588,18 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       if (msgModel) { msgModel.status = "stopped"; attachMsgModel(); }
       if (typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
       const stopped = addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");
-      const retry = document.createElement("button");
-      retry.type = "button";
-      retry.className = "msg-inline-action";
-      retry.dataset.action = "retry";
-      retry.textContent = "Regenerate";
-      retry.addEventListener("click", () => {
-        if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-      });
-      stopped.appendChild(document.createTextNode(" "));
-      stopped.appendChild(retry);
+      if (!timelineActive) {
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "msg-inline-action";
+        retry.dataset.action = "retry";
+        retry.textContent = "Regenerate";
+        retry.addEventListener("click", () => {
+          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+        });
+        stopped.appendChild(document.createTextNode(" "));
+        stopped.appendChild(retry);
+      }
     } else {
       outcome = "failed";
       if (msgModel) { msgModel.status = "failed"; attachMsgModel(); }

@@ -313,6 +313,15 @@
       });
       refs.retry = retry;
       actions.append(retry);
+    } else if (activity.kind === "notice") {
+      const msg = String(activity.payload?.message || "");
+      if (/stopped|ended before completion|regenerate/i.test(msg)) {
+        const retry = makeAction("Regenerate", () => {
+          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
+        });
+        refs.retry = retry;
+        actions.append(retry);
+      }
     } else if (activity.kind === "file.changed" && typeof activity.payload?.path === "string" && activity.payload.path) {
       actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
     } else if (activity.kind === "approval.requested") {
