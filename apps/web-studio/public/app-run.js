@@ -156,6 +156,12 @@ async function startNewSession() {
 newChatBtn.addEventListener("click", () => { void startNewSession(); });
 
 function removeLastAssistantTurnFromUI() {
+  if (window.STUDIO_EXECUTION_TIMELINE && typeof executionStore !== "undefined") {
+    // The timeline owns the transcript in this mode. Keep the prompt and
+    // drop only the answer/tool activity that regeneration replaces.
+    executionStore.truncateAfterLastUser();
+    return;
+  }
   const rows = [...messagesEl.children];
   let lastUserIndex = -1;
   for (let i = rows.length - 1; i >= 0; i -= 1) {
@@ -558,6 +564,10 @@ async function executeChatRequest({ endpoint, body, key, model }) {
 
     if (!finished) finishCurrentAssistant();
     finishReasoning();
+    if (!finished && typeof executionStore !== "undefined") {
+      // A dropped stream must not leave a card looking live forever.
+      executionStore.settleRunning("cancelled");
+    }
     if (!sawText && !sawReasoning) {
       const empty = addMessage("assistant", "(empty response)");
       attachAssistantActions(empty, { regenerate: true });
@@ -571,6 +581,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       outcome = "stopped";
       msgModel.status = "stopped";
       attachMsgModel();
+      if (typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
       const stopped = addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");
       const retry = document.createElement("button");
       retry.type = "button";
@@ -586,6 +597,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
       outcome = "failed";
       msgModel.status = "failed";
       attachMsgModel();
+      if (typeof executionStore !== "undefined") executionStore.settleRunning("failed");
       addMessage("system-error", error.message);
     }
   } finally {
@@ -669,11 +681,20 @@ promptEl.addEventListener("keydown", (event) => {
     return;
   }
   if (event.key === "ArrowUp" && promptEl.value.trim().length === 0) {
-    const userRows = messagesEl.querySelectorAll(".msg-row.user .msg.user");
-    const last = userRows[userRows.length - 1];
-    if (last) {
+    let previous = null;
+    if (window.STUDIO_EXECUTION_TIMELINE && typeof executionStore !== "undefined") {
+      const activities = executionStore.list();
+      for (let i = activities.length - 1; i >= 0; i -= 1) {
+        if (activities[i].kind === "user.message") { previous = activities[i].payload?.text ?? ""; break; }
+      }
+    } else {
+      const userRows = messagesEl.querySelectorAll(".msg-row.user .msg.user");
+      const last = userRows[userRows.length - 1];
+      if (last) previous = last.textContent ?? "";
+    }
+    if (previous !== null) {
       event.preventDefault();
-      promptEl.value = last.textContent ?? "";
+      promptEl.value = previous;
       promptEl.style.height = "auto";
       promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
       promptEl.setSelectionRange(promptEl.value.length, promptEl.value.length);

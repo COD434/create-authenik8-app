@@ -210,6 +210,8 @@ function syncChatControls() {
   for (const btn of messagesEl.querySelectorAll('.msg-action[data-action="regenerate"], .msg-action[data-action="edit"], .msg-inline-action[data-action="retry"]')) {
     btn.disabled = chatRunning;
   }
+  // Timeline actions live outside #messages; a run ending must re-enable them.
+  if (typeof window.refreshExecutionTimeline === "function") window.refreshExecutionTimeline();
 }
 
 const MODAL_FOCUSABLE = [
@@ -596,6 +598,8 @@ function formatAssistantMessage(element) {
 }
 
 function hideWelcome() {
+  const header = document.querySelector(".welcome-header");
+  if (header !== null) header.hidden = true; // Product/Docs/Contact belong to the empty state only
   if (welcomeEl.hidden || welcomeEl.classList.contains("leaving")) return;
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
   if (reduced) { welcomeEl.hidden = true; welcomeEl.classList.remove("leaving"); glideComposer(); return; }
@@ -635,6 +639,13 @@ function addMessage(kind, text) {
   const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
   const pushStore = (kindName, payload, state = "completed") => {
     if (typeof executionStore === "undefined") return;
+    if (kindName === "error") {
+      const msg = String(payload?.message || "");
+      const now = Date.now();
+      if (pushStore._lastErrMsg === msg && now - (pushStore._lastErrAt || 0) < 2000) return;
+      pushStore._lastErrMsg = msg;
+      pushStore._lastErrAt = now;
+    }
     const seq = Date.now() + Math.random();
     executionStore.applyEvent({
       v: 1, id: `se_ui_${seq.toString(36).replace(".", "")}`, seq, ts: new Date().toISOString(),
@@ -715,6 +726,8 @@ function showWelcome() {
   usageLine.textContent = "local · BYOK · no telemetry";
   welcomeEl.hidden = false;
   welcomeEl.classList.remove("leaving");
+  const header = document.querySelector(".welcome-header");
+  if (header !== null) header.hidden = false;
   refreshIdleStatus();
   const chat = document.querySelector(".chat");
   if (chat) chat.dataset.mode = "active";
