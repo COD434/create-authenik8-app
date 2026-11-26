@@ -553,7 +553,8 @@ async function executeChatRequest({ endpoint, body, key, model }) {
               finishReasoning();
               outcome = "failed";
               finished = true;
-              addMessage("system-error", ev.message);
+              const hasStudioError = Array.isArray(payload.studio) && payload.studio.some((e) => e && e.kind === "error");
+              if (!timelineActive || !hasStudioError) addMessage("system-error", ev.message);
             } else if (ev.type === "note") {
               finishCurrentAssistant();
               if (!window.STUDIO_EXECUTION_TIMELINE) addMessage("system", ev.text);
