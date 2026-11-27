@@ -52,9 +52,11 @@ function scrollToLatest(behavior = "smooth") {
 }
 
 function autoScroll(force = false) {
-  // New messages should land in view. Streaming text only follows the bottom
-  // when the reader is already there, so scrolling up is never yanked away.
-  if (force || nearBottom()) {
+  // New messages should land in view. Streaming text follows the bottom when
+  // the reader is already there; while work is running, use a wider threshold
+  // so content growth doesn't make the user chase the jump-to-latest button.
+  const stickThreshold = (typeof chatRunning !== "undefined" && chatRunning) ? 220 : 96;
+  if (force || nearBottom(stickThreshold)) {
     const el = scrollContainer();
     const t0 = performance.now();
     el.scrollTop = el.scrollHeight;

@@ -624,7 +624,8 @@
       return;
     }
 
-    const shouldStick = nearBottom(root);
+    const stickThreshold = (typeof chatRunning !== "undefined" && chatRunning) ? 220 : 96;
+    const shouldStick = nearBottom(root, stickThreshold);
     root.hidden = false;
 
     let lastAssistantId = null;
