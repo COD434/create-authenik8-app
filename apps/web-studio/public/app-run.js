@@ -172,6 +172,8 @@ async function startNewSession() {
       notify("Could not start a new session.", "error");
       return;
     }
+    const body = await created.json().catch(() => null);
+    if (body && typeof body.id === "string") activeSessionId = body.id;
   }
   clearDraft();
   promptEl.value = "";
