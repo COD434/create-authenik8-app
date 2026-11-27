@@ -472,7 +472,12 @@ async function restoreHistory() {
     if (!res.ok) return;
     const body = await res.json();
     if (epoch !== historyEpoch) return;
-    if (typeof body.sessionId === "string" && body.sessionId !== activeSessionId) return;
+    if (typeof body.sessionId === "string" && body.sessionId.length > 0 && body.sessionId !== activeSessionId) {
+      // Initial load: session list may not have refreshed yet. Adopt the
+      // server's active session so we never drop valid history on a race.
+      activeSessionId = body.sessionId;
+      if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
+    }
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const toolResults = new Map();
     for (const message of messages) {
