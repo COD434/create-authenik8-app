@@ -874,5 +874,5 @@ describe("generator happy paths", () => {
     } finally {
       await project.cleanup();
     }
-  });
+  }, 60_000);
 });

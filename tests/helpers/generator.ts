@@ -182,6 +182,16 @@ export async function generateProjectFixture(
     state,
     hashLib,
     cleanup: async () => {
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        try {
+          await fs.remove(rootDir);
+          return;
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException | undefined)?.code;
+          if (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY") throw err;
+          await new Promise((resolve) => setTimeout(resolve, 200 * (attempt + 1)));
+        }
+      }
       await fs.remove(rootDir);
     },
   };

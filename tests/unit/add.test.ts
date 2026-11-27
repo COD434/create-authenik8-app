@@ -122,11 +122,20 @@ describe("add command", () => {
     }
   });
 
-  it("rejects recipe targets that escape through a symlink", async () => {
+  it("rejects recipe targets that escape through a symlink", async (ctx) => {
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-add-symlink-"));
     const external = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-add-external-"));
     try {
-      await fs.ensureSymlink(external, path.join(directory, ".github"), "dir");
+      try {
+        await fs.ensureSymlink(external, path.join(directory, ".github"), "dir");
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException | undefined)?.code;
+        if (code === "EPERM" || code === "EACCES") {
+          ctx.skip();
+          return;
+        }
+        throw err;
+      }
       await expect(applyPlannedChanges(directory, [{
         relativePath: ".github/workflows/authenik8.yml",
         before: null,
