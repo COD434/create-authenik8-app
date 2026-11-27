@@ -523,7 +523,7 @@ async function restoreHistory() {
     messagesEl.classList.add("restoring");
     try {
       if (window.STUDIO_EXECUTION_TIMELINE) {
-        scrollToLatest("auto");
+        requestAnimationFrame(() => scrollToLatest("auto"));
         return;
       }
       let rendered = 0;
