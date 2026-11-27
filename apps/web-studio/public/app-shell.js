@@ -270,6 +270,28 @@ settingsConnect.addEventListener("click", () => {
   keyInput.focus();
 });
 
+async function quitStudio() {
+  if (quitStudioBtn !== null && quitStudioBtn.disabled) return;
+  const ok = window.confirm("Quit Studio? This stops the local server on this machine.");
+  if (!ok) return;
+  if (quitStudioBtn !== null) quitStudioBtn.disabled = true;
+  if (quitStudioState !== null) quitStudioState.textContent = "Quitting Studio…";
+  try {
+    const res = await fetch("/api/studio/quit", { method: "POST" });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (quitStudioState !== null) quitStudioState.textContent = "Studio has stopped. You can close this tab.";
+    notify("Studio is stopping", "ok");
+  } catch {
+    if (quitStudioBtn !== null) quitStudioBtn.disabled = false;
+    if (quitStudioState !== null) quitStudioState.textContent = "Could not quit Studio. Try stopping it from the terminal.";
+    notify("Could not quit Studio", "error");
+  }
+}
+
+if (quitStudioBtn !== null) {
+  quitStudioBtn.addEventListener("click", () => { void quitStudio(); });
+}
+
 
 // Inspector tabs (Codex-style right pane migration).
 (() => {

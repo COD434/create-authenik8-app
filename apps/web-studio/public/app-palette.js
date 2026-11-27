@@ -139,6 +139,14 @@ function paletteWorkspaceEntries(hasKey) {
       keywords: "preferences theme keyboard trust",
       run: () => openSettings(paletteOpenBtn),
     },
+    {
+      id: "quit-studio",
+      title: "Quit Studio",
+      detail: "Stop the local Studio server on this machine",
+      icon: PALETTE_ICONS.quit,
+      keywords: "exit close shutdown stop server",
+      run: () => { void quitStudio(); },
+    },
   ];
 }
 

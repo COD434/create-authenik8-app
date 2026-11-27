@@ -2243,7 +2243,8 @@ dialog.modal:not([open]) {
 }
 
 .btn-primary,
-.btn-secondary {
+.btn-secondary,
+.btn-danger {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -2263,10 +2264,17 @@ dialog.modal:not([open]) {
   background: var(--accent);
   color: var(--on-accent);
 }
+.btn-danger {
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--border));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
 .btn-primary:hover { border-color: var(--accent-hover); background: var(--accent-hover); }
 .btn-secondary:hover { border-color: var(--border-strong); background: var(--hover); }
+.btn-danger:hover { border-color: color-mix(in srgb, var(--danger) 55%, var(--border)); background: color-mix(in srgb, var(--danger) 16%, var(--surface)); }
 .btn-primary:disabled,
-.btn-secondary:disabled { opacity: 0.42; cursor: default; }
+.btn-secondary:disabled,
+.btn-danger:disabled { opacity: 0.42; cursor: default; }
 
 .warning {
   margin: 0;

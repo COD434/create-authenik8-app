@@ -135,6 +135,23 @@ async function handle(
     if (await handleAgentRoute(ctx)) return;
     if (await handleChatRoute(ctx)) return;
 
+    if (url.pathname === "/api/studio/quit") {
+      if (req.method !== "POST") {
+        sendJson(res, 405, { error: "Method not allowed" });
+        return;
+      }
+      sendJson(res, 200, { ok: true });
+      const srv = (req.socket as unknown as { server?: Server & { closeAllConnections?: () => void; closeIdleConnections?: () => void } }).server;
+      setTimeout(() => {
+        runner.stop();
+        srv?.closeAllConnections?.();
+        srv?.closeIdleConnections?.();
+        srv?.close(() => { if (!process.env.VITEST) process.exit(0); });
+        setTimeout(() => { if (!process.env.VITEST) process.exit(0); }, 1500).unref();
+      }, 100);
+      return;
+    }
+
     if (url.pathname === "/preview" || url.pathname.startsWith("/preview/")) {
       if (req.method === "GET") {
         servePreview(deps.sandboxRoot, url, res);
