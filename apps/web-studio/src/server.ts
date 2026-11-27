@@ -57,8 +57,8 @@ const DEFAULT_MAX_TOOL_ROUNDS = 12;
 const MAX_TOOL_ROUNDS_CAP = 30;
 
 export function createWebStudioServer(deps: WebStudioDeps): Server {
-  // Single-user localhost tool: one durable conversation per sandbox;
-  // /api/reset starts a new one.
+  // Single-user localhost tool: multiple durable conversations per sandbox.
+  // /api/reset clears the active one; /api/sessions creates/switches sessions.
   const session: StudioSession = { log: null, activeSessionId: "default", agentBusy: false, chatBusy: false, runRes: null };
   // Directory leases are process-local and shared across chat turns. A builder
   // holds one for the duration of its synchronous child run.
