@@ -677,7 +677,7 @@ composer.addEventListener("submit", async (event) => {
   if (typeof executionStore !== "undefined") {
     executionStore.applyEvent({
       v: 1, id: `se_user_${Date.now().toString(36)}`, seq: Date.now(), ts: new Date().toISOString(),
-      sessionId: "local-session", turnId: `turn_${Date.now().toString(36)}`, source: "system",
+      sessionId: activeSessionId, turnId: `turn_${Date.now().toString(36)}`, source: "system",
       kind: "user.message", activityId: `user_${Date.now().toString(36)}_${Math.random().toString(36).slice(2,8)}`,
       state: "completed", payload: { text: prompt }
     });

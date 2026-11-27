@@ -497,21 +497,21 @@ async function restoreHistory() {
         if (typeof message !== "object" || message === null) continue;
         if (message.role === "user" && typeof message.content === "string") {
           currentTurnId = `hist_turn_${++seq}`;
-          events.push({ v:1, id:`hist_u_${seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:currentTurnId, source:"system", kind:"user.message", activityId:`hist_user_${seq}`, state:"completed", payload:{ text: message.content } });
+          events.push({ v:1, id:`hist_u_${seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"system", kind:"user.message", activityId:`hist_user_${seq}`, state:"completed", payload:{ text: message.content } });
         }
         if (message.role === "assistant") {
           if (typeof message.content === "string" && message.content.trim().length > 0) {
             const aid = `hist_assistant_${++seq}`;
-            events.push({ v:1, id:`hist_ad_${seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:currentTurnId, source:"chat", kind:"assistant.message.delta", activityId:aid, state:"completed", payload:{ text: message.content } });
-            events.push({ v:1, id:`hist_ac_${seq}`, seq:seq+0.1, ts:new Date().toISOString(), sessionId:"local-session", turnId:currentTurnId, source:"chat", kind:"assistant.message.completed", activityId:aid, state:"completed", payload:{} });
+            events.push({ v:1, id:`hist_ad_${seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.delta", activityId:aid, state:"completed", payload:{ text: message.content } });
+            events.push({ v:1, id:`hist_ac_${seq}`, seq:seq+0.1, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.completed", activityId:aid, state:"completed", payload:{} });
           }
           if (Array.isArray(message.toolCalls)) {
             for (const call of message.toolCalls) {
               if (typeof call !== "object" || call === null || typeof call.name !== "string") continue;
               const tid = typeof call.id === "string" ? call.id : `hist_tool_${++seq}`;
               const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
-              events.push({ v:1, id:`hist_ts_${++seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:currentTurnId, source:"chat", kind:"tool.started", activityId:tid, state:"running", payload:{ name: call.name, arguments: typeof call.arguments === "string" ? call.arguments : "" } });
-              events.push({ v:1, id:`hist_td_${++seq}`, seq, ts:new Date().toISOString(), sessionId:"local-session", turnId:currentTurnId, source:"chat", kind: result && !String(result.content).startsWith("Error:") ? "tool.completed" : "tool.failed", activityId:tid, state: result && !String(result.content).startsWith("Error:") ? "completed" : "failed", payload:{ name: call.name, summary: result ? String(result.content).split("\n")[0] : "", ok: !!(result && !String(result.content).startsWith("Error:")) } });
+              events.push({ v:1, id:`hist_ts_${++seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"tool.started", activityId:tid, state:"running", payload:{ name: call.name, arguments: typeof call.arguments === "string" ? call.arguments : "" } });
+              events.push({ v:1, id:`hist_td_${++seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind: result && !String(result.content).startsWith("Error:") ? "tool.completed" : "tool.failed", activityId:tid, state: result && !String(result.content).startsWith("Error:") ? "completed" : "failed", payload:{ name: call.name, summary: result ? String(result.content).split("\n")[0] : "", ok: !!(result && !String(result.content).startsWith("Error:")) } });
             }
           }
         }

@@ -659,7 +659,7 @@ function addMessage(kind, text) {
     const seq = Date.now() + Math.random();
     executionStore.applyEvent({
       v: 1, id: `se_ui_${seq.toString(36).replace(".", "")}`, seq, ts: new Date().toISOString(),
-      sessionId: "local-session", turnId: `turn_ui_${Date.now().toString(36)}`, source: "system",
+      sessionId: activeSessionId, turnId: `turn_ui_${Date.now().toString(36)}`, source: "system",
       kind: kindName, activityId: `ui_${kind}_${seq.toString(36).replace(".", "")}`,
       state, payload,
     });
