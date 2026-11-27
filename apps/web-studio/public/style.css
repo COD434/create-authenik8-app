@@ -1849,11 +1849,13 @@ kbd {
   flex-shrink: 1;
   width: 44%;
   min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   border-left: 1px solid var(--border);
   background: var(--bg);
 }
 .preview-pane.open {
-  min-width: 380px;
+  min-width: min(380px, 100%);
 }
 @media (max-width: 1020px) {
   .preview-pane.open { min-width: 0; }
@@ -1872,9 +1874,10 @@ kbd {
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px 10px;
+  flex-wrap: wrap;
   min-height: 44px;
-  padding: 5px 10px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
@@ -1893,6 +1896,9 @@ kbd {
   align-items: center;
   gap: 4px;
   min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-left: auto;
 }
 .preview-actions > button,
 .preview-actions > a {
