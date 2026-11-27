@@ -71,7 +71,7 @@ export async function handleHistoryRoutes(ctx: RouteContext): Promise<boolean> {
     // The client restores from the same derived conversation the model
     // sees: one source of truth, no parallel UI state.
     const messages = await sessionLog(deps, session).history();
-    sendJson(res, 200, { messages, plan: planFromMessages(messages) });
+    sendJson(res, 200, { sessionId: session.activeSessionId, messages, plan: planFromMessages(messages) });
     return true;
   }
 

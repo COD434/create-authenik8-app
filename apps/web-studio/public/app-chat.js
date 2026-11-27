@@ -471,6 +471,8 @@ async function restoreHistory() {
     const res = await fetch("/api/history");
     if (!res.ok) return;
     const body = await res.json();
+    if (epoch !== historyEpoch) return;
+    if (typeof body.sessionId === "string" && body.sessionId !== activeSessionId) return;
     const messages = Array.isArray(body.messages) ? body.messages : [];
     const toolResults = new Map();
     for (const message of messages) {
@@ -482,7 +484,6 @@ async function restoreHistory() {
         childId: typeof message.childId === "string" ? message.childId : null,
       });
     }
-    if (epoch !== historyEpoch) return;
     // A restored conversation is not the empty state. Without this, the
     // welcome greeting stays over the transcript after a reload.
     if (messages.length > 0) hideWelcome();
