@@ -58,6 +58,7 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain("<title>Authenik8</title>");
     expect(html).toContain('id="plan-panel"');
     expect(html).toContain('id="plan-steps"');
+    expect(html).toContain('id="session-list"');
     expect(html).toContain('id="subagents-btn"');
     expect(html).toContain('id="subagents-overlay"');
     expect(html).toContain("Newest 50 runs max.");
@@ -104,6 +105,9 @@ describe("static UI and auth boundary", () => {
       .sort();
     expect(referencedScripts).toEqual(shellScripts);
     expect(appSource).toContain("/api/subagents");
+    expect(appSource).toContain("/api/sessions");
+    expect(appSource).toContain("activeSessionId");
+    expect(appSource).toContain("refreshSessionList");
     // Structural guard for the modal focus contract: background inert,
     // a shared Tab trap, opener restoration, and a visible error state with
     // focus kept on Back.
@@ -151,6 +155,16 @@ describe("static UI and auth boundary", () => {
     expect(styleSource).toContain(".ship-modal");
     expect(styleSource).toContain(".ship-tabs");
     expect(styleSource).toContain(".ship-panel");
+    // Import is a sidebar action in the Workspace group; its native dialog
+    // must stay closed (no permission prompt, no layout takeover) until the
+    // user opens it.
+    const workspaceNav = html.slice(html.indexOf('aria-labelledby="nav-workspace"'));
+    const workspaceGroup = workspaceNav.slice(0, workspaceNav.indexOf("</section>"));
+    expect(workspaceGroup).toContain('id="import-btn"');
+    expect(workspaceGroup).toContain('aria-controls="import-dialog"');
+    expect(html).toContain('<dialog id="import-dialog" class="modal import-modal"');
+    // Small archives preview in bytes, not a misleading "1 KB".
+    expect(appSource).toContain("if (bytes < 1024) return `${bytes} B`");
     // The real brand mark must serve same-origin: favicon, sidebar, hero,
     // and avatars all point at it (no CDNs, ever).
     const logo = await fetch(`${base}/studio/authenik8-logo.svg`);

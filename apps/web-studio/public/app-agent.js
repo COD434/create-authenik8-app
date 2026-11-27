@@ -132,10 +132,15 @@ agentRunBtn.addEventListener("click", async () => {
   setWorkspaceStatus("Agent running", "live");
 
   try {
+    const key = keyInput.value.trim();
+    if (!key) {
+      throw new Error("Add your OpenRouter key in Connect > OpenRouter before using Build with agent.");
+    }
+    const model = modelSelect.value?.trim() || undefined;
     const res = await fetch("/api/agent", {
       method: "POST",
-      headers: { "content-type": "application/json" }, // no key: the agent never uses it
-      body: JSON.stringify({ prompt: brief }),
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
+      body: JSON.stringify({ prompt: brief, ...(model ? { model } : {}) }),
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ error: res.statusText }));
@@ -158,6 +163,9 @@ agentRunBtn.addEventListener("click", async () => {
         for (const line of rawEvent.split("\n")) {
           if (!line.startsWith("data: ")) continue;
           const payload = JSON.parse(line.slice(6));
+          if (Array.isArray(payload.studio) && typeof executionStore !== "undefined") {
+            executionStore.applyEvents(payload.studio);
+          }
           if (payload.agent?.phase === "done") doneEvent = payload.agent;
           // Agent output is untrusted data: rendered as plain text only.
           if (payload.agent?.outputTail) agentOutput.textContent += payload.agent.outputTail;
@@ -177,7 +185,9 @@ agentRunBtn.addEventListener("click", async () => {
         ? `Agent finished in ${(doneEvent.durationMs / 1000).toFixed(0)}s. Hit Preview to see the result.`
         : doneEvent.errorCode === "runtime_missing"
           ? "Agent failed: no spawnable opencode CLI found. Install it with `npm install -g @opencode/cli` (or set OPENCODE_PATH), then reload this page."
-          : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
+          : typeof doneEvent.errorMessage === "string" && doneEvent.errorMessage.length > 0
+            ? doneEvent.errorMessage
+            : `Agent failed: ${doneEvent.errorCode ?? "unknown"}. Output below.`;
       setWorkspaceStatus(doneEvent.ok ? "Agent finished" : "Agent failed", doneEvent.ok ? "ok" : "error");
     }
   } catch (error) {

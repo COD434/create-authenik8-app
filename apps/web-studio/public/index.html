@@ -7,17 +7,22 @@
   <title>Authenik8</title>
   <link rel="icon" type="image/svg+xml" href="/studio/authenik8-mark.svg" />
   <script>
-    // Resolve appearance before the first paint. The CSS carries both themes,
-    // so a stored choice must never flash the other one on startup.
+    // Resolve appearance and motion before the first paint.
     (function () {
       var choice = "system";
+      var motion = "system";
       try {
         var stored = window.localStorage.getItem("authenik8-theme");
         if (stored === "dark" || stored === "light" || stored === "system") choice = stored;
+        var storedMotion = window.localStorage.getItem("authenik8-motion");
+        if (storedMotion === "reduce" || storedMotion === "system") motion = storedMotion;
       } catch (error) { /* storage can be blocked; system remains the default */ }
       var dark = choice === "dark" || (choice === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.dataset.themeChoice = choice;
+      var reduce = motion === "reduce" || (motion === "system" && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+      document.documentElement.dataset.motion = reduce ? "reduce" : "full";
+      document.documentElement.dataset.motionChoice = motion;
     })();
   </script>
   <link rel="stylesheet" href="/studio/style.css" />
@@ -95,7 +100,7 @@
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.4v7.4M5 7l3 3 3-3M2.8 13.4h10.4"/></svg>
             <span class="nav-label">Export ZIP</span>
           </a>
-          <button id="import-btn" class="nav-item" type="button" title="Import a frontend ZIP into this project">
+          <button id="import-btn" class="nav-item" type="button" title="Import a frontend ZIP into this project" aria-haspopup="dialog" aria-controls="import-dialog">
             <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 10V2.6M5 5.6l3-3 3 3M2.8 10.2v3.2h10.4v-3.2"/></svg>
             <span class="nav-label">Import ZIP</span>
           </button>
@@ -117,6 +122,17 @@
             <span class="nav-label">OpenRouter</span>
             <span id="connect-state" class="nav-state nav-state-text">No key</span>
           </button>
+        </section>
+
+        <section class="nav-group" aria-labelledby="nav-session">
+          <h2 id="nav-session" class="group-label">Sessions</h2>
+          <div id="session-list" class="session-list" aria-label="Saved sessions"></div>
+          <div class="session-meta" aria-live="polite">
+            <div class="session-meta-row"><span class="session-meta-label">Model</span><span id="session-model" class="session-meta-value">-</span></div>
+            <div class="session-meta-row"><span class="session-meta-label">Turns</span><span id="session-turns" class="session-meta-value">0</span></div>
+            <div class="session-meta-row"><span class="session-meta-label">Activities</span><span id="session-activities" class="session-meta-value">0</span></div>
+            <div class="session-meta-row"><span class="session-meta-label">Status</span><span id="session-status" class="session-meta-value">Idle</span></div>
+          </div>
         </section>
 
       </div>
@@ -168,84 +184,29 @@
       </header>
 
       <main id="main" class="workspace-main">
-        <section class="chat" aria-label="Conversation">
-          <div id="messages" class="messages" aria-live="polite"></div>
+        <section class="chat" aria-label="Conversation" data-mode="initial">
+          <div class="welcome-header" role="navigation" aria-label="Welcome links">
+            <a class="welcome-header-link" href="/docs">Docs</a>
+            <a class="welcome-header-link" href="/docs">Product</a>
+            <a class="welcome-header-link" href="/docs">Contact</a>
+          </div>
+          <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+          <div id="messages" class="messages"></div>
 <div id="tools" class="tools" hidden></div>
+          <div id="execution-timeline-head" class="execution-timeline-head" hidden>
+            <span class="execution-timeline-title">Execution</span>
+            <span id="execution-timeline-status" class="execution-timeline-status">Idle</span>
+          </div>
+          <section id="execution-timeline" class="execution-timeline" hidden aria-label="Execution timeline"></section>
+          <button id="jump-latest" class="jump-latest" type="button" aria-hidden="true" tabindex="-1">
+            <svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.2v8.2M4.7 8.7 8 12l3.3-3.3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span>Jump to latest</span>
+          </button>
 
           <div id="welcome" class="welcome">
             <div class="welcome-inner">
               <img src="/studio/authenik8-logo.svg" alt="" width="58" height="58" />
-              <p class="eyebrow">Identity-aware AI development</p>
-              <h1>AI agents that <span class="welcome-accent">know who they are.</span></h1>
-              <p class="welcome-sub">Authenik8 gives every project rotating JWTs, server-side sessions, role-based access, and audit trails. No second users table. No identity layer bolted on.</p>
-
-              <div class="welcome-links" aria-label="Authenik8 links">
-                <a class="welcome-link primary" href="/docs">Read the docs</a>
-                <a class="welcome-link" href="https://github.com/authenik8/create-authenik8-app">Install the CLI</a>
-              </div>
-
-              <ul class="welcome-features" aria-label="Authenik8 features">
-                <li>Rotating JWTs</li>
-                <li>Server-side sessions</li>
-                <li>Roles and audit trails</li>
-                <li>Local-first · BYOK · no telemetry</li>
-              </ul>
-
-              <div class="welcome-build">
-                <p class="eyebrow">Authenik8 Studio</p>
-                <h2>What are we building today?</h2>
-                <p class="welcome-sub">Describe the idea. Studio turns it into a real project in a workspace on this machine, with identity, sessions, and authorization on a backend you own.</p>
-              </div>
-
-              <div class="starter-list" aria-label="Suggested starting points">
-                <button type="button" class="starter" data-prompt="Build a habit tracker with user accounts, streaks, and a small dashboard.">
-                  <span class="starter-icon" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 16 16"><rect x="2.4" y="3" width="11.2" height="10.4" rx="2"/><path d="M5.3 7.4h5.4M5.3 10.1h3.2M5.2 1.6v2.4M10.8 1.6v2.4"/></svg>
-                  </span>
-                  <span class="starter-copy">
-                    <span class="starter-title">A habit tracker with accounts</span>
-                    <span class="starter-sub">Streaks, sessions, and a small dashboard.</span>
-                  </span>
-                  <span class="starter-arrow" aria-hidden="true">↗</span>
-                </button>
-                <button type="button" class="starter" data-prompt="Build a booking API for a barbershop with owner dashboards.">
-                  <span class="starter-icon" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 16 16"><path d="M3 13.2V5.4l5-3.2 5 3.2v7.8"/><path d="M6.2 13.2V9.4h3.6v3.8"/></svg>
-                  </span>
-                  <span class="starter-copy">
-                    <span class="starter-title">A barbershop booking API</span>
-                    <span class="starter-sub">Owner dashboards and protected routes.</span>
-                  </span>
-                  <span class="starter-arrow" aria-hidden="true">↗</span>
-                </button>
-                <button type="button" class="starter" data-open="template">
-                  <span class="starter-icon" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 16 16"><path d="M2.2 6.4 8 2.2l5.8 4.2M3.6 13.8V8.2l4.4 3.2 4.4-3.2v5.6"/></svg>
-                  </span>
-                  <span class="starter-copy">
-                    <span class="starter-title">Start from a template</span>
-                    <span class="starter-sub">Generate the Authenik8 auth backend first.</span>
-                  </span>
-                  <span class="starter-arrow" aria-hidden="true">↗</span>
-                </button>
-                <button type="button" class="starter" data-open="agent">
-                  <span class="starter-icon" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 16 16"><path d="M9.2 1.6 4.6 9h2.9l-1 5.4L13 7.2H9.6l1.6-5.6Z"/></svg>
-                  </span>
-                  <span class="starter-copy">
-                    <span class="starter-title">Build with the agent</span>
-                    <span class="starter-sub">Hand a full project brief to OpenCode.</span>
-                  </span>
-                  <span class="starter-arrow" aria-hidden="true">↗</span>
-                </button>
-                <button type="button" class="starter" data-open="ai-integration">
-                  <span class="starter-icon" aria-hidden="true">
-                    <svg class="icon" viewBox="0 0 16 16"><path d="M8 1.8v2.1M8 12.1v2.1M1.8 8h2.1m8.2 0h2.1M3.6 3.6l1.5 1.5m5.8 5.8 1.5 1.5m0-8.8-1.5 1.5m-5.8 5.8-1.5 1.5"/><circle cx="8" cy="8" r="3.1"/></svg>
-                  </span>
-                  <span class="starter-copy"><span class="starter-title">Plan an AI capability</span><span class="starter-sub">Content, business knowledge, or connected actions.</span></span>
-                  <span class="starter-arrow" aria-hidden="true">↗</span>
-                </button>
-              </div>
+              <h1 class="welcome-heading">What are we building today?</h1>
             </div>
           </div>
 
@@ -264,7 +225,7 @@
                     <label class="sr-only" for="model">Model</label>
                     <select id="model" disabled><option>loading free models…</option></select>
                   </div>
-                  <div class="mode-control" role="group" aria-label="Assistant mode">
+                  <div class="mode-control" role="group" aria-label="Assistant mode" hidden>
                     <button type="button" class="mode-btn" data-mode="think" aria-pressed="false" title="Reason without tools">Think</button>
                     <button type="button" class="mode-btn" data-mode="plan" aria-pressed="false" title="Produce a build plan">Plan</button>
                     <button type="button" class="mode-btn is-active" data-mode="build" aria-pressed="true" title="Build with full tools">Build</button>
@@ -274,10 +235,14 @@
                 </div>
                 <div class="composer-right">
                   <span class="composer-hint">Enter to send</span>
-                  <button id="stop" class="btn-stop" type="button" hidden>Stop</button>
-                  <button id="send" class="btn-send" type="submit" disabled aria-label="Send">
-                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
-                  </button>
+                  <span class="send-stop">
+                    <button id="stop" class="btn-stop" type="button" hidden aria-label="Stop generating">
+                      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><rect x="4.5" y="4.5" width="7" height="7" rx="1.2"/></svg>
+                    </button>
+                    <button id="send" class="btn-send" type="submit" disabled aria-label="Send">
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V3M4 7l4-4 4 4"/></svg>
+                    </button>
+                  </span>
                 </div>
               </div>
 
@@ -310,11 +275,15 @@
           </form>
         </section>
 
-        <section id="preview-pane" class="preview-pane" aria-hidden="true" aria-label="Project preview">
-          <header class="preview-bar">
-            <div class="preview-heading">
-              <span class="status-dot" data-tone="ok" aria-hidden="true"></span>
-              <span>Sandbox preview</span>
+        <section id="preview-pane" class="preview-pane inspector-pane" aria-hidden="true" aria-label="Inspector">
+          <header class="preview-bar inspector-bar">
+            <div class="preview-heading inspector-tabs" role="tablist" aria-label="Inspector panels">
+              <button class="inspector-tab is-active" type="button" role="tab" aria-selected="true" data-inspector-tab="preview">Preview</button>
+              <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="diffs">Diffs</button>
+              <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="terminal">Terminal</button>
+              <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="tests">Tests</button>
+              <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="files">Files</button>
+              <button class="inspector-tab" type="button" role="tab" aria-selected="false" data-inspector-tab="meta">Meta</button>
             </div>
             <div class="preview-actions">
               <div class="viewport-switch" role="group" aria-label="Preview viewport">
@@ -324,13 +293,35 @@
               </div>
               <button id="preview-reload" type="button" title="Reload preview">Reload</button>
               <a id="preview-open" href="/preview/" target="_blank" rel="noopener" title="Open in a new tab">Open</a>
-              <button id="preview-close" type="button" title="Close preview">Close</button>
+              <button id="preview-close" type="button" title="Close inspector">Close</button>
             </div>
           </header>
-          <div id="preview-stage" class="preview-stage" data-viewport="desktop">
-            <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
+          <div class="inspector-panel" data-inspector-panel="preview">
+            <div id="preview-stage" class="preview-stage" data-viewport="desktop">
+              <iframe id="preview-frame" sandbox="allow-scripts allow-forms" title="Project preview"></iframe>
+            </div>
+            <footer class="preview-foot">Read-only static files from the sandbox. Project scripts run in an isolated origin.</footer>
           </div>
-          <footer class="preview-foot">Read-only static files from the sandbox. Project scripts run in an isolated origin.</footer>
+          <div class="inspector-panel" data-inspector-panel="diffs" hidden>
+            <div class="inspector-empty">No diffs loaded yet. Run a build or review to inspect file changes.</div>
+            <div id="inspector-diffs" class="inspector-diff-host"></div>
+          </div>
+          <div class="inspector-panel" data-inspector-panel="terminal" hidden>
+            <div class="inspector-empty">Terminal output will appear here during runs and command execution.</div>
+            <pre id="inspector-terminal" class="inspector-pre" aria-live="polite"></pre>
+          </div>
+          <div class="inspector-panel" data-inspector-panel="tests" hidden>
+            <div class="inspector-empty">Test output will appear here when test activities run.</div>
+            <pre id="inspector-tests" class="inspector-pre" aria-live="polite"></pre>
+          </div>
+          <div class="inspector-panel" data-inspector-panel="files" hidden>
+            <div class="inspector-empty">Modified files and execution metadata will appear here.</div>
+            <pre id="inspector-files" class="inspector-pre"></pre>
+          </div>
+          <div class="inspector-panel" data-inspector-panel="meta" hidden>
+            <div class="inspector-empty">Execution metadata will appear here.</div>
+            <pre id="inspector-meta" class="inspector-pre"></pre>
+          </div>
         </section>
       </main>
 
@@ -772,6 +763,12 @@
             <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
             <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
           </div>
+          <h3 style="margin-top:16px">Motion</h3>
+          <p>Reduce animations and movement. System follows your OS preference.</p>
+          <div id="settings-motion" class="segmented" role="group" aria-label="Motion">
+            <button type="button" data-motion-choice="system" aria-pressed="false">System</button>
+            <button type="button" data-motion-choice="reduce" aria-pressed="false">Reduce</button>
+          </div>
         </section>
 
         <section class="settings-section">
@@ -802,6 +799,15 @@
             <li>Running a project executes its scripts with your account’s permissions; this is not an OS security sandbox.</li>
             <li>There is no telemetry and no hosted account.</li>
           </ul>
+        </section>
+
+        <section class="settings-section">
+          <h3>Quit Studio</h3>
+          <p>Stop the local Studio server on this machine. You can start it again from the launcher or terminal.</p>
+          <div class="settings-line">
+            <span id="quit-studio-state">Studio is running locally.</span>
+            <button id="quit-studio-btn" class="btn-danger" type="button">Quit Studio</button>
+          </div>
         </section>
       </div>
 
@@ -842,6 +848,8 @@
   </dialog>
 
   <script src="/studio/app-state.js"></script>
+<script src="/studio/app-execution-store.js"></script>
+<script src="/studio/app-execution-timeline.js"></script>
 <script src="/studio/app-ui.js"></script>
 <script src="/studio/app-chat.js"></script>
 <script src="/studio/app-preview.js"></script>

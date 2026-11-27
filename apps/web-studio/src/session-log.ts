@@ -40,21 +40,40 @@ type ResetEvent = {
   type: "reset";
 };
 
-type StoredEvent = MessageEvent | ResetEvent;
+type RollbackEvent = {
+  v: 1;
+  seq: number;
+  at: string;
+  type: "rollback";
+};
+
+type StoredEvent = MessageEvent | ResetEvent | RollbackEvent;
 
 type EventInput =
   | { type: "message"; message: ChatMessage }
-  | { type: "reset" };
+  | { type: "reset" }
+  | { type: "rollback" };
 
 function isStoredEvent(value: unknown): value is StoredEvent {
   if (typeof value !== "object" || value === null) return false;
   const event = value as Record<string, unknown>;
   if (event.v !== 1 || typeof event.seq !== "number" || typeof event.at !== "string") return false;
-  if (event.type === "reset") return true;
+  if (event.type === "reset" || event.type === "rollback") return true;
   if (event.type !== "message") return false;
   if (typeof event.message !== "object" || event.message === null) return false;
   const message = event.message as Record<string, unknown>;
   return typeof message.role === "string" && typeof message.content === "string";
+}
+
+function rollbackLastTurn(messages: ChatMessage[]): void {
+  let lastUser = -1;
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    if (messages[i]?.role === "user") {
+      lastUser = i;
+      break;
+    }
+  }
+  if (lastUser >= 0) messages.length = lastUser + 1;
 }
 
 function parseStoredLog(raw: string): { messages: ChatMessage[]; seq: number } {
@@ -72,6 +91,8 @@ function parseStoredLog(raw: string): { messages: ChatMessage[]; seq: number } {
     seq = Math.max(seq, parsed.seq);
     if (parsed.type === "reset") {
       messages.length = 0;
+    } else if (parsed.type === "rollback") {
+      rollbackLastTurn(messages);
     } else {
       messages.push(parsed.message);
     }
@@ -87,6 +108,28 @@ function parseStoredLog(raw: string): { messages: ChatMessage[]; seq: number } {
 export async function readSessionMessages(filePath: string): Promise<ChatMessage[]> {
   const raw = await readFile(filePath, "utf8");
   return parseStoredLog(raw).messages;
+}
+
+const TITLE_MAX_CHARS = 64;
+
+function titleFromMessages(messages: ChatMessage[]): string {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    const title = message.content.replace(/\s+/g, " ").trim();
+    if (title.length === 0) continue;
+    if (title.length <= TITLE_MAX_CHARS) return title;
+    return `${title.slice(0, TITLE_MAX_CHARS - 1).trimEnd()}…`;
+  }
+  return "New session";
+}
+
+/** A cheap sidebar summary: title and turn count, never the messages themselves. */
+export function summarizeSession(raw: string): { title: string; turns: number } {
+  const messages = parseStoredLog(raw).messages;
+  return {
+    title: titleFromMessages(messages),
+    turns: messages.filter((message) => message.role === "user").length,
+  };
 }
 
 export class SessionLog {
@@ -167,11 +210,20 @@ export class SessionLog {
     return pending;
   }
 
+  /** Remove the last assistant turn, keeping the last user message for retry/regenerate. */
+  async rollbackLastTurn(): Promise<void> {
+    await this.ensureLoaded();
+    rollbackLastTurn(this.messages);
+    await this.enqueue({ type: "rollback" });
+  }
+
   private enqueue(input: EventInput): Promise<void> {
     const base = { v: 1 as const, seq: ++this.seq, at: new Date().toISOString() };
     const event: StoredEvent = input.type === "message"
       ? { ...base, type: "message", message: input.message }
-      : { ...base, type: "reset" };
+      : input.type === "reset"
+        ? { ...base, type: "reset" }
+        : { ...base, type: "rollback" };
     const line = `${JSON.stringify(event)}\n`;
     const write = this.writes.then(async () => {
       await mkdir(path.dirname(this.filePath), { recursive: true });

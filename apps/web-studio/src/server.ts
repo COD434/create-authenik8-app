@@ -9,6 +9,11 @@ import { createOpenCodeRuntime } from "@authenik8/agent-adapter";
 import { createLeaseManager, type LeaseManager } from "./directory-lease.js";
 import { resolveOpenCodePath } from "./opencode-path.js";
 import { createRunner, type Runner } from "./runner.js";
+import {
+  createLegacyRunAdapterState,
+  createStudioEventStream,
+  fromLegacyRunSseEvent,
+} from "./execution-events.js";
 import { isTrustedLocalMutation, sendJson, sseEvent } from "./http.js";
 import { type RouteContext, type StudioSession, type WebStudioDeps } from "./studio-types.js";
 import { servePreview } from "./preview.js";
@@ -52,9 +57,9 @@ const DEFAULT_MAX_TOOL_ROUNDS = 12;
 const MAX_TOOL_ROUNDS_CAP = 30;
 
 export function createWebStudioServer(deps: WebStudioDeps): Server {
-  // Single-user localhost tool: one durable conversation per sandbox;
-  // /api/reset starts a new one.
-  const session: StudioSession = { log: null, agentBusy: false, chatBusy: false, runRes: null };
+  // Single-user localhost tool: multiple durable conversations per sandbox.
+  // /api/reset clears the active one; /api/sessions creates/switches sessions.
+  const session: StudioSession = { log: null, activeSessionId: "default", agentBusy: false, chatBusy: false, runRes: null };
   // Directory leases are process-local and shared across chat turns. A builder
   // holds one for the duration of its synchronous child run.
   const leases = createLeaseManager();
@@ -64,16 +69,31 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   );
 
   // Project runner wiring: run output streams to whoever holds the SSE.
+  let runStudio = createStudioEventStream();
+  let runStudioState = createLegacyRunAdapterState("local-session", `turn_run_${Date.now().toString(36)}`);
+  let runActive = false;
+  const emitRun = (payload: Record<string, unknown>): void => {
+    if (session.runRes === null || session.runRes.destroyed) return;
+    sseEvent(session.runRes, payload);
+    const studioEvents = fromLegacyRunSseEvent(payload, runStudioState, runStudio);
+    if (studioEvents.length > 0) sseEvent(session.runRes, { studio: studioEvents });
+  };
   const runner = deps.createRunner({
     onEvent: (event) => {
-      if (session.runRes !== null && !session.runRes.destroyed) sseEvent(session.runRes, { run: event });
+      if (!runActive && (event.phase === "install" || event.phase === "build" || event.phase === "serve")) {
+        runActive = true;
+        runStudio = createStudioEventStream();
+        runStudioState = createLegacyRunAdapterState("local-session", `turn_run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`);
+      }
+      emitRun({ run: event });
       if (event.phase === "exited" || event.phase === "failed") {
+        runActive = false;
         if (session.runRes !== null && !session.runRes.destroyed) session.runRes.end();
         session.runRes = null;
       }
     },
     onOutput: (line) => {
-      if (session.runRes !== null && !session.runRes.destroyed) sseEvent(session.runRes, { runOut: line });
+      emitRun({ runOut: line });
     },
   });
 
@@ -114,6 +134,23 @@ async function handle(
     if (await handleTemplateRoute(ctx)) return;
     if (await handleAgentRoute(ctx)) return;
     if (await handleChatRoute(ctx)) return;
+
+    if (url.pathname === "/api/studio/quit") {
+      if (req.method !== "POST") {
+        sendJson(res, 405, { error: "Method not allowed" });
+        return;
+      }
+      sendJson(res, 200, { ok: true });
+      const srv = (req.socket as unknown as { server?: Server & { closeAllConnections?: () => void; closeIdleConnections?: () => void } }).server;
+      setTimeout(() => {
+        runner.stop();
+        srv?.closeAllConnections?.();
+        srv?.closeIdleConnections?.();
+        srv?.close(() => { if (!process.env.VITEST) process.exit(0); });
+        setTimeout(() => { if (!process.env.VITEST) process.exit(0); }, 1500).unref();
+      }, 100);
+      return;
+    }
 
     if (url.pathname === "/preview" || url.pathname.startsWith("/preview/")) {
       if (req.method === "GET") {

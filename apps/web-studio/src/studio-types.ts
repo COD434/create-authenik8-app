@@ -1,5 +1,4 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import path from "node:path";
 
 import type { AgentRuntime } from "@authenik8/agent-adapter";
 import type { ModelInfo, ModelsGateway } from "@authenik8/models";
@@ -7,7 +6,8 @@ import type { ModelInfo, ModelsGateway } from "@authenik8/models";
 import type { LeaseManager } from "./directory-lease.js";
 import { RUNTIME_CONTEXT_PREFIX } from "./runtime-context.js";
 import type { Runner, RunnerHandlers } from "./runner.js";
-import { SESSION_DIR, SESSION_FILE, SessionLog } from "./session-log.js";
+import { SessionLog } from "./session-log.js";
+import { DEFAULT_SESSION_ID, sessionLogPath } from "./session-store.js";
 import type { Bridge } from "./template-bridge.js";
 
 /** The auto-router accepts app traffic, so it is the reliable first-run default. */
@@ -55,8 +55,11 @@ export type StudioSession = {
   /**
    * Durable conversation log, created on first use so a caller may set the
    * sandbox root after the server object exists (the tests do exactly that).
+   * Switching sessions drops this instance; the new file loads on demand.
    */
   log: SessionLog | null;
+  /** The conversation the chat routes read and append to. */
+  activeSessionId: string;
   agentBusy: boolean;
   chatBusy: boolean;
   runRes: ServerResponse | null;
@@ -75,7 +78,7 @@ export type RouteContext = {
 };
 
 export function sessionLog(deps: WebStudioDeps, session: StudioSession): SessionLog {
-  session.log ??= new SessionLog(path.join(deps.sandboxRoot, SESSION_DIR, SESSION_FILE));
+  session.log ??= new SessionLog(sessionLogPath(deps.sandboxRoot, session.activeSessionId));
   return session.log;
 }
 

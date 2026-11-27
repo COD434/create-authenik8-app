@@ -6,6 +6,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { executeTool } from "../src/tools.js";
+import { createZip } from "../src/zip.js";
 import {
   agentCalls,
   agentSuccess,
@@ -21,13 +22,23 @@ import {
 } from "./support/studio-harness.js";
 
 describe("build agent route", () => {
-  function runAgent(prompt: string): Promise<Response> {
+  function runAgent(prompt: string, key = "sk-or-test"): Promise<Response> {
     return fetch(`${base}/api/agent`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
       body: JSON.stringify({ prompt }),
     });
   }
+
+  it("rejects agent run without API key", async () => {
+    const res = await fetch(`${base}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ prompt: "build something" }),
+    });
+    expect(res.status).toBe(401);
+    expect(agentCalls).toHaveLength(0);
+  });
 
   it("runs the agent in the sandbox with auto-approve and streams the outcome", async () => {
     const pending = runAgent("a barbershop booking app");
@@ -106,7 +117,11 @@ describe("build agent route", () => {
   });
 
   it("rejects malformed JSON with 400 instead of 500", async () => {
-    const res = await fetch(`${base}/api/agent`, { method: "POST", body: "{not json" });
+    const res = await fetch(`${base}/api/agent`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": "sk-or-test" },
+      body: "{not json",
+    });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid JSON body" });
     expect(agentCalls).toHaveLength(0);
@@ -289,6 +304,66 @@ describe("export route", () => {
       deps.sandboxRoot = sandbox;
       await rm(fresh, { recursive: true, force: true }).catch(() => {});
     }
+  });
+});
+
+describe("import route", () => {
+  function projectZip(files: Record<string, string>): Buffer {
+    return createZip(Object.entries(files).map(([name, content]) => ({ name, data: Buffer.from(content) })));
+  }
+
+  function postImport(step: "preview" | "apply", archive: Buffer, replace = false): Promise<Response> {
+    return fetch(`${base}/api/import/${step}${replace ? "?replace=true" : ""}`, {
+      method: "POST",
+      headers: { "content-type": "application/zip" },
+      body: archive,
+    });
+  }
+
+  it("previews a ZIP, then preserves or replaces conflicts on confirmation", async () => {
+    await executeTool("write_file", JSON.stringify({ path: "index.html", content: "old" }), sandbox);
+    const archive = projectZip({ "index.html": "new", "about.html": "about" });
+
+    const preview = await postImport("preview", archive);
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toMatchObject({
+      conflicts: 1,
+      blocked: 0,
+      skipped: 0,
+      files: [
+        { path: "index.html", bytes: 3, state: "conflict" },
+        { path: "about.html", bytes: 5, state: "new" },
+      ],
+    });
+    // Preview is read-only: the conflicting file is untouched until apply.
+    expect(await readFile(path.join(sandbox, "index.html"), "utf8")).toBe("old");
+
+    const kept = await postImport("apply", archive);
+    expect(kept.status).toBe(200);
+    expect(await kept.json()).toMatchObject({ ok: true, written: 1, preserved: 1 });
+    expect(await readFile(path.join(sandbox, "index.html"), "utf8")).toBe("old");
+    expect(await readFile(path.join(sandbox, "about.html"), "utf8")).toBe("about");
+
+    const replaced = await postImport("apply", archive, true);
+    expect(replaced.status).toBe(200);
+    expect(await replaced.json()).toMatchObject({ ok: true, written: 2, preserved: 0 });
+    expect(await readFile(path.join(sandbox, "index.html"), "utf8")).toBe("new");
+  });
+
+  it("refuses paths that would write through a file and reports them before apply", async () => {
+    await writeFile(path.join(sandbox, "assets"), "not a directory");
+    // A second top-level file keeps the archive from being treated as one
+    // shared root folder (which import strips).
+    const archive = projectZip({ "readme.html": "app", "assets/site.css": "body{}" });
+
+    const preview = await postImport("preview", archive);
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toMatchObject({ conflicts: 0, blocked: 1 });
+
+    const apply = await postImport("apply", archive, true);
+    expect(apply.status).toBe(409);
+    expect((await apply.json()).error).toMatch(/protected files or directories/);
+    expect(await readFile(path.join(sandbox, "assets"), "utf8")).toBe("not a directory");
   });
 });
 

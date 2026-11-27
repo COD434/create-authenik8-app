@@ -97,4 +97,28 @@ describe("SessionLog", () => {
     const log = new SessionLog(logPath());
     expect(await log.history()).toEqual([{ role: "user", content: "kept" }]);
   });
+
+  it("rolls back the last assistant turn while keeping the last user message", async () => {
+    const log = new SessionLog(logPath());
+    await log.append({ role: "user", content: "first" });
+    await log.append({ role: "assistant", content: "reply 1" });
+    await log.append({ role: "user", content: "second" });
+    await log.append({ role: "assistant", content: "reply 2", toolCalls: [{ id: "c1", name: "read_file", arguments: "{}" }] });
+    await log.append({ role: "tool", toolCallId: "c1", content: "ok" });
+
+    await log.rollbackLastTurn();
+
+    expect(await log.history()).toEqual([
+      { role: "user", content: "first" },
+      { role: "assistant", content: "reply 1" },
+      { role: "user", content: "second" },
+    ]);
+
+    const reopened = new SessionLog(logPath());
+    expect(await reopened.history()).toEqual([
+      { role: "user", content: "first" },
+      { role: "assistant", content: "reply 1" },
+      { role: "user", content: "second" },
+    ]);
+  });
 });

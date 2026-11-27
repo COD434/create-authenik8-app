@@ -470,5 +470,76 @@ describe("assistant modes", () => {
     const text = await res.text();
     expect(text).toContain('"mode":"think"');
   });
+
+  it("does not forward reasoning chunks outside think mode", async () => {
+    state.script = [[
+      { delta: null, toolCalls: null, finishReason: null, usage: null, reasoning: "private chain" },
+      { delta: "Done.", toolCalls: null, finishReason: "stop", usage: null, reasoning: "more private chain" },
+    ]];
+    capturedRequests.length = 0;
+
+    const res = await chat("build it", "free/model-a", "build");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    expect(capturedRequests[0]?.reasoning).toBeUndefined();
+    expect(text).not.toContain('"reasoning"');
+    expect(text).not.toContain("private chain");
+    expect(text).toContain('"delta":"Done."');
+  });
+});
+
+describe("chat regenerate", () => {
+  it("rolls back the last assistant turn and streams a fresh response", async () => {
+    state.script = [
+      [{ delta: "First answer.", toolCalls: null, finishReason: "stop", usage: null }],
+      [{ delta: "Second answer.", toolCalls: null, finishReason: "stop", usage: null }],
+    ];
+    capturedRequests.length = 0;
+
+    const first = await chat("Say hi");
+    expect(first.status).toBe(200);
+    await first.text();
+
+    const regen = await fetch(`${base}/api/chat/regenerate`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-OpenRouter-Key": KEY },
+      body: JSON.stringify({ model: "free/model-a", mode: "build" }),
+    });
+    expect(regen.status).toBe(200);
+    const text = await regen.text();
+    expect(text).toContain('"delta":"Second answer."');
+
+    // Original user message remains once; first assistant turn was rolled back.
+    const lastReq = capturedRequests.at(-1);
+    const userMessages = (lastReq?.messages ?? []).filter((m) => m.role === "user" && m.content === "Say hi");
+    expect(userMessages).toHaveLength(1);
+    const assistantContents = (lastReq?.messages ?? []).filter((m) => m.role === "assistant").map((m) => m.content);
+    expect(assistantContents).not.toContain("First answer.");
+  });
+});
+
+describe("chat execution protocol", () => {
+  it("emits normalized studio events alongside legacy SSE payloads", async () => {
+    state.script = [[
+      { delta: "Hello", toolCalls: null, finishReason: null, usage: null },
+      { delta: " world", toolCalls: null, finishReason: "stop", usage: { promptTokens: 1, completionTokens: 2, totalTokens: 3, costUsd: null } },
+    ]];
+
+    const res = await chat("Say hi");
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    // Legacy payloads remain.
+    expect(text).toContain('"delta":"Hello"');
+    expect(text).toContain('"done":true');
+
+    // Normalized protocol frames are emitted for the new execution UI.
+    expect(text).toContain('"studioProtocol":1');
+    expect(text).toContain('"studio":[');
+    expect(text).toContain('"kind":"assistant.message.delta"');
+    expect(text).toContain('"kind":"assistant.message.completed"');
+    expect(text).toContain('"kind":"turn.completed"');
+  });
 });
 
