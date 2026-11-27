@@ -3792,6 +3792,30 @@ input[type="checkbox"] { accent-color: var(--accent); }
 /* Kind is communicated by the icon tone; a second accent border on every
    tool/command/notice card made the timeline read as a stack of alerts. */
 
+/* sidebar saved sessions */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.session-item {
+  min-height: 32px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+.session-item-meta {
+  color: var(--text-3);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.session-empty {
+  margin: 2px 0;
+  padding: 6px 10px;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
 /* sidebar session meta */
 .session-meta {
   display: flex;

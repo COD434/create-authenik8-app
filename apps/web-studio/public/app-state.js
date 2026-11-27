@@ -57,6 +57,7 @@ const toastRegion = document.getElementById("toast-region");
 const mobileQuery = window.matchMedia("(max-width: 900px)");
 let chatRunning = false;
 let chatController = null;
+let activeSessionId = "default";
 let chatMode = "build";
 let runPhase = "idle";
 let settingsOpener = null;

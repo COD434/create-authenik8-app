@@ -478,3 +478,129 @@ settingsConnect.addEventListener("click", () => {
   setInterval(refresh, 2000);
   refresh();
 })();
+
+// --- saved sessions ---------------------------------------------------------
+// The server owns the list; this renders titles and switches the active log.
+// A session item is a real conversation, never a decorative history entry.
+(() => {
+  const listEl = document.getElementById("session-list");
+  if (!listEl) return;
+
+  const SESSION_ICON = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v9H3z"/><path d="M5 6h6M5 8h4"/></svg>';
+  let listEpoch = 0;
+
+  function formatSessionTime(updatedAt) {
+    if (typeof updatedAt !== "string") return "";
+    const then = Date.parse(updatedAt);
+    if (!Number.isFinite(then)) return "";
+    const minutes = Math.max(0, Math.round((Date.now() - then) / 60_000));
+    if (minutes < 1) return "now";
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.round(hours / 24);
+    if (days < 7) return `${days}d`;
+    return new Date(then).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
+  function renderSessionList(body) {
+    const sessions = Array.isArray(body?.sessions) ? body.sessions : [];
+    const active = typeof body?.activeId === "string" ? body.activeId : activeSessionId;
+    activeSessionId = active;
+    listEl.replaceChildren();
+    for (const session of sessions) {
+      if (typeof session?.id !== "string" || session.id.length === 0) continue;
+      const title = typeof session.title === "string" && session.title.trim().length > 0
+        ? session.title.trim()
+        : "New session";
+      const turns = typeof session.turns === "number" && Number.isFinite(session.turns) ? session.turns : 0;
+      const isActive = session.id === active;
+
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "nav-item session-item";
+      button.dataset.sessionId = session.id;
+      button.title = `${title} · ${turns} turn${turns === 1 ? "" : "s"}`;
+      if (isActive) {
+        button.classList.add("is-active-session");
+        button.setAttribute("aria-current", "true");
+      }
+
+      const icon = document.createElement("span");
+      icon.className = "icon";
+      icon.innerHTML = SESSION_ICON; // static brand geometry, never user data
+      const label = document.createElement("span");
+      label.className = "nav-label";
+      label.textContent = title;
+      const meta = document.createElement("span");
+      meta.className = "session-item-meta";
+      meta.textContent = formatSessionTime(session.updatedAt);
+
+      button.append(icon, label, meta);
+      button.addEventListener("click", () => {
+        if (!isActive) void activateSession(session.id);
+      });
+      listEl.appendChild(button);
+    }
+    if (listEl.childElementCount === 0) {
+      const empty = document.createElement("p");
+      empty.className = "session-empty";
+      empty.textContent = "No saved sessions yet.";
+      listEl.appendChild(empty);
+    }
+  }
+
+  async function refreshSessionList() {
+    const epoch = ++listEpoch;
+    try {
+      const res = await fetch("/api/sessions", { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      if (epoch !== listEpoch) return; // a newer refresh owns the list
+      renderSessionList(body);
+    } catch {
+      // Keep the last good list: a transient read failure must not erase
+      // sessions the user can still switch back to. Only the first load shows
+      // the unavailable state.
+      if (epoch === listEpoch && listEl.childElementCount === 0) {
+        const empty = document.createElement("p");
+        empty.className = "session-empty";
+        empty.textContent = "Sessions unavailable.";
+        listEl.appendChild(empty);
+      }
+    }
+  }
+
+  async function activateSession(id) {
+    if (typeof id !== "string" || id.length === 0 || id === activeSessionId) return;
+    if (chatRunning) {
+      notify("Stop the current response before switching sessions.", "error");
+      return;
+    }
+    if (typeof agentRunning !== "undefined" && agentRunning) {
+      notify("Wait for the agent run to finish before switching sessions.", "error");
+      return;
+    }
+    const res = await fetch("/api/sessions/activate", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => null);
+    if (res === null || !res.ok) {
+      notify("Could not switch sessions.", "error");
+      return;
+    }
+    activeSessionId = id;
+    historyEpoch++; // a restore already in flight must not mix the two logs
+    if (typeof executionStore !== "undefined") executionStore.reset();
+    messagesEl.replaceChildren();
+    if (typeof renderPlan === "function") renderPlan(null);
+    showWelcome();
+    await restoreHistory();
+    closeMobileSidebar(false);
+    await refreshSessionList();
+  }
+
+  window.refreshSessionList = refreshSessionList;
+  void refreshSessionList();
+})();

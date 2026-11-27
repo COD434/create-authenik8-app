@@ -212,6 +212,7 @@ function syncChatControls() {
   }
   // Timeline actions live outside #messages; a run ending must re-enable them.
   if (typeof window.refreshExecutionTimeline === "function") window.refreshExecutionTimeline();
+  window.dispatchEvent(new CustomEvent("studio:chat-state", { detail: { running: chatRunning } }));
 }
 
 const MODAL_FOCUSABLE = [
@@ -597,6 +598,7 @@ function formatAssistantMessage(element) {
   element.dataset.rich = "true";
 }
 
+let welcomeHideTimer = 0;
 function hideWelcome() {
   const header = document.querySelector(".welcome-header");
   if (header !== null) header.hidden = true; // Product/Docs/Contact belong to the empty state only
@@ -604,7 +606,15 @@ function hideWelcome() {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
   if (reduced) { welcomeEl.hidden = true; welcomeEl.classList.remove("leaving"); glideComposer(); return; }
   welcomeEl.classList.add("leaving");
-  window.setTimeout(() => { welcomeEl.hidden = true; welcomeEl.classList.remove("leaving"); glideComposer(); }, 150);
+  // A session switch can re-open the greeting while this exit is still
+  // running; the timer must not hide the greeting it just re-opened.
+  if (welcomeHideTimer !== 0) window.clearTimeout(welcomeHideTimer);
+  welcomeHideTimer = window.setTimeout(() => {
+    welcomeHideTimer = 0;
+    welcomeEl.hidden = true;
+    welcomeEl.classList.remove("leaving");
+    glideComposer();
+  }, 150);
 }
 
 // FLIP glide for the composer from its initial (up) state back to normal.
@@ -732,6 +742,10 @@ function showWelcome() {
   if (typeof executionStore !== "undefined") executionStore.reset();
   renderPlan(null);
   usageLine.textContent = "local · BYOK · no telemetry";
+  if (welcomeHideTimer !== 0) {
+    window.clearTimeout(welcomeHideTimer);
+    welcomeHideTimer = 0;
+  }
   welcomeEl.hidden = false;
   welcomeEl.classList.remove("leaving");
   const header = document.querySelector(".welcome-header");

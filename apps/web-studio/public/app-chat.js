@@ -129,10 +129,6 @@ function attachUserActions(bubble) {
   row.appendChild(actions);
 }
 
-function attachCopyButton(bubble) {
-  attachAssistantActions(bubble, { regenerate: false });
-}
-
 // Client-side errors must surface in-band: a silently broken UI is the
 // worst failure mode a local tool can have (it is how a stuck modal went
 // undiagnosed for a session).
@@ -487,6 +483,9 @@ async function restoreHistory() {
       });
     }
     if (epoch !== historyEpoch) return;
+    // A restored conversation is not the empty state. Without this, the
+    // welcome greeting stays over the transcript after a reload.
+    if (messages.length > 0) hideWelcome();
     renderPlan(body.plan ?? null);
 
     if (typeof executionStore !== "undefined") {
@@ -520,12 +519,13 @@ async function restoreHistory() {
       executionStore.applyEvents(events);
     }
 
+    if (window.STUDIO_EXECUTION_TIMELINE) {
+      requestAnimationFrame(() => scrollToLatest("auto"));
+      return;
+    }
+
     messagesEl.classList.add("restoring");
     try {
-      if (window.STUDIO_EXECUTION_TIMELINE) {
-        requestAnimationFrame(() => scrollToLatest("auto"));
-        return;
-      }
       let rendered = 0;
       let lastAssistantBubble = null;
       for (const message of messages) {

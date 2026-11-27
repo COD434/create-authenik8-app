@@ -58,6 +58,7 @@ describe("static UI and auth boundary", () => {
     expect(html).toContain("<title>Authenik8</title>");
     expect(html).toContain('id="plan-panel"');
     expect(html).toContain('id="plan-steps"');
+    expect(html).toContain('id="session-list"');
     expect(html).toContain('id="subagents-btn"');
     expect(html).toContain('id="subagents-overlay"');
     expect(html).toContain("Newest 50 runs max.");
@@ -104,6 +105,9 @@ describe("static UI and auth boundary", () => {
       .sort();
     expect(referencedScripts).toEqual(shellScripts);
     expect(appSource).toContain("/api/subagents");
+    expect(appSource).toContain("/api/sessions");
+    expect(appSource).toContain("activeSessionId");
+    expect(appSource).toContain("refreshSessionList");
     // Structural guard for the modal focus contract: background inert,
     // a shared Tab trap, opener restoration, and a visible error state with
     // focus kept on Back.

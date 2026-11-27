@@ -110,6 +110,28 @@ export async function readSessionMessages(filePath: string): Promise<ChatMessage
   return parseStoredLog(raw).messages;
 }
 
+const TITLE_MAX_CHARS = 64;
+
+function titleFromMessages(messages: ChatMessage[]): string {
+  for (const message of messages) {
+    if (message.role !== "user") continue;
+    const title = message.content.replace(/\s+/g, " ").trim();
+    if (title.length === 0) continue;
+    if (title.length <= TITLE_MAX_CHARS) return title;
+    return `${title.slice(0, TITLE_MAX_CHARS - 1).trimEnd()}…`;
+  }
+  return "New session";
+}
+
+/** A cheap sidebar summary: title and turn count, never the messages themselves. */
+export function summarizeSession(raw: string): { title: string; turns: number } {
+  const messages = parseStoredLog(raw).messages;
+  return {
+    title: titleFromMessages(messages),
+    turns: messages.filter((message) => message.role === "user").length,
+  };
+}
+
 export class SessionLog {
   private messages: ChatMessage[] = [];
   private seq = 0;

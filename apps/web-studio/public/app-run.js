@@ -141,16 +141,44 @@ keyInput.addEventListener("input", () => {
   syncKeyState();
 });
 
+function waitForChatIdle(timeoutMs = 4000) {
+  if (!chatRunning) return Promise.resolve();
+  return new Promise((resolve) => {
+    let timer = 0;
+    const finish = () => {
+      window.removeEventListener("studio:chat-state", onState);
+      window.clearTimeout(timer);
+      resolve();
+    };
+    const onState = () => {
+      if (!chatRunning) finish();
+    };
+    window.addEventListener("studio:chat-state", onState);
+    timer = window.setTimeout(finish, timeoutMs);
+  });
+}
+
 async function startNewSession() {
-  if (chatRunning) abortChat();
   closeMobileSidebar(false);
   historyEpoch++; // a restore already in flight must not repaint this state
+  if (chatRunning) abortChat();
+  await waitForChatIdle();
+  // An empty conversation is already the new-chat state; creating a file for
+  // every extra click would fill the sidebar with identical empty sessions.
+  const hasActivity = typeof executionStore !== "undefined" && executionStore.list().length > 0;
+  if (hasActivity) {
+    const created = await fetch("/api/sessions", { method: "POST" }).catch(() => null);
+    if (created === null || !created.ok) {
+      notify("Could not start a new session.", "error");
+      return;
+    }
+  }
   clearDraft();
   promptEl.value = "";
   promptEl.style.height = "auto";
   if (typeof executionStore !== "undefined") executionStore.reset();
-  await fetch("/api/reset", { method: "POST" }).catch(() => {});
   showWelcome(); // the greeting IS the new-chat state
+  if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
 }
 
 newChatBtn.addEventListener("click", () => { void startNewSession(); });
@@ -616,6 +644,7 @@ async function executeChatRequest({ endpoint, body, key, model }) {
     chatController = null;
     messagesEl.classList.remove("perf-degraded");
     syncChatControls();
+    if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
     promptEl.focus();
     if (outcome === "stopped") {
       setWorkspaceStatus("Stopped", "warn");
