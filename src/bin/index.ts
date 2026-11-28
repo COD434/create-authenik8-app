@@ -102,7 +102,8 @@ Options:
                                     Select a preset non-interactively
   --frontend <react|lovable>         Frontend path for the fullstack preset
   --prisma, --no-prisma             Choose Prisma for the base preset
-  --database <sqlite|postgresql>    Select a database where applicable
+  --database <sqlite|postgresql|supabase>
+                                    Select a database where applicable
   --oauth <google|github|google,github>
   --no-oauth                        Explicitly disable OAuth for fullstack
   --git, --no-git                   Choose Git initialization (defaults off)

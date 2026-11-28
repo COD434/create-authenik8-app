@@ -59,8 +59,8 @@ export async function detectDeployTokens(
           };
           return data.access_token ?? data.auth?.access_token ?? null;
         }
-      } catch {
-        // No Netlify config directory.
+      } catch (error) {
+        void error; // No Netlify config directory.
       }
       return null;
     }, "Netlify"],

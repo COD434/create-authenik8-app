@@ -68,6 +68,7 @@ function autoScroll(force = false) {
   }
   updateJumpLatest();
 }
+restoreDraft();
 
 if (jumpLatestBtn !== null) {
   jumpLatestBtn.addEventListener("click", () => scrollToLatest("smooth"));
@@ -87,12 +88,12 @@ function saveDraft() {
       return;
     }
     localStorage.setItem(DRAFT_KEY, value);
-  } catch {
-    // Ignore storage failures (private mode / blocked storage).
+  } catch (error) {
+    void error; // Ignore storage failures (private mode / blocked storage).
   }
 }
 function clearDraft() {
-  try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
+  try { localStorage.removeItem(DRAFT_KEY); } catch (error) { void error; /* ignore blocked storage */ }
 }
 function restoreDraft() {
   if (promptEl === null) return;
@@ -103,8 +104,8 @@ function restoreDraft() {
       promptEl.style.height = "auto";
       promptEl.style.height = `${Math.min(promptEl.scrollHeight, 190)}px`;
     }
-  } catch {
-    // Ignore storage failures (private mode / blocked storage).
+  } catch (error) {
+    void error; // Ignore storage failures (private mode / blocked storage).
   }
 }
 if (promptEl !== null) {
@@ -327,280 +328,6 @@ const PALETTE_ICONS = {
   quit: '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.2 2.4H3.4a1 1 0 0 0-1 1v9.2a1 1 0 0 0 1 1h2.8M10.4 11.2 13.6 8l-3.2-3.2M13.6 8H6.2" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
 };
 
-// Assistant text is rendered with DOM nodes, never HTML strings. Fenced code
-// blocks stay monospace and copyable, and every other token is text.
-function sanitizeAssistantText(text) {
-  if (typeof text !== "string" || text.length === 0) return "";
-  // Some models leak raw tool-call traces into content (e.g. DeepSeek XML form).
-  // Strip them from visible chat; real tool execution is shown via tool records.
-  let cleaned = text.replace(/<tool_call\b[^>]*>[\s\S]*?<\/tool_call>/gi, "");
-  cleaned = cleaned.replace(/<tool_call\b[^>]*>[\s\S]*$/gi, ""); // unclosed trailing trace
-  // Orphan DeepSeek-style trace tags outside a tool_call block.
-  cleaned = cleaned.replace(/<\/?tool_call\b[^>]*>/gi, "");
-  cleaned = cleaned.replace(/<function=[^>\n]+>/gi, "");
-  cleaned = cleaned.replace(/<\/function>/gi, "");
-  cleaned = cleaned.replace(/<parameter=[^>\n]+>/gi, "");
-  cleaned = cleaned.replace(/<\/parameter>/gi, "");
-  cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
-  return cleaned.trim();
-}
-
-function safeHref(url) {
-  try {
-    const parsed = new URL(url, window.location.origin);
-    if (parsed.protocol === "http:" || parsed.protocol === "https:" || parsed.protocol === "mailto:") return parsed.href;
-  } catch { /* ignore */ }
-  return null;
-}
-
-function inlineNodes(text) {
-  const nodes = [];
-  const pattern = /(\*\*[^*\n]+\*\*|`[^`\n]+`|\[([^\]\n]+)\]\(([^)\s]+)\)|\*[^*\n]+\*)/g;
-  let last = 0;
-  let match;
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > last) nodes.push(document.createTextNode(text.slice(last, match.index)));
-    const token = match[0];
-    if (token.startsWith("**")) {
-      const strong = document.createElement("strong");
-      strong.textContent = token.slice(2, -2);
-      nodes.push(strong);
-    } else if (token.startsWith("`")) {
-      const code = document.createElement("code");
-      code.textContent = token.slice(1, -1);
-      nodes.push(code);
-    } else if (token.startsWith("[")) {
-      const label = match[2] ?? "";
-      const href = safeHref(match[3] ?? "");
-      if (href === null) {
-        nodes.push(document.createTextNode(token));
-      } else {
-        const a = document.createElement("a");
-        a.href = href;
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
-        a.textContent = label;
-        nodes.push(a);
-      }
-    } else {
-      const em = document.createElement("em");
-      em.textContent = token.slice(1, -1);
-      nodes.push(em);
-    }
-    last = match.index + token.length;
-  }
-  if (last < text.length) nodes.push(document.createTextNode(text.slice(last)));
-  return nodes;
-}
-
-function highlightCode(codeEl, code, language) {
-  const lang = (language || "").toLower();
-  const supported = /^(js|javascript|ts|typescript|json|bash|sh|shell|html|css|xml|yaml|yml|sql|py|python|go|rs|rust)$/.test(lang);
-  if (!supported) return;
-  const tokenDefs = [
-    { type: "comment", re: lang.match(/^(html|xml)$/) ? /<!--[\s\S]*?-->/y : lang.match(/^(css)$/) ? /\/\*[\s\S]*?\*\//y : lang.match(/^(bash|sh|shell|yaml|yml|py|python)$/) ? /#.*/y : /\/\/.*|\/\*[\s\S]*?\*\//y },
-    { type: "string", re: /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`/y },
-    { type: "number", re: /\b\d+(?:\.\d+)?\b/y },
-    { type: "keyword", re: /\b(?:const|let|var|function|return|if|else|for|while|switch|case|break|continue|try|catch|finally|throw|new|class|extends|import|from|export|default|async|await|type|interface|enum|implements|public|private|protected|readonly|true|false|null|undefined|SELECT|FROM|WHERE|INSERT|UPDATE|DELETE|JOIN|ON|AND|OR|NOT|CREATE|TABLE|def|print|self|import|as|elif|None|True|False)\b/y },
-  ];
-  const frag = document.createDocumentFragment();
-  let i = 0;
-  while (i < code.length) {
-    let matched = false;
-    for (const def of tokenDefs) {
-      def.re.lastIndex = i;
-      const m = def.re.exec(code);
-      if (m && m.index === i) {
-        const span = document.createElement("span");
-        span.className = `tok-${def.type}`;
-        span.textContent = m[0];
-        frag.appendChild(span);
-        i += m[0].length;
-        matched = true;
-        break;
-      }
-    }
-    if (!matched) {
-      frag.appendChild(document.createTextNode(code[i]));
-      i += 1;
-    }
-  }
-  codeEl.textContent = "";
-  codeEl.appendChild(frag);
-}
-
-function codeBlockNode(code, language, closed = true) {
-  const figure = document.createElement("figure");
-  figure.className = "code-block";
-  const caption = document.createElement("figcaption");
-  const label = document.createElement("span");
-  label.textContent = language === "" ? "code" : language;
-  const copy = document.createElement("button");
-  copy.type = "button";
-  copy.className = "code-copy";
-  copy.title = "Copy code";
-  copy.setAttribute("aria-label", "Copy code");
-  copy.innerHTML = COPY_SVG;
-  copy.addEventListener("click", async () => {
-    try {
-      await navigator.clipboard.writeText(code);
-      notify("Code copied", "ok");
-    } catch {
-      notify("Clipboard blocked by the browser", "error");
-    }
-  });
-  caption.append(label, copy);
-  const pre = document.createElement("pre");
-  const codeEl = document.createElement("code");
-  codeEl.textContent = code;
-  if (closed) highlightCode(codeEl, code, language);
-  pre.appendChild(codeEl);
-  figure.append(caption, pre);
-  return figure;
-}
-
-function isBlockLine(line) {
-  return /^\s*```/.test(line)
-    || /^#{1,4}\s+/.test(line)
-    || /^\s*[-*+]\s+/.test(line)
-    || /^\s*\d+[.)]\s+/.test(line);
-}
-
-function readCodeFence(lines, index) {
-  const fence = /^\s*```\s*([\w#+.-]*)\s*$/.exec(lines[index]);
-  const language = fence[1] ?? "";
-  index++;
-  const body = [];
-  while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) {
-    body.push(lines[index]);
-    index++;
-  }
-  const closed = index < lines.length;
-  if (closed) index++;
-  return { node: codeBlockNode(body.join("\n"), language, closed), next: index };
-}
-
-function readListBlock(lines, index, ordered) {
-  const pattern = ordered ? /^\s*\d+[.)]\s+/ : /^\s*[-*+]\s+/;
-  const list = document.createElement(ordered ? "ol" : "ul");
-  while (index < lines.length && pattern.test(lines[index])) {
-    const item = document.createElement("li");
-    item.append(...inlineNodes(lines[index].replace(pattern, "")));
-    list.appendChild(item);
-    index++;
-  }
-  return { node: list, next: index };
-}
-
-function splitMarkdownBlocks(text) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
-  const blocks = [];
-  let index = 0;
-  while (index < lines.length) {
-    const line = lines[index];
-    if (line.trim() === "") { index++; continue; }
-
-    if (/^\s*```/.test(line)) {
-      const start = index;
-      index++;
-      while (index < lines.length && !/^\s*```\s*$/.test(lines[index])) index++;
-      if (index < lines.length) index++;
-      blocks.push(lines.slice(start, index).join("\n"));
-      continue;
-    }
-
-    if (/^(#{1,4})\s+/.test(line)) {
-      blocks.push(line);
-      index++;
-      continue;
-    }
-
-    if (/^\s*[-*+]\s+/.test(line)) {
-      const start = index;
-      while (index < lines.length && /^\s*[-*+]\s+/.test(lines[index])) index++;
-      blocks.push(lines.slice(start, index).join("\n"));
-      continue;
-    }
-
-    if (/^\s*\d+[.)]\s+/.test(line)) {
-      const start = index;
-      while (index < lines.length && /^\s*\d+[.)]\s+/.test(lines[index])) index++;
-      blocks.push(lines.slice(start, index).join("\n"));
-      continue;
-    }
-
-    const start = index;
-    index++;
-    while (index < lines.length && lines[index].trim() !== "" && !isBlockLine(lines[index])) index++;
-    blocks.push(lines.slice(start, index).join("\n"));
-  }
-  return blocks;
-}
-
-function renderMarkdownBlock(source) {
-  const lines = source.split("\n");
-  if (lines.length === 0) return document.createTextNode("");
-  const line = lines[0];
-  if (/^\s*```/.test(line)) return readCodeFence(lines, 0).node;
-  const heading = /^(#{1,4})\s+(.*)$/.exec(line);
-  if (heading !== null) {
-    const level = heading[1].length;
-    const tag = level >= 4 ? "h5" : level >= 3 ? "h4" : "h3";
-    const title = document.createElement(tag);
-    title.append(...inlineNodes(heading[2]));
-    return title;
-  }
-  if (/^\s*[-*+]\s+/.test(line)) return readListBlock(lines, 0, false).node;
-  if (/^\s*\d+[.)]\s+/.test(line)) return readListBlock(lines, 0, true).node;
-  const body = document.createElement("p");
-  body.append(...inlineNodes(lines.join("\n")));
-  return body;
-}
-
-const richTextCache = new WeakMap();
-
-function renderRichText(element, text) {
-  try {
-    const clean = sanitizeAssistantText(text);
-    element.dataset.copyText = clean;
-    element.classList.add("rich");
-    let md = element.querySelector(":scope > .md");
-    if (md === null) {
-      element.textContent = "";
-      md = document.createElement("div");
-      md.className = "md";
-      element.appendChild(md);
-    }
-    const blocks = splitMarkdownBlocks(clean);
-    const prev = richTextCache.get(element) ?? [];
-    const next = [];
-    let changed = prev.length !== blocks.length;
-    for (let i = 0; i < blocks.length; i++) {
-      const source = blocks[i];
-      const key = i + "\u0000" + source;
-      const cached = prev[i];
-      if (cached && cached.key === key) {
-        next.push(cached);
-        continue;
-      }
-      changed = true;
-      next.push({ key, node: renderMarkdownBlock(source) });
-    }
-    if (!changed) return;
-    richTextCache.set(element, next);
-    md.replaceChildren(...next.map((b) => b.node));
-  } catch {
-    // Error boundary per message: never blank the UI on a bad render.
-    element.textContent = typeof text === "string" ? text : "";
-  }
-}
-
-function formatAssistantMessage(element) {
-  if (element === null || element.dataset.rich === "true") return;
-  renderRichText(element, element.textContent);
-  element.dataset.rich = "true";
-}
-
 let welcomeHideTimer = 0;
 function hideWelcome() {
   const header = document.querySelector(".welcome-header");
@@ -647,76 +374,75 @@ function glideComposer() {
   });
 }
 
-function addMessage(kind, text) {
-  hideWelcome(); // any message replaces the empty state
-  const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
-  const pushStore = (kindName, payload, state = "completed") => {
-    if (typeof executionStore === "undefined") return;
-    if (kindName === "error") {
-      const msg = String(payload?.message || "");
-      const now = Date.now();
-      if (pushStore._lastErrMsg === msg && now - (pushStore._lastErrAt || 0) < 2000) return;
-      pushStore._lastErrMsg = msg;
-      pushStore._lastErrAt = now;
-    }
-    const seq = Date.now() + Math.random();
-    executionStore.applyEvent({
-      v: 1, id: `se_ui_${seq.toString(36).replace(".", "")}`, seq, ts: new Date().toISOString(),
-      sessionId: activeSessionId, turnId: `turn_ui_${Date.now().toString(36)}`, source: "system",
-      kind: kindName, activityId: `ui_${kind}_${seq.toString(36).replace(".", "")}`,
-      state, payload,
-    });
-  };
+const studioUiPushState = { lastErrMsg: "", lastErrAt: 0 };
 
-  if (kind === "assistant") {
-    if (timelineActive) {
-      const el = document.createElement("div");
-      el.className = "msg assistant";
-      el.textContent = text;
-      return el;
-    }
-    const row = document.createElement("div");
-    row.className = "msg-row assistant-row";
-    row.dataset.msgId = nextMsgId();
-    row.innerHTML = AVATAR_SVG; // static brand markup, never user data
+function pushStudioUiEvent(kind, kindName, payload, state = "completed") {
+  if (typeof executionStore === "undefined") return;
+  if (kindName === "error") {
+    const msg = String(payload?.message || "");
+    const now = Date.now();
+    if (studioUiPushState.lastErrMsg === msg && now - studioUiPushState.lastErrAt < 2000) return;
+    studioUiPushState.lastErrMsg = msg;
+    studioUiPushState.lastErrAt = now;
+  }
+  const seq = Date.now() + Math.random();
+  executionStore.applyEvent({
+    v: 1, id: `se_ui_${seq.toString(36).replace(".", "")}`, seq, ts: new Date().toISOString(),
+    sessionId: activeSessionId, turnId: `turn_ui_${Date.now().toString(36)}`, source: "system",
+    kind: kindName, activityId: `ui_${kind}_${seq.toString(36).replace(".", "")}`, state, payload,
+  });
+}
+
+function createAssistantMessage(text, timelineActive) {
+  if (timelineActive) {
     const el = document.createElement("div");
     el.className = "msg assistant";
     el.textContent = text;
-    row.appendChild(el);
-    messagesEl.appendChild(row);
-    flipMove(row);
-    autoScroll();
     return el;
   }
-  if (kind === "user") {
-    if (timelineActive) {
-      const el = document.createElement("div");
-      el.className = "msg user";
-      el.textContent = text;
-      return el;
-    }
-    // The row carries the centered column width; the bubble itself must not
-    // inherit the `.msg` auto margins or it lands in the middle of the column.
-    const row = document.createElement("div");
-    row.className = "msg-row user";
-    row.dataset.msgId = nextMsgId();
+  const row = document.createElement("div");
+  row.className = "msg-row assistant-row";
+  row.dataset.msgId = nextMsgId();
+  row.innerHTML = AVATAR_SVG; // canon-ignore A8-SEC-08: static brand markup, never user data
+  const el = document.createElement("div");
+  el.className = "msg assistant";
+  el.textContent = text;
+  row.appendChild(el);
+  messagesEl.appendChild(row);
+  flipMove(row);
+  autoScroll();
+  return el;
+}
+
+function createUserMessage(text, timelineActive) {
+  if (timelineActive) {
     const el = document.createElement("div");
     el.className = "msg user";
     el.textContent = text;
-    row.appendChild(el);
-    messagesEl.appendChild(row);
-    flipMove(row);
-    if (typeof attachUserActions === "function") attachUserActions(el);
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
-    messagesEl.scrollTo({ top: Math.max(0, row.offsetTop - 24), behavior: reduced ? "auto" : "smooth" });
-    jumpLatestBtn.style.willChange = "opacity, transform";
-    jumpLatestBtn.addEventListener("transitionend", () => { jumpLatestBtn.style.willChange = ""; }, { once: true });
-    updateJumpLatest();
     return el;
   }
+  const row = document.createElement("div");
+  row.className = "msg-row user";
+  row.dataset.msgId = nextMsgId();
+  const el = document.createElement("div");
+  el.className = "msg user";
+  el.textContent = text;
+  row.appendChild(el);
+  messagesEl.appendChild(row);
+  flipMove(row);
+  if (typeof attachUserActions === "function") attachUserActions(el);
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches || document.documentElement.dataset.motion === "reduce";
+  messagesEl.scrollTo({ top: Math.max(0, row.offsetTop - 24), behavior: reduced ? "auto" : "smooth" });
+  jumpLatestBtn.style.willChange = "opacity, transform";
+  jumpLatestBtn.addEventListener("transitionend", () => { jumpLatestBtn.style.willChange = ""; }, { once: true });
+  updateJumpLatest();
+  return el;
+}
+
+function createSystemMessage(kind, text, timelineActive) {
   if (timelineActive) {
-    if (kind === "system-error") pushStore("error", { message: String(text) }, "failed");
-    else pushStore("notice", { message: String(text), type: kind });
+    if (kind === "system-error") pushStudioUiEvent(kind, "error", { message: String(text) }, "failed");
+    else pushStudioUiEvent(kind, "notice", { message: String(text), type: kind });
     return document.createElement("div");
   }
   const el = document.createElement("div");
@@ -738,6 +464,14 @@ function addMessage(kind, text) {
   messagesEl.appendChild(el);
   autoScroll();
   return el;
+}
+
+function addMessage(kind, text) {
+  hideWelcome(); // any message replaces the empty state
+  const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
+  if (kind === "assistant") return createAssistantMessage(text, timelineActive);
+  if (kind === "user") return createUserMessage(text, timelineActive);
+  return createSystemMessage(kind, text, timelineActive);
 }
 
 function showWelcome() {

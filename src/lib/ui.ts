@@ -36,7 +36,9 @@ export function renderConfiguration(state: CliState): void {
         ? "Express API + email/password"
         : "Express API (JWT only)";
   const database = state.usePrisma
-    ? state.database === "postgresql" ? "PostgreSQL" : "SQLite"
+    ? state.database === "supabase"
+      ? "Supabase PostgreSQL"
+      : state.database === "postgresql" ? "PostgreSQL" : "SQLite"
     : "No database";
   const oauthProviders = (state.oauthProviders ?? ["google", "github"])
     .map((provider) => provider === "github" ? "GitHub" : "Google")

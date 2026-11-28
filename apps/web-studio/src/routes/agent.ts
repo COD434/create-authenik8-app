@@ -40,24 +40,9 @@ const AGENT_BRIEF_PREAMBLE = [
   "When you finish, print a short summary of what you created.",
 ].join(" ");
 
-async function runAgent(ctx: RouteContext, prompt: string, apiKey: string, model: string | undefined): Promise<void> {
-  const { deps, res, session } = ctx;
-  res.writeHead(200, {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    connection: "keep-alive",
-  });
-  const abort = new AbortController();
-  abortOnDisconnect(res, abort);
-
-  // The user's button click is the consent for auto-approve; the run is
-  // scoped to the sandbox cwd. Failures are data, not exceptions.
-  session.agentBusy = true;
+function createAgentEmitter(res: import("node:http").ServerResponse): (payload: Record<string, unknown>) => void {
   const studioStream: StudioEventStream = createStudioEventStream();
-  const studioState = createLegacyAgentAdapterState(
-    "local-session",
-    `turn_agent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
-  );
+  const studioState = createLegacyAgentAdapterState("local-session", `turn_agent_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`);
   const emitAgent = (payload: Record<string, unknown>): void => {
     sseEvent(res, payload);
     const studioEvents = fromLegacyAgentSseEvent(payload, studioState, studioStream);
@@ -65,42 +50,34 @@ async function runAgent(ctx: RouteContext, prompt: string, apiKey: string, model
   };
   emitAgent({ studioProtocol: STUDIO_EVENT_VERSION, turn: { id: studioState.turnId, sessionId: studioState.sessionId } });
   emitAgent({ agent: { phase: "start" } });
+  return emitAgent;
+}
+
+function emitAgentResult(emitAgent: (payload: Record<string, unknown>) => void, result: Awaited<ReturnType<RouteContext["deps"]["agentRuntime"]["run"]>>): void {
+  const outputTail = result.stdout.slice(-AGENT_OUTPUT_TAIL_CHARS);
+  const errorTail = result.stderr.slice(-AGENT_OUTPUT_TAIL_CHARS);
+  const errorMessage = result.ok ? null : friendlyAgentError(`${outputTail}\n${errorTail}`);
+  emitAgent({ agent: { phase: "done", ok: result.ok, errorCode: result.errorCode, exitCode: result.exitCode, durationMs: result.durationMs, sessionId: result.sessionId, outputTail, ...(result.ok ? {} : { errorTail }), ...(errorMessage ? { errorMessage } : {}) } });
+}
+
+async function runAgent(ctx: RouteContext, prompt: string, apiKey: string, model: string | undefined): Promise<void> {
+  const { deps, res, session } = ctx;
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+  const abort = new AbortController();
+  abortOnDisconnect(res, abort);
+  session.agentBusy = true;
+  const emitAgent = createAgentEmitter(res);
   try {
-    // OpenCode spawns with the sandbox as cwd: it must exist first.
     await mkdir(deps.sandboxRoot, { recursive: true });
-    // Studio model IDs are OpenRouter model IDs; OpenCode expects provider/model.
     const openCodeModel = model ? `openrouter/${model}` : "openrouter/openrouter/free";
     const result = await deps.agentRuntime.run({
       prompt: `${AGENT_BRIEF_PREAMBLE}\n\nBrief: ${prompt}`,
-      cwd: deps.sandboxRoot,
-      autoApprove: true,
-      signal: abort.signal,
-      ...(openCodeModel ? { model: openCodeModel } : {}),
+      cwd: deps.sandboxRoot, autoApprove: true, signal: abort.signal, model: openCodeModel,
       env: { ...process.env, OPENROUTER_API_KEY: apiKey },
-      // Live NDJSON pass-through: untrusted third-party events relayed
-      // verbatim as data. Dropped when the client already hung up.
-      onEvent: (event) => {
-        if (!res.destroyed) emitAgent({ agentEvent: event });
-      },
+      onEvent: (event) => { if (!res.destroyed) emitAgent({ agentEvent: event }); },
     });
-    const outputTail = result.stdout.slice(-AGENT_OUTPUT_TAIL_CHARS);
-    const errorTail = result.stderr.slice(-AGENT_OUTPUT_TAIL_CHARS);
-    const errorMessage = result.ok ? null : friendlyAgentError(`${outputTail}\n${errorTail}`);
-    emitAgent({
-      agent: {
-        phase: "done",
-        ok: result.ok,
-        errorCode: result.errorCode,
-        exitCode: result.exitCode,
-        durationMs: result.durationMs,
-        sessionId: result.sessionId,
-        outputTail,
-        ...(result.ok ? {} : { errorTail }),
-        ...(errorMessage ? { errorMessage } : {}),
-      },
-    });
+    emitAgentResult(emitAgent, result);
   } catch (error) {
-    // Adapter bugs only; run-level failures are structured results.
     const message = error instanceof Error ? error.message : "agent run failed";
     emitAgent({ agent: { phase: "done", ok: false, errorCode: "spawn_failed", errorTail: message } });
   } finally {

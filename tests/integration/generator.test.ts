@@ -186,6 +186,30 @@ describe("generator happy paths", () => {
     }
   });
 
+  it("generates the supabase database option with Supabase connection placeholders", async () => {
+    const project = await generateProjectFixture({
+      template: "auth",
+      database: "supabase",
+    });
+
+    try {
+      const schema = await fs.readFile(path.join(project.targetDir, "prisma/schema.prisma"), "utf8");
+      expect(schema).toContain('provider = "postgresql"');
+
+      const env = await fs.readFile(path.join(project.targetDir, ".env"), "utf8");
+      expect(env).toContain("pooler.supabase.com");
+      expect(env).toContain('SUPABASE_URL="https://<project-ref>.supabase.co"');
+      expect(env).toContain("SUPABASE_ANON_KEY=");
+      expect(env).not.toContain("localhost:5432");
+
+      const example = await fs.readFile(path.join(project.targetDir, ".env.example"), "utf8");
+      expect(example).toContain("pooler.supabase.com");
+      expect(example).toContain("SUPABASE_URL=");
+    } finally {
+      await project.cleanup();
+    }
+  });
+
   it("leaves no partial destination when project creation fails", async () => {
     const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "authenik8-atomic-test-"));
     const fixtureTemplates = path.join(rootDir, "templates");

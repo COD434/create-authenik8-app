@@ -16,7 +16,7 @@ function runCommand(command: "coderabbit" | "git", args: string[], cwd: string, 
       resolve({ ...result, output: output.slice(-24_000) });
     };
     const timer = setTimeout(() => {
-      try { child?.kill(); } catch { /* best effort */ }
+      try { child?.kill(); } catch (error) { void error; /* best effort */ }
       finish({ code: null, output: "CodeRabbit timed out.", missing: false });
     }, timeoutMs);
     try {

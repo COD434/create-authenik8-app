@@ -6,10 +6,7 @@
   if (!root || typeof executionStore === "undefined") return;
 
   const enabledByQuery = new URLSearchParams(window.location.search).get("timeline") === "1";
-  const enabledByStorage = (() => {
-    try { return window.localStorage.getItem("authenik8-execution-timeline") === "1"; } catch { return false; }
-  })();
-  const enabled = enabledByQuery || enabledByStorage || true; // visible during migration
+  const enabled = enabledByQuery || true; // visible during migration; preference is not persisted in browser storage
   window.STUDIO_EXECUTION_TIMELINE = enabled;
   if (enabled) document.querySelector(".chat")?.setAttribute("data-timeline", "1");
 
@@ -32,6 +29,17 @@
   const ASSISTANT_PREFIX = "assistant.message";
   const HIDDEN_PREFIXES = ["turn."];
   const cards = new Map();
+
+  const trustedSvgCache = new Map();
+  function trustedSvgNode(markup) {
+    let node = trustedSvgCache.get(markup);
+    if (!node) {
+      const parsed = new DOMParser().parseFromString(markup, "image/svg+xml").documentElement;
+      node = document.importNode(parsed, true);
+      trustedSvgCache.set(markup, node);
+    }
+    return node.cloneNode(true);
+  }
 
   function isReasoning(activity) {
     return String(activity.kind).startsWith(REASONING_PREFIX);
@@ -63,7 +71,7 @@
       }
       const keys = Object.keys(parsed ?? {}).slice(0, 3);
       if (keys.length > 0) return keys.map((key) => `${key}=${String(parsed[key]).slice(0, 40)}`).join(" ");
-    } catch { /* fall through to truncation */ }
+    } catch (error) { void error; /* fall through to truncation */ }
     return raw.length > 120 ? `${raw.slice(0, 120)}…` : raw;
   }
 
@@ -279,94 +287,69 @@
       const body = await response.json();
       const pre = document.querySelector("#inspector-diffs .inspector-diff-detail");
       if (pre) pre.textContent = body.diff || body.staged || "(no textual diff)";
-    } catch { /* best-effort */ }
+    } catch (error) { void error; /* best-effort diff load */ }
+  }
+
+  function regenerateAction(refs) {
+    const retry = makeAction("Regenerate", () => { if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse(); });
+    refs.retry = refs.retry || retry;
+    refs.regenerate = refs.regenerate || retry;
+    return retry;
+  }
+
+  function addMessageActions(activity, actions, refs) {
+    if (activity.kind === "user.message") {
+      const currentText = () => executionStore.get(activity.id)?.payload?.text || "";
+      const copy = makeAction("Copy", () => void copyText(copy, currentText()));
+      const edit = makeAction("Edit", () => {
+        if (typeof chatRunning !== "undefined" && chatRunning) return;
+        if (typeof promptEl === "undefined" || !promptEl) return;
+        promptEl.value = currentText();
+        promptEl.style.height = "auto";
+        promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
+        promptEl.focus();
+        if (typeof saveDraft === "function") saveDraft();
+      });
+      refs.edit = edit;
+      actions.append(copy, edit);
+      return true;
+    }
+    if (isAssistant(activity)) {
+      const copy = makeAction("Copy", () => void copyText(copy, executionStore.get(activity.id)?.text || ""));
+      refs.regenerate = regenerateAction(refs);
+      actions.append(copy, refs.regenerate);
+      return true;
+    }
+    return false;
+  }
+
+  function addToolActions(activity, actions, refs) {
+    const copy = makeAction("Copy", () => void copyText(copy, textFor(executionStore.get(activity.id) || activity)));
+    actions.appendChild(copy);
+    if (activity.kind.startsWith("tool.") && (activity.payload?.name === "write_file" || activity.payload?.name === "edit_file")) {
+      let path = typeof activity.payload?.path === "string" ? activity.payload.path : "";
+      if (!path && typeof activity.payload?.arguments === "string") {
+        try { const p = JSON.parse(activity.payload.arguments); if (typeof p.path === "string") path = p.path; } catch (error) { void error; }
+      }
+      if (path) actions.appendChild(makeAction("Open diff", () => void openDiff(path)));
+    }
+    if (activity.state === "failed") actions.appendChild(regenerateAction(refs));
   }
 
   function createActions(activity) {
     const actions = document.createElement("div");
     actions.className = "exec-actions";
     const refs = {};
-    if (activity.kind === "user.message") {
-      const currentText = () => executionStore.get(activity.id)?.payload?.text || "";
-      const copy = makeAction("Copy", () => void copyText(copy, currentText()));
-      const edit = makeAction("Edit", () => {
-        if (typeof chatRunning !== "undefined" && chatRunning) return;
-        if (typeof promptEl !== "undefined" && promptEl) {
-          promptEl.value = currentText();
-          promptEl.style.height = "auto";
-          promptEl.style.height = `${Math.min(promptEl.scrollHeight, 180)}px`;
-          promptEl.focus();
-          if (typeof saveDraft === "function") saveDraft();
-        }
-      });
-      refs.edit = edit;
-      actions.append(copy, edit);
-    } else if (isAssistant(activity)) {
-      const copy = makeAction("Copy", () => void copyText(copy, executionStore.get(activity.id)?.text || ""));
-      const regenerate = makeAction("Regenerate", () => {
-        if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-      });
-      refs.regenerate = regenerate;
-      actions.append(copy, regenerate);
-    } else if (activity.kind === "error") {
-      const retry = makeAction("Retry", () => {
-        if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-      });
-      refs.retry = retry;
-      actions.append(retry);
-    } else if (activity.kind === "notice") {
-      const msg = String(activity.payload?.message || "");
-      if (/stopped|ended before completion|regenerate/i.test(msg)) {
-        const retry = makeAction("Regenerate", () => {
-          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-        });
-        refs.retry = retry;
-        actions.append(retry);
-      }
-    } else if (activity.kind === "plan.updated") {
-      actions.appendChild(makeAction("View plan", () => {
-        const panel = document.getElementById("plan-panel");
-        if (panel && !panel.hidden) panel.scrollIntoView({ block: "nearest", behavior: "smooth" });
-      }));
-    } else if (activity.kind === "file.changed" && typeof activity.payload?.path === "string" && activity.payload.path) {
-      actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
-    } else if (activity.kind === "diff.updated" && typeof activity.payload?.path === "string" && activity.payload.path) {
-      actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path)));
-    } else if ((activity.kind === "file.changed" || activity.kind === "diff.updated")) {
-      actions.appendChild(makeAction("Open diffs", () => {
-        const pane = document.getElementById("preview-pane");
-        if (pane && !pane.classList.contains("open")) { pane.classList.add("open"); pane.setAttribute("aria-hidden", "false"); }
-        if (typeof window.setInspectorTab === "function") window.setInspectorTab("diffs");
-      }));
-    } else if (activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) {
-      const copyTextValue = () => {
-        const current = executionStore.get(activity.id);
-        if (!current) return "";
-        return textFor(current);
-      };
-      const copy = makeAction("Copy", () => void copyText(copy, copyTextValue()));
-      actions.appendChild(copy);
-      if (activity.kind.startsWith("tool.") && (activity.payload?.name === "write_file" || activity.payload?.name === "edit_file")) {
-        let path = typeof activity.payload?.path === "string" ? activity.payload.path : "";
-        if (!path && typeof activity.payload?.arguments === "string") {
-          try { const p = JSON.parse(activity.payload.arguments); if (typeof p.path === "string") path = p.path; } catch {}
-        }
-        if (path) actions.appendChild(makeAction("Open diff", () => void openDiff(path)));
-      }
-      if (activity.state === "failed") {
-        const retry = makeAction("Retry", () => {
-          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-        });
-        refs.retry = retry;
-        actions.append(retry);
-      }
-    } else if (activity.kind === "approval.requested") {
-      const approve = makeAction("Approve", () => {});
-      approve.disabled = true;
-      approve.title = "Approval actions are not available in this runtime";
-      const reject = makeAction("Reject", () => {});
-      reject.disabled = true;
-      reject.title = "Approval actions are not available in this runtime";
+    if (addMessageActions(activity, actions, refs)) return { actions, refs };
+    if (activity.kind === "error") { actions.appendChild(regenerateAction(refs)); return { actions, refs }; }
+    if (activity.kind === "notice" && /stopped|ended before completion|regenerate/i.test(String(activity.payload?.message || ""))) { actions.appendChild(regenerateAction(refs)); return { actions, refs }; }
+    if (activity.kind === "plan.updated") { actions.appendChild(makeAction("View plan", () => { const panel = document.getElementById("plan-panel"); if (panel && !panel.hidden) panel.scrollIntoView({ block: "nearest", behavior: "smooth" }); })); return { actions, refs }; }
+    if ((activity.kind === "file.changed" || activity.kind === "diff.updated") && typeof activity.payload?.path === "string" && activity.payload.path) { actions.appendChild(makeAction("Open diff", () => void openDiff(activity.payload.path))); return { actions, refs }; }
+    if (activity.kind === "file.changed" || activity.kind === "diff.updated") { actions.appendChild(makeAction("Open diffs", () => { const pane = document.getElementById("preview-pane"); if (pane && !pane.classList.contains("open")) { pane.classList.add("open"); pane.setAttribute("aria-hidden", "false"); } if (typeof window.setInspectorTab === "function") window.setInspectorTab("diffs"); })); return { actions, refs }; }
+    if (activity.kind.startsWith("tool.") || activity.kind.startsWith("command.") || activity.kind.startsWith("test.")) { addToolActions(activity, actions, refs); return { actions, refs }; }
+    if (activity.kind === "approval.requested") {
+      const approve = makeAction("Approve", () => {}); approve.disabled = true; approve.title = "Approval actions are not available in this runtime";
+      const reject = makeAction("Reject", () => {}); reject.disabled = true; reject.title = "Approval actions are not available in this runtime";
       actions.append(approve, reject);
     }
     return { actions, refs };
@@ -392,7 +375,7 @@
     if (options.summary) {
       const chevron = document.createElement("span");
       chevron.className = "exec-reasoning-chevron";
-      chevron.innerHTML = '<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m6.2 4.5 3.6 3.5-3.6 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      chevron.appendChild(trustedSvgNode('<svg class="icon" viewBox="0 0 16 16" aria-hidden="true"><path d="m6.2 4.5 3.6 3.5-3.6 3.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'));
       head.appendChild(chevron);
     }
     const state = document.createElement("span");
@@ -543,7 +526,7 @@
 
     const markup = iconFor(activity);
     if (entry.iconMarkup !== markup) {
-      entry.icon.innerHTML = markup;
+      entry.icon.replaceChildren(trustedSvgNode(markup));
       entry.iconMarkup = markup;
     }
     const tone = toneFor(activity);
@@ -598,65 +581,44 @@
     }
   }
 
-  function render() {
-    if (!enabled) {
-      root.hidden = true;
-      const head = document.getElementById("execution-timeline-head");
-      if (head) head.hidden = true;
-      return;
+  function renderTimelineEmpty(welcomeVisible) {
+    cards.clear();
+    root.replaceChildren();
+    root.hidden = welcomeVisible;
+    if (!welcomeVisible) {
+      const empty = document.createElement("div");
+      empty.className = "exec-empty";
+      empty.textContent = "Execution activity will appear here.";
+      root.appendChild(empty);
     }
-    const all = executionStore.list();
-    const activities = all.filter((activity) => !HIDDEN_PREFIXES.some((prefix) => String(activity.kind).startsWith(prefix)));
-    const welcomeVisible = document.getElementById("welcome")?.hidden === false;
-    renderHead();
+  }
 
-    if (activities.length === 0) {
-      cards.clear();
-      root.replaceChildren();
-      root.hidden = welcomeVisible;
-      if (!welcomeVisible) {
-        const empty = document.createElement("div");
-        empty.className = "exec-empty";
-        empty.textContent = "Execution activity will appear here.";
-        root.appendChild(empty);
-      }
-      if (typeof updateJumpLatest === "function") updateJumpLatest();
-      return;
-    }
-
-    const stickThreshold = (typeof chatRunning !== "undefined" && chatRunning) ? 220 : 96;
-    const shouldStick = nearBottom(root, stickThreshold);
-    root.hidden = false;
-
-    let lastAssistantId = null;
-    for (let i = activities.length - 1; i >= 0; i -= 1) {
-      if (isAssistant(activities[i])) { lastAssistantId = activities[i].id; break; }
-    }
-
-    const visible = activities.slice(-120);
+  function reconcileTimelineCards(visible, lastAssistantId) {
     const desired = new Set();
     let next = root.firstElementChild;
     for (const activity of visible) {
       let entry = cards.get(activity.id);
-      if (entry === undefined) {
-        entry = buildCard(activity);
-        cards.set(activity.id, entry);
-      }
+      if (entry === undefined) { entry = buildCard(activity); cards.set(activity.id, entry); }
       updateCard(activity, entry, activity.id === lastAssistantId);
       desired.add(activity.id);
-      const node = entry.card;
-      if (node !== next) root.insertBefore(node, next);
-      next = node.nextElementSibling;
+      if (entry.card !== next) root.insertBefore(entry.card, next);
+      next = entry.card.nextElementSibling;
     }
-    while (next) {
-      const after = next.nextElementSibling;
-      next.remove();
-      next = after;
-    }
-    for (const id of [...cards.keys()]) {
-      if (!desired.has(id)) cards.delete(id);
-    }
+    while (next) { const after = next.nextElementSibling; next.remove(); next = after; }
+    for (const id of [...cards.keys()]) { if (!desired.has(id)) cards.delete(id); }
+  }
 
+  function render() {
+    if (!enabled) { root.hidden = true; const head = document.getElementById("execution-timeline-head"); if (head) head.hidden = true; return; }
+    const activities = executionStore.list().filter((activity) => !HIDDEN_PREFIXES.some((prefix) => String(activity.kind).startsWith(prefix)));
+    const welcomeVisible = document.getElementById("welcome")?.hidden === false;
+    renderHead();
+    if (activities.length === 0) { renderTimelineEmpty(welcomeVisible); if (typeof updateJumpLatest === "function") updateJumpLatest(); return; }
+    const shouldStick = nearBottom(root, (typeof chatRunning !== "undefined" && chatRunning) ? 220 : 96);
+    root.hidden = false;
+    let lastAssistantId = null;
+    for (let i = activities.length - 1; i >= 0; i -= 1) { if (isAssistant(activities[i])) { lastAssistantId = activities[i].id; break; } }
+    reconcileTimelineCards(activities.slice(-120), lastAssistantId);
     if (shouldStick) root.scrollTop = root.scrollHeight;
     if (typeof updateJumpLatest === "function") updateJumpLatest();
   }
@@ -671,6 +633,7 @@
         render();
       } catch (err) {
         console.error("[execution-timeline] render failed", err);
+        root.dataset.timelineRenderError = err instanceof Error ? err.message : String(err);
       }
     });
   }

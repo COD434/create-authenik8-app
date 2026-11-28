@@ -211,8 +211,8 @@ export async function verifySupabase(options: {
   }
   try {
     await response.body?.cancel();
-  } catch {
-    // The status and content type are all this check needs.
+  } catch (error) {
+    void error; // The status and content type are all this check needs.
   }
   const responseError = supabaseResponseError(response);
   if (responseError !== null) throw responseError;

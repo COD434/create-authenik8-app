@@ -33,6 +33,7 @@ function presetLabel(state: CliState): string {
 
 function databaseLabel(state: CliState): string {
   if (!state.usePrisma) return "None";
+  if (state.database === "supabase") return "Supabase PostgreSQL with Prisma";
   return state.database === "postgresql" ? "PostgreSQL with Prisma" : "SQLite with Prisma";
 }
 

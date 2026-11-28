@@ -132,88 +132,40 @@ function runSchemaPush(ctx: RouteContext): Promise<void> {
   });
 }
 
+function supabaseDatabaseInfo(database: ReturnType<typeof parseDatabaseUrl> | null) {
+  return database === null ? null : { host: database.host, port: database.port, database: database.database, notes: database.notes };
+}
+
+async function streamSupabaseConnectDeploy(ctx: RouteContext, target: Awaited<ReturnType<typeof verifySupabase>>, database: ReturnType<typeof parseDatabaseUrl> | null, applied: boolean): Promise<void> {
+  ctx.res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+  sseEvent(ctx.res, { supabaseConnect: { ok: true, verified: true, applied, supabase: { url: target.url, keyKind: target.keyKind, projectRef: target.projectRef }, database: supabaseDatabaseInfo(database) } });
+  if (database === null) {
+    sseEvent(ctx.res, { supabaseDeploy: { phase: "error", message: "Add the database connection string to push the schema." } });
+    if (!ctx.res.writableEnded) ctx.res.end();
+    return;
+  }
+  await runSchemaPush(ctx);
+}
+
 async function connectSupabase(ctx: RouteContext): Promise<void> {
-  const { deps, res } = ctx;
   const raw = await readJsonRequest(ctx);
   if (raw === undefined) return;
   const parsed = supabaseConnectBodySchema.safeParse(raw);
-  if (!parsed.success) {
-    sendJson(res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" });
-    return;
-  }
-
-  const outbound = deps.integrationFetch ?? fetch;
+  if (!parsed.success) { sendJson(ctx.res, 400, { error: parsed.error.issues[0]?.message ?? "Invalid request" }); return; }
   try {
-    // Validate the database string before spending a network call. The
-    // connection is not opened here: a URL check must not pretend to
-    // prove live credentials.
-    const database = parsed.data.databaseUrl !== undefined && parsed.data.databaseUrl.trim() !== ""
-      ? parseDatabaseUrl(parsed.data.databaseUrl)
-      : null;
-    const target = await verifySupabase({
-      url: parsed.data.url,
-      key: parsed.data.anonKey,
-      fetch: outbound,
-    });
-
-    const write = parsed.data.apply === true
-      ? await applySupabaseEnv(
-        deps,
-        target.url,
-        parsed.data.anonKey.trim(),
-        database === null ? null : database.url,
-      )
-      : null;
-
-    // One-click deploy: stream the connection result, then push the schema.
-    if (parsed.data.deploy === true) {
-      res.writeHead(200, {
-        "content-type": "text/event-stream",
-        "cache-control": "no-cache",
-        connection: "keep-alive",
-      });
-      sseEvent(res, {
-        supabaseConnect: {
-          ok: true,
-          verified: true,
-          applied: write !== null,
-          supabase: { url: target.url, keyKind: target.keyKind, projectRef: target.projectRef },
-          database: database === null ? null : { host: database.host, port: database.port, database: database.database, notes: database.notes },
-        },
-      });
-      if (database === null) {
-        sseEvent(res, { supabaseDeploy: { phase: "error", message: "Add the database connection string to push the schema." } });
-        if (!res.writableEnded) res.end();
-        return;
-      }
-      await runSchemaPush(ctx);
-      return;
-    }
-
-    sendJson(res, 200, {
-      ok: true,
-      verified: true,
-      applied: write !== null,
-      supabase: {
-        url: target.url,
-        keyKind: target.keyKind,
-        projectRef: target.projectRef,
-      },
-      database: database === null
-        ? null
-        : {
-          host: database.host,
-          port: database.port,
-          database: database.database,
-          notes: database.notes,
-        },
-      ...(write === null
-        ? {}
-        : { env: { keys: write.keys, replaced: write.replaced, added: write.added } }),
-      status: await readIntegrationStatus(deps.sandboxRoot),
+    const database = parsed.data.databaseUrl?.trim() ? parseDatabaseUrl(parsed.data.databaseUrl) : null;
+    const target = await verifySupabase({ url: parsed.data.url, key: parsed.data.anonKey, fetch: ctx.deps.integrationFetch ?? fetch });
+    const write = parsed.data.apply === true ? await applySupabaseEnv(ctx.deps, target.url, parsed.data.anonKey.trim(), database?.url ?? null) : null;
+    if (parsed.data.deploy === true) { await streamSupabaseConnectDeploy(ctx, target, database, write !== null); return; }
+    sendJson(ctx.res, 200, {
+      ok: true, verified: true, applied: write !== null,
+      supabase: { url: target.url, keyKind: target.keyKind, projectRef: target.projectRef },
+      database: supabaseDatabaseInfo(database),
+      ...(write === null ? {} : { env: { keys: write.keys, replaced: write.replaced, added: write.added } }),
+      status: await readIntegrationStatus(ctx.deps.sandboxRoot),
     });
   } catch (error) {
-    if (!sendIntegrationFailure(res, error)) throw error;
+    if (!sendIntegrationFailure(ctx.res, error)) throw error;
   }
 }
 

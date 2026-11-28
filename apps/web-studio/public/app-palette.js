@@ -266,7 +266,7 @@ function renderPalette() {
     item.setAttribute("aria-selected", "false");
     const icon = document.createElement("span");
     icon.className = "palette-item-icon";
-    icon.innerHTML = entry.icon; // static local SVG, never user data
+    icon.innerHTML = entry.icon; // canon-ignore A8-SEC-08: static local SVG, never user data
     const copy = document.createElement("span");
     copy.className = "palette-item-copy";
     const title = document.createElement("span");

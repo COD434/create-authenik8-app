@@ -177,218 +177,85 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
  * Convert a legacy chat SSE payload to zero or more normalized StudioEvents.
  * This is a compatibility bridge; new code should emit StudioEvents directly.
  */
-export function fromLegacyChatSseEvent(
-  event: LegacyChatSseEvent,
-  state: LegacyChatAdapterState,
-  stream: StudioEventStream,
-): StudioEvent[] {
-  const out: StudioEvent[] = [];
+function emitChatEvent(out: StudioEvent[], state: LegacyChatAdapterState, stream: StudioEventStream, kind: StudioEvent["kind"], activityId: string, evState: StudioEventState, payload: Record<string, unknown>, source: StudioEvent["source"] = "chat"): void {
+  out.push(stream.emit({ sessionId: state.sessionId, turnId: state.turnId, source, kind, activityId, state: evState, payload }));
+}
+
+function handleChatRound(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
   const round = asNumber(event.round);
-  if (round !== undefined) {
-    state.round = round;
-    state.messageActivityId = `${state.turnId}:assistant:${round}`;
-    state.reasoningActivityId = null;
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "assistant.message.started",
-      activityId: state.messageActivityId,
-      state: "running",
-      payload: { round, mode: asString(event.mode) },
-    }));
-  }
+  if (round === undefined) return;
+  state.round = round; state.messageActivityId = `${state.turnId}:assistant:${round}`; state.reasoningActivityId = null;
+  emitChatEvent(out, state, stream, "assistant.message.started", state.messageActivityId, "running", { round, mode: asString(event.mode) });
+}
 
-  if (typeof event.reasoning === "string" && event.reasoning.length > 0) {
-    if (state.reasoningActivityId === null) {
-      state.reasoningActivityId = `${state.turnId}:reasoning:${state.round || 1}`;
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "chat",
-        kind: "reasoning.started",
-        activityId: state.reasoningActivityId,
-        state: "running",
-        payload: { round: state.round || 1 },
-      }));
-    }
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "reasoning.delta",
-      activityId: state.reasoningActivityId,
-      state: "running",
-      payload: { text: event.reasoning },
-    }));
+function handleChatReasoning(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
+  if (typeof event.reasoning !== "string" || event.reasoning.length === 0) return;
+  if (state.reasoningActivityId === null) {
+    state.reasoningActivityId = `${state.turnId}:reasoning:${state.round || 1}`;
+    emitChatEvent(out, state, stream, "reasoning.started", state.reasoningActivityId, "running", { round: state.round || 1 });
   }
+  emitChatEvent(out, state, stream, "reasoning.delta", state.reasoningActivityId, "running", { text: event.reasoning });
+}
 
-  if (typeof event.delta === "string") {
-    if (state.reasoningActivityId !== null) {
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "chat",
-        kind: "reasoning.completed",
-        activityId: state.reasoningActivityId,
-        state: "completed",
-        payload: {},
-      }));
-      state.reasoningActivityId = null;
-    }
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "assistant.message.delta",
-      activityId: state.messageActivityId,
-      state: "running",
-      payload: { text: event.delta },
-    }));
-  }
+function completeReasoning(state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
+  if (state.reasoningActivityId === null) return;
+  emitChatEvent(out, state, stream, "reasoning.completed", state.reasoningActivityId, "completed", {});
+  state.reasoningActivityId = null;
+}
 
+function handleChatDelta(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
+  if (typeof event.delta !== "string") return;
+  completeReasoning(state, stream, out);
+  emitChatEvent(out, state, stream, "assistant.message.delta", state.messageActivityId, "running", { text: event.delta });
+}
+
+function handleChatTool(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
   const tool = asRecord(event.tool) as LegacyChatTool | undefined;
-  if (tool !== undefined) {
-    const id = asString(tool.id) ?? `${state.turnId}:tool:unknown`;
-    const name = asString(tool.name) ?? "tool";
-    const phase = asString(tool.phase);
-    if (phase === "start") {
-      if (typeof tool.arguments === "string") state.toolArgsById.set(id, tool.arguments);
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "chat",
-        kind: "tool.started",
-        activityId: id,
-        state: "running",
-        payload: {
-          name,
-          ...(typeof tool.arguments === "string" ? { arguments: tool.arguments } : {}),
-        },
-      }));
-    } else if (phase === "done") {
-      const ok = tool.ok === true;
-      const args = state.toolArgsById.get(id);
-      if (args !== undefined) state.toolArgsById.delete(id);
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "chat",
-        kind: ok ? "tool.completed" : "tool.failed",
-        activityId: id,
-        state: ok ? "completed" : "failed",
-        payload: {
-          name,
-          ...(typeof tool.summary === "string" ? { summary: tool.summary } : {}),
-          ...(typeof tool.childId === "string" ? { childId: tool.childId } : {}),
-          ...(Array.isArray(tool.patches) ? { patches: tool.patches } : {}),
-          ok,
-        },
-      }));
-      if (ok && name === "write_file") {
-        let path = "";
-        if (typeof args === "string") {
-          try { const parsed = JSON.parse(args) as { path?: unknown }; if (typeof parsed.path === "string") path = parsed.path; } catch { /* ignore */ }
-        }
-        out.push(stream.emit({
-          sessionId: state.sessionId,
-          turnId: state.turnId,
-          source: "chat",
-          kind: "file.changed",
-          activityId: `${state.turnId}:file:${path || id}`,
-          state: "completed",
-          payload: { path, toolId: id },
-        }));
-      }
-    }
+  if (tool === undefined) return;
+  const id = asString(tool.id) ?? `${state.turnId}:tool:unknown`;
+  const name = asString(tool.name) ?? "tool";
+  const phase = asString(tool.phase);
+  if (phase === "start") {
+    if (typeof tool.arguments === "string") state.toolArgsById.set(id, tool.arguments);
+    emitChatEvent(out, state, stream, "tool.started", id, "running", { name, ...(typeof tool.arguments === "string" ? { arguments: tool.arguments } : {}) });
+    return;
   }
-
-  if (event.plan !== undefined) {
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "plan.updated",
-      activityId: `${state.turnId}:plan`,
-      state: "completed",
-      payload: { plan: event.plan },
-    }));
+  if (phase !== "done") return;
+  const ok = tool.ok === true;
+  const args = state.toolArgsById.get(id);
+  if (args !== undefined) state.toolArgsById.delete(id);
+  emitChatEvent(out, state, stream, ok ? "tool.completed" : "tool.failed", id, ok ? "completed" : "failed", { name, ...(typeof tool.summary === "string" ? { summary: tool.summary } : {}), ...(typeof tool.childId === "string" ? { childId: tool.childId } : {}), ...(Array.isArray(tool.patches) ? { patches: tool.patches } : {}), ok });
+  if (ok && name === "write_file") {
+    let path = "";
+    if (typeof args === "string") { try { const parsed = JSON.parse(args) as { path?: unknown }; if (typeof parsed.path === "string") path = parsed.path; } catch (error) { void error; } }
+    emitChatEvent(out, state, stream, "file.changed", `${state.turnId}:file:${path || id}`, "completed", { path, toolId: id });
   }
+}
 
-  if (event.compaction !== undefined) {
-    const compaction = asRecord(event.compaction);
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "system",
-      kind: "notice",
-      activityId: `${state.turnId}:compaction:${stream.nextSeq()}`,
-      state: "completed",
-      payload: { type: "compaction", ...(compaction ?? { value: event.compaction }) },
-    }));
-  }
+function handleChatMeta(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
+  if (event.plan !== undefined) emitChatEvent(out, state, stream, "plan.updated", `${state.turnId}:plan`, "completed", { plan: event.plan });
+  if (event.compaction !== undefined) { const compaction = asRecord(event.compaction); emitChatEvent(out, state, stream, "notice", `${state.turnId}:compaction:${stream.nextSeq()}`, "completed", { type: "compaction", ...(compaction ?? { value: event.compaction }) }, "system"); }
+  if (typeof event.note === "string") emitChatEvent(out, state, stream, "notice", `${state.turnId}:note:${stream.nextSeq()}`, "completed", { type: "note", message: event.note }, "system");
+  if (typeof event.error === "string") emitChatEvent(out, state, stream, "error", `${state.turnId}:error`, "failed", { message: event.error });
+}
 
-  if (typeof event.note === "string") {
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "system",
-      kind: "notice",
-      activityId: `${state.turnId}:note:${stream.nextSeq()}`,
-      state: "completed",
-      payload: { type: "note", message: event.note },
-    }));
-  }
+function handleChatDone(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream, out: StudioEvent[]): void {
+  if (event.done !== true) return;
+  completeReasoning(state, stream, out);
+  const rounds = asNumber(event.rounds);
+  const roundsPayload = rounds !== undefined ? { rounds } : {};
+  emitChatEvent(out, state, stream, "assistant.message.completed", state.messageActivityId, "completed", roundsPayload);
+  emitChatEvent(out, state, stream, "turn.completed", state.turnId, "completed", roundsPayload);
+}
 
-  if (typeof event.error === "string") {
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "error",
-      activityId: `${state.turnId}:error`,
-      state: "failed",
-      payload: { message: event.error },
-    }));
-  }
-
-  if (event.done === true) {
-    if (state.reasoningActivityId !== null) {
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "chat",
-        kind: "reasoning.completed",
-        activityId: state.reasoningActivityId,
-        state: "completed",
-        payload: {},
-      }));
-      state.reasoningActivityId = null;
-    }
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "assistant.message.completed",
-      activityId: state.messageActivityId,
-      state: "completed",
-      payload: {
-        ...(asNumber(event.rounds) !== undefined ? { rounds: event.rounds } : {}),
-      },
-    }));
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "chat",
-      kind: "turn.completed",
-      activityId: state.turnId,
-      state: "completed",
-      payload: {
-        ...(asNumber(event.rounds) !== undefined ? { rounds: event.rounds } : {}),
-      },
-    }));
-  }
-
+export function fromLegacyChatSseEvent(event: LegacyChatSseEvent, state: LegacyChatAdapterState, stream: StudioEventStream): StudioEvent[] {
+  const out: StudioEvent[] = [];
+  handleChatRound(event, state, stream, out);
+  handleChatReasoning(event, state, stream, out);
+  handleChatDelta(event, state, stream, out);
+  handleChatTool(event, state, stream, out);
+  handleChatMeta(event, state, stream, out);
+  handleChatDone(event, state, stream, out);
   return out;
 }
 
@@ -410,70 +277,24 @@ function summarizeAgentEvent(event: Record<string, unknown>): { kind: StudioEven
   return { kind: "notice", state: "running", name: type, text: text || type };
 }
 
-export function fromLegacyAgentSseEvent(
-  event: LegacyChatSseEvent,
-  state: LegacyAgentAdapterState,
-  stream: StudioEventStream,
-): StudioEvent[] {
+function pushAgentPhase(out: StudioEvent[], state: LegacyAgentAdapterState, stream: StudioEventStream, agent: Record<string, unknown>): void {
+  const phase = asString(agent.phase);
+  if (phase === "start") { out.push(stream.emit({ sessionId: state.sessionId, turnId: state.turnId, source: "agent", kind: "turn.started", activityId: state.turnId, state: "running", payload: {} })); return; }
+  if (phase !== "done") return;
+  const ok = agent.ok === true;
+  out.push(stream.emit({ sessionId: state.sessionId, turnId: state.turnId, source: "agent", kind: ok ? "turn.completed" : "turn.failed", activityId: state.turnId, state: ok ? "completed" : "failed", payload: { ...agent } }));
+  if (!ok) out.push(stream.emit({ sessionId: state.sessionId, turnId: state.turnId, source: "agent", kind: "error", activityId: `${state.turnId}:error`, state: "failed", payload: { message: asString(agent.errorMessage) ?? asString(agent.errorCode) ?? "Agent failed" } }));
+}
+
+export function fromLegacyAgentSseEvent(event: LegacyChatSseEvent, state: LegacyAgentAdapterState, stream: StudioEventStream): StudioEvent[] {
   const out: StudioEvent[] = [];
   const agent = asRecord(event.agent);
-  if (agent !== undefined) {
-    const phase = asString(agent.phase);
-    if (phase === "start") {
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "agent",
-        kind: "turn.started",
-        activityId: state.turnId,
-        state: "running",
-        payload: {},
-      }));
-    } else if (phase === "done") {
-      const ok = agent.ok === true;
-      out.push(stream.emit({
-        sessionId: state.sessionId,
-        turnId: state.turnId,
-        source: "agent",
-        kind: ok ? "turn.completed" : "turn.failed",
-        activityId: state.turnId,
-        state: ok ? "completed" : "failed",
-        payload: { ...agent },
-      }));
-      if (!ok) {
-        const message = asString(agent.errorMessage) ?? asString(agent.errorCode) ?? "Agent failed";
-        out.push(stream.emit({
-          sessionId: state.sessionId,
-          turnId: state.turnId,
-          source: "agent",
-          kind: "error",
-          activityId: `${state.turnId}:error`,
-          state: "failed",
-          payload: { message },
-        }));
-      }
-    }
-  }
-
+  if (agent !== undefined) pushAgentPhase(out, state, stream, agent);
   const agentEvent = asRecord(event.agentEvent);
   if (agentEvent !== undefined) {
     const summary = summarizeAgentEvent(agentEvent);
-    out.push(stream.emit({
-      sessionId: state.sessionId,
-      turnId: state.turnId,
-      source: "agent",
-      kind: summary.kind,
-      activityId: `${state.turnId}:agent:${stream.nextSeq()}`,
-      state: summary.state,
-      payload: {
-        name: summary.name,
-        ...(summary.text ? { text: summary.text } : {}),
-        raw: agentEvent,
-        untrusted: true,
-      },
-    }));
+    out.push(stream.emit({ sessionId: state.sessionId, turnId: state.turnId, source: "agent", kind: summary.kind, activityId: `${state.turnId}:agent:${stream.nextSeq()}`, state: summary.state, payload: { name: summary.name, ...(summary.text ? { text: summary.text } : {}), raw: agentEvent, untrusted: true } }));
   }
-
   return out;
 }
 

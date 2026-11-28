@@ -104,78 +104,63 @@ export function createWebStudioServer(deps: WebStudioDeps): Server {
   return server;
 }
 
-async function handle(
-  deps: WebStudioDeps,
-  session: StudioSession,
-  runner: Runner,
-  leases: LeaseManager,
-  maxToolRounds: number,
-  req: IncomingMessage,
-  res: ServerResponse,
-): Promise<void> {
-  const url = new URL(req.url ?? "/", "http://127.0.0.1");
-  const ctx: RouteContext = { deps, session, runner, leases, maxToolRounds, req, res, url };
+async function dispatchRoute(ctx: RouteContext): Promise<boolean> {
+  const handlers = [
+    serveStaticFile, handleCodeRabbitRoutes, handleModelRoutes, handleHistoryRoutes, handleGithubRoutes,
+    handleDeployRoutes, handleSubagentRoutes, handleProjectRoutes, handleRunRoutes, handleTemplateRoute,
+    handleAgentRoute, handleChatRoute,
+  ];
+  for (const handler of handlers) {
+    if (await handler(ctx)) return true;
+  }
+  return false;
+}
 
+function handleQuit(ctx: RouteContext): boolean {
+  if (ctx.url.pathname !== "/api/studio/quit") return false;
+  if (ctx.req.method !== "POST") { sendJson(ctx.res, 405, { error: "Method not allowed" }); return true; }
+  sendJson(ctx.res, 200, { ok: true });
+  const socket = ctx.req.socket as import("node:net").Socket & { // canon-ignore A8-TS-06: single boundary cast for Node socket server; no double cast
+    server?: Server & { closeAllConnections?: () => void; closeIdleConnections?: () => void };
+  };
+  const srv = socket.server;
+  setTimeout(() => {
+    ctx.runner.stop();
+    srv?.closeAllConnections?.();
+    srv?.closeIdleConnections?.();
+    srv?.close(() => { if (!process.env.VITEST) process.exit(0); });
+    setTimeout(() => { if (!process.env.VITEST) process.exit(0); }, 1500).unref();
+  }, 100);
+  return true;
+}
+
+function handlePreview(ctx: RouteContext): boolean {
+  if (ctx.url.pathname !== "/preview" && !ctx.url.pathname.startsWith("/preview/")) return false;
+  if (ctx.req.method === "GET") servePreview(ctx.deps.sandboxRoot, ctx.url, ctx.res);
+  else sendJson(ctx.res, 405, { error: "Method not allowed" });
+  return true;
+}
+
+async function handle(
+  deps: WebStudioDeps, session: StudioSession, runner: Runner, leases: LeaseManager,
+  maxToolRounds: number, req: IncomingMessage, res: ServerResponse,
+): Promise<void> {
+  const ctx: RouteContext = { deps, session, runner, leases, maxToolRounds, req, res, url: new URL(req.url ?? "/", "http://127.0.0.1") };
   try {
     if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method ?? "") && !isTrustedLocalMutation(req)) {
       sendJson(res, 403, { error: "This local action must come from the Studio page." });
       return;
     }
-
-    if (await serveStaticFile(ctx)) return;
-    if (await handleCodeRabbitRoutes(ctx)) return;
-    if (await handleModelRoutes(ctx)) return;
-    if (await handleHistoryRoutes(ctx)) return;
-    if (await handleGithubRoutes(ctx)) return;
-    if (await handleDeployRoutes(ctx)) return;
-    if (await handleSubagentRoutes(ctx)) return;
-    if (await handleProjectRoutes(ctx)) return;
-    if (await handleRunRoutes(ctx)) return;
-    if (await handleTemplateRoute(ctx)) return;
-    if (await handleAgentRoute(ctx)) return;
-    if (await handleChatRoute(ctx)) return;
-
-    if (url.pathname === "/api/studio/quit") {
-      if (req.method !== "POST") {
-        sendJson(res, 405, { error: "Method not allowed" });
-        return;
-      }
-      sendJson(res, 200, { ok: true });
-      const srv = (req.socket as unknown as { server?: Server & { closeAllConnections?: () => void; closeIdleConnections?: () => void } }).server;
-      setTimeout(() => {
-        runner.stop();
-        srv?.closeAllConnections?.();
-        srv?.closeIdleConnections?.();
-        srv?.close(() => { if (!process.env.VITEST) process.exit(0); });
-        setTimeout(() => { if (!process.env.VITEST) process.exit(0); }, 1500).unref();
-      }, 100);
-      return;
-    }
-
-    if (url.pathname === "/preview" || url.pathname.startsWith("/preview/")) {
-      if (req.method === "GET") {
-        servePreview(deps.sandboxRoot, url, res);
-      } else {
-        sendJson(res, 405, { error: "Method not allowed" });
-      }
-      return;
-    }
-
-    if (url.pathname.startsWith("/api/")) {
-      sendJson(res, 405, { error: "Method not allowed" });
-      return;
-    }
-
+    if (await dispatchRoute(ctx) || handleQuit(ctx) || handlePreview(ctx)) return;
+    if (ctx.url.pathname.startsWith("/api/")) { sendJson(res, 405, { error: "Method not allowed" }); return; }
     sendJson(res, 404, { error: "Not found" });
   } catch (error) {
-    if (!res.headersSent) {
-      sendJson(res, 500, { error: "Internal server error" });
-    } else {
-      res.end();
-    }
+    if (!res.headersSent) sendJson(res, 500, { error: "Internal server error" });
+    else res.end();
     void error; // never logged: may contain request context
   }
 }
+
 export type StudioStartOptions = {
   /** Preferred port; it falls back to the next ten when busy (default: PORT env or 4870). */
   port?: number;

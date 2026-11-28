@@ -74,8 +74,8 @@ function applyTheme(choice, persist) {
   if (persist) {
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
-    } catch {
-      // Storage can be blocked. The choice still applies for this tab.
+    } catch (error) {
+      void error; // Storage can be blocked. The choice still applies for this tab.
     }
   }
   syncThemeControls();
@@ -119,8 +119,8 @@ function applyMotion(choice, persist) {
   if (persist) {
     try {
       window.localStorage.setItem(MOTION_STORAGE_KEY, next);
-    } catch {
-      // Storage can be blocked. The choice still applies for this tab.
+    } catch (error) {
+      void error; // Storage can be blocked. The choice still applies for this tab.
     }
   }
   syncMotionControls();
@@ -159,8 +159,8 @@ function setSidebarCollapsed(collapsed, persist = true) {
   if (persist) {
     try {
       window.localStorage.setItem(SIDEBAR_STORAGE_KEY, collapsed ? "collapsed" : "expanded");
-    } catch {
-      // Storage can be blocked. The rail still changes for this tab.
+    } catch (error) {
+      void error; // Storage can be blocked. The rail still changes for this tab.
     }
   }
   syncSidebarControls();
@@ -313,114 +313,83 @@ if (quitStudioBtn !== null) {
   for (const tab of tabs) tab.addEventListener("click", () => setTab(tab.dataset.inspectorTab || "preview"));
   setTab("preview");
 
+  function inspectorModelMode() {
+    const model = typeof getActiveModelId === "function" ? getActiveModelId() : (document.getElementById("model-select")?.value || "");
+    const mode = document.getElementById("chat-mode")?.value || "";
+    return { model, mode };
+  }
+
+  function renderInspectorDiffs(diffsEl, body) {
+    const changed = Array.isArray(body?.changedFiles) ? body.changedFiles : [];
+    const frag = document.createDocumentFragment();
+    if (body?.git?.branch) { const b = document.createElement("div"); b.className = "inspector-meta"; b.textContent = `Branch: ${body.git.branch}`; frag.appendChild(b); }
+    if (changed.length > 0) {
+      const h = document.createElement("div"); h.className = "inspector-meta"; h.textContent = "Changed files:"; frag.appendChild(h);
+      for (const f of changed) {
+        const btn = document.createElement("button"); btn.type = "button"; btn.className = "inspector-file-btn"; btn.textContent = `${f.status} ${f.path}`;
+        btn.addEventListener("click", async () => {
+          btn.disabled = true;
+          try { const r = await fetch(`/api/project/diff?path=${encodeURIComponent(f.path)}`); const d = await r.json(); const pre = diffsEl.querySelector(".inspector-diff-detail"); if (pre) pre.textContent = d.diff || d.staged || "(no textual diff)"; }
+          catch (error) { void error; } finally { btn.disabled = false; }
+        });
+        frag.appendChild(btn);
+      }
+    }
+    const pre = document.createElement("pre"); pre.className = "inspector-pre inspector-diff-detail";
+    pre.textContent = body?.git?.diff || body?.git?.status || (changed.length === 0 ? "No git changes detected." : "Select a file to view its diff.");
+    frag.appendChild(pre);
+    diffsEl.textContent = "";
+    diffsEl.appendChild(frag);
+    diffsEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", true);
+  }
+
+  function renderInspectorFiles(filesEl, body) {
+    const files = Array.isArray(body?.files) ? body.files : [];
+    const changed = Array.isArray(body?.changedFiles) ? body.changedFiles : [];
+    const lines = [];
+    if (changed.length > 0) { lines.push("Changed files:", ...changed.map((f) => ` ${f.status} ${f.path}`), ""); }
+    lines.push(files.length ? "Project files:" : "No project files yet.", ...files.map((f) => ` ${f.path} (${f.bytes} bytes)`));
+    if (typeof executionStore !== "undefined") {
+      const acts = executionStore.list(); const last = acts[acts.length - 1]; const { model, mode } = inspectorModelMode();
+      lines.push("", "--- Execution metadata ---");
+      if (model) lines.push(`Model: ${model}`); if (mode) lines.push(`Mode: ${mode}`);
+      lines.push(`Chat running: ${typeof chatRunning !== "undefined" && chatRunning ? "yes" : "no"}`);
+      lines.push(`Activities: ${acts.length}`, `Turns: ${new Set(acts.map((a) => a.turnId).filter(Boolean)).size}`);
+      if (body?.git?.branch) lines.push(`Git branch: ${body.git.branch}`);
+      if (typeof body?.git?.changedCount === "number") lines.push(`Changed files: ${body.git.changedCount}`);
+      if (last) lines.push(`Last: ${last.kind} [${last.state || ""}] ${last.ts || ""}`);
+    }
+    const text = lines.join("\n");
+    filesEl.textContent = text;
+    filesEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", text.length > 0);
+  }
+
+  function renderInspectorMeta(metaEl, body) {
+    const { model, mode } = inspectorModelMode();
+    const lines = [];
+    if (model) lines.push(`Model: ${model}`); if (mode) lines.push(`Mode: ${mode}`);
+    lines.push(`Chat running: ${typeof chatRunning !== "undefined" && chatRunning ? "yes" : "no"}`);
+    if (body?.git?.branch) lines.push(`Git branch: ${body.git.branch}`);
+    if (typeof body?.git?.changedCount === "number") lines.push(`Changed files: ${body.git.changedCount}`);
+    if (typeof executionStore !== "undefined") {
+      const acts = executionStore.list(); const last = acts[acts.length - 1];
+      lines.push(`Activities: ${acts.length}`, `Turns: ${new Set(acts.map((a) => a.turnId).filter(Boolean)).size}`);
+      if (last) { lines.push(`Last activity: ${last.kind}`, `Last state: ${last.state || ""}`, `Last time: ${last.ts || ""}`); if (last.turnId) lines.push(`Last turn: ${last.turnId}`); }
+    }
+    const text = lines.join("\n");
+    metaEl.textContent = text;
+    metaEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", text.length > 0);
+  }
+
   function renderInspectorSnapshot(body) {
     const diffsEl = document.getElementById("inspector-diffs");
     const filesEl = document.getElementById("inspector-files");
     const terminalEl = document.getElementById("inspector-terminal");
     const metaEl = document.getElementById("inspector-meta");
-    if (diffsEl) {
-      const changed = Array.isArray(body?.changedFiles) ? body.changedFiles : [];
-      const branch = body?.git?.branch || "";
-      const diff = body?.git?.diff || "";
-      const status = body?.git?.status || "";
-      diffsEl.textContent = "";
-      const frag = document.createDocumentFragment();
-      if (branch) {
-        const b = document.createElement("div");
-        b.className = "inspector-meta";
-        b.textContent = `Branch: ${branch}`;
-        frag.appendChild(b);
-      }
-      if (changed.length > 0) {
-        const h = document.createElement("div");
-        h.className = "inspector-meta";
-        h.textContent = "Changed files:";
-        frag.appendChild(h);
-        for (const f of changed) {
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "inspector-file-btn";
-          btn.textContent = `${f.status} ${f.path}`;
-          btn.addEventListener("click", async () => {
-            btn.disabled = true;
-            try {
-              const r = await fetch(`/api/project/diff?path=${encodeURIComponent(f.path)}`);
-              const d = await r.json();
-              const pre = diffsEl.querySelector(".inspector-diff-detail");
-              if (pre) pre.textContent = d.diff || d.staged || "(no textual diff)";
-            } catch { /* ignore */ }
-            finally { btn.disabled = false; }
-          });
-          frag.appendChild(btn);
-        }
-      }
-      const pre = document.createElement("pre");
-      pre.className = "inspector-pre inspector-diff-detail";
-      pre.textContent = diff || status || (changed.length === 0 ? "No git changes detected." : "Select a file to view its diff.");
-      frag.appendChild(pre);
-      diffsEl.appendChild(frag);
-      diffsEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", true);
-    }
-    if (filesEl) {
-      const files = Array.isArray(body?.files) ? body.files : [];
-      const changed = Array.isArray(body?.changedFiles) ? body.changedFiles : [];
-      const lines = [];
-      if (changed.length > 0) {
-        lines.push("Changed files:");
-        lines.push(...changed.map((f) => ` ${f.status} ${f.path}`));
-        lines.push("");
-      }
-      lines.push(files.length ? "Project files:" : "No project files yet.");
-      lines.push(...files.map((f) => ` ${f.path} (${f.bytes} bytes)`));
-      if (typeof executionStore !== "undefined") {
-        const acts = executionStore.list();
-        const turns = new Set(acts.map((a) => a.turnId).filter(Boolean));
-        const last = acts[acts.length - 1];
-        const model = typeof getActiveModelId === "function" ? getActiveModelId() : (document.getElementById("model-select")?.value || "");
-        const mode = document.getElementById("chat-mode")?.value || "";
-        lines.push("", "--- Execution metadata ---");
-        if (model) lines.push(`Model: ${model}`);
-        if (mode) lines.push(`Mode: ${mode}`);
-        lines.push(`Chat running: ${typeof chatRunning !== "undefined" && chatRunning ? "yes" : "no"}`);
-        lines.push(`Activities: ${acts.length}`);
-        lines.push(`Turns: ${turns.size}`);
-        if (body?.git?.branch) lines.push(`Git branch: ${body.git.branch}`);
-        if (typeof body?.git?.changedCount === "number") lines.push(`Changed files: ${body.git.changedCount}`);
-        if (last) lines.push(`Last: ${last.kind} [${last.state || ""}] ${last.ts || ""}`);
-      }
-      const text = lines.join("\n");
-      filesEl.textContent = text;
-      filesEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", text.length > 0);
-    }
-    if (terminalEl && !terminalEl.textContent) {
-      terminalEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", false);
-    }
-    if (metaEl) {
-      const lines = [];
-      const model = typeof getActiveModelId === "function" ? getActiveModelId() : (document.getElementById("model-select")?.value || "");
-      const mode = document.getElementById("chat-mode")?.value || "";
-      if (model) lines.push(`Model: ${model}`);
-      if (mode) lines.push(`Mode: ${mode}`);
-      lines.push(`Chat running: ${typeof chatRunning !== "undefined" && chatRunning ? "yes" : "no"}`);
-      if (body?.git?.branch) lines.push(`Git branch: ${body.git.branch}`);
-      if (typeof body?.git?.changedCount === "number") lines.push(`Changed files: ${body.git.changedCount}`);
-      if (typeof executionStore !== "undefined") {
-        const acts = executionStore.list();
-        const turns = new Set(acts.map((a) => a.turnId).filter(Boolean));
-        const last = acts[acts.length - 1];
-        lines.push(`Activities: ${acts.length}`);
-        lines.push(`Turns: ${turns.size}`);
-        if (last) {
-          lines.push(`Last activity: ${last.kind}`);
-          lines.push(`Last state: ${last.state || ""}`);
-          lines.push(`Last time: ${last.ts || ""}`);
-          if (last.turnId) lines.push(`Last turn: ${last.turnId}`);
-        }
-      }
-      const text = lines.join("\n");
-      metaEl.textContent = text;
-      metaEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", text.length > 0);
-    }
+    if (diffsEl) renderInspectorDiffs(diffsEl, body);
+    if (filesEl) renderInspectorFiles(filesEl, body);
+    if (terminalEl && !terminalEl.textContent) terminalEl.closest("[data-inspector-panel]")?.querySelector(".inspector-empty")?.toggleAttribute("hidden", false);
+    if (metaEl) renderInspectorMeta(metaEl, body);
   }
 
   async function refreshInspector() {
@@ -428,7 +397,7 @@ if (quitStudioBtn !== null) {
       const res = await fetch("/api/project/inspector");
       if (!res.ok) return;
       renderInspectorSnapshot(await res.json());
-    } catch { /* best-effort */ }
+    } catch (error) { void error; /* best-effort */ }
   }
 
   window.setInspectorTab = (name) => {
@@ -550,7 +519,7 @@ if (quitStudioBtn !== null) {
 
       const icon = document.createElement("span");
       icon.className = "icon";
-      icon.innerHTML = SESSION_ICON; // static brand geometry, never user data
+      icon.innerHTML = SESSION_ICON; // canon-ignore A8-SEC-08: static brand geometry, never user data
       const label = document.createElement("span");
       label.className = "nav-label";
       label.textContent = title;

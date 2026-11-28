@@ -31,7 +31,7 @@ export type GeneratedProject = {
 
 export type GenerateProjectOptions = {
   template: TemplateKind;
-  database?: "sqlite" | "postgresql";
+  database?: "sqlite" | "postgresql" | "supabase";
   usePrisma?: boolean;
   productionRuntime?: "node" | "bun";
   hashLib?: "bcryptjs";

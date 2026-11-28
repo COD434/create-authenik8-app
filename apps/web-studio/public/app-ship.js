@@ -132,8 +132,8 @@ async function getShipTokenStatus(provider) {
       provider === "vercel" ? shipVercelDetect : shipNetlifyDetect,
       `Token detected: ${label}. Your token is not read or stored — paste it to deploy.`,
     );
-  } catch {
-    // Ignore: token detection is a convenience, not a blocker.
+  } catch (error) {
+    void error; // Ignore: token detection is a convenience, not a blocker.
   }
 }
 
@@ -370,83 +370,69 @@ async function publishToGithub() {
   }
 }
 
+async function consumeSse(res, onPayload) {
+  const reader = res.body?.getReader();
+  if (reader === undefined) throw new Error("The Studio server closed the stream.");
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let boundary;
+    while ((boundary = buffer.indexOf("\n\n")) !== -1) {
+      const rawEvent = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      for (const line of rawEvent.split("\n")) {
+        if (!line.startsWith("data: ")) continue;
+        onPayload(JSON.parse(line.slice(6)));
+      }
+    }
+  }
+}
+
+function handleSupabaseConnectBody(body) {
+  shipSupabaseKey.value = "";
+  const database = body.database ? ` Database ${body.database.host}/${body.database.database}.` : "";
+  setShipResult(shipSupabaseResult, `Connected ${body.supabase.url} with the ${body.supabase.keyKind} key.${database}`, "ok");
+  if (body.status !== undefined) renderShipStatus(body.status);
+}
+
+async function handleSupabaseDeployStream(res) {
+  let connected = false;
+  let deployLines = [];
+  let deployDone = null;
+  await consumeSse(res, (payloadEvent) => {
+    if (payloadEvent.supabaseConnect) {
+      connected = true; shipSupabaseKey.value = ""; shipSupabaseDb.value = "";
+      setShipResult(shipSupabaseResult, `Connected ${payloadEvent.supabaseConnect.supabase.url}. Pushing schema...`, "");
+    }
+    if (payloadEvent.supabaseDeploy?.phase === "line") {
+      deployLines.push(payloadEvent.supabaseDeploy.line);
+      setShipResult(shipSupabaseResult, `Deploying schema...\n${deployLines.slice(-3).join("\n")}`, "");
+    }
+    if (payloadEvent.supabaseDeploy?.phase === "done" || payloadEvent.supabaseDeploy?.phase === "error") deployDone = payloadEvent.supabaseDeploy;
+  });
+  if (deployDone?.phase === "done") setShipResult(shipSupabaseResult, "Connected and schema deployed to Supabase.", "ok");
+  else if (deployDone?.phase === "error") setShipResult(shipSupabaseResult, `Schema push failed: ${deployDone.message ?? "see output"}\n${deployLines.slice(-5).join("\n")}`, "error");
+  else if (connected) setShipResult(shipSupabaseResult, "Connected to Supabase.", "ok");
+}
+
 async function submitSupabase() {
   const url = shipSupabaseUrl.value.trim();
   const key = shipSupabaseKey.value.trim();
   const databaseUrl = shipSupabaseDb.value.trim();
-  if (url === "" || key === "") {
-    setShipResult(shipSupabaseResult, "Enter the project URL and the public key.", "error");
-    (url === "" ? shipSupabaseUrl : shipSupabaseKey).focus();
-    return;
-  }
+  if (url === "" || key === "") { setShipResult(shipSupabaseResult, "Enter the project URL and the public key.", "error"); (url === "" ? shipSupabaseUrl : shipSupabaseKey).focus(); return; }
   shipBusy = true;
   syncShipControls();
   setShipResult(shipSupabaseResult, databaseUrl !== "" ? "Connecting and deploying schema..." : "Connecting...", "");
   try {
     const payload = { url, anonKey: key, apply: true, deploy: databaseUrl !== "" };
     if (databaseUrl !== "") payload.databaseUrl = databaseUrl;
-    const res = await fetch("/api/integrations/supabase", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-
-    // Deploy path streams SSE; connect-only path returns JSON.
-    const isStream = res.headers.get("content-type")?.includes("text/event-stream");
-    if (!isStream) {
-      const body = await res.json();
-      shipSupabaseKey.value = "";
-      const database = body.database ? ` Database ${body.database.host}/${body.database.database}.` : "";
-      setShipResult(shipSupabaseResult, `Connected ${body.supabase.url} with the ${body.supabase.keyKind} key.${database}`, "ok");
-      if (body.status !== undefined) renderShipStatus(body.status);
-      return;
-    }
-
-    // Stream: connection result, then schema-push lines, then done/error.
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let connected = false;
-    let deployLines = [];
-    let deployDone = null;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let boundary;
-      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-        const rawEvent = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        for (const line of rawEvent.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const payloadEvent = JSON.parse(line.slice(6));
-          if (payloadEvent.supabaseConnect) {
-            connected = true;
-            shipSupabaseKey.value = "";
-            shipSupabaseDb.value = "";
-            setShipResult(shipSupabaseResult, `Connected ${payloadEvent.supabaseConnect.supabase.url}. Pushing schema...`, "");
-          }
-          if (payloadEvent.supabaseDeploy?.phase === "line") {
-            deployLines.push(payloadEvent.supabaseDeploy.line);
-            setShipResult(shipSupabaseResult, `Deploying schema...\n${deployLines.slice(-3).join("\n")}`, "");
-          }
-          if (payloadEvent.supabaseDeploy?.phase === "done" || payloadEvent.supabaseDeploy?.phase === "error") {
-            deployDone = payloadEvent.supabaseDeploy;
-          }
-        }
-      }
-    }
-    if (deployDone?.phase === "done") {
-      setShipResult(shipSupabaseResult, "Connected and schema deployed to Supabase.", "ok");
-    } else if (deployDone?.phase === "error") {
-      setShipResult(shipSupabaseResult, `Schema push failed: ${deployDone.message ?? "see output"}\n${deployLines.slice(-5).join("\n")}`, "error");
-    } else if (connected) {
-      setShipResult(shipSupabaseResult, "Connected to Supabase.", "ok");
-    }
+    const res = await fetch("/api/integrations/supabase", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) { const body = await res.json().catch(() => ({ error: res.statusText })); throw new Error(body.error ?? `HTTP ${res.status}`); }
+    if (res.headers.get("content-type")?.includes("text/event-stream")) await handleSupabaseDeployStream(res);
+    else handleSupabaseConnectBody(await res.json());
   } catch (error) {
     setShipResult(shipSupabaseResult, errorText(error), "error");
   } finally {
@@ -455,77 +441,36 @@ async function submitSupabase() {
   }
 }
 
+async function readDeployStream(res, result, vercel) {
+  let body = null;
+  await consumeSse(res, (payloadEvent) => {
+    if (payloadEvent.deployment !== undefined) body = payloadEvent.deployment;
+    if (payloadEvent.state !== undefined) setShipResult(result, `${vercel ? "Vercel" : "Netlify"} deploy: ${payloadEvent.state}...`, "");
+    if (payloadEvent.error !== undefined) throw new Error(payloadEvent.error);
+  });
+  return body;
+}
+
 async function deployToProvider(provider) {
   const vercel = provider === "vercel";
   const tokenInput = vercel ? shipVercelToken : shipNetlifyToken;
-  const nameInput = vercel ? shipVercelName : shipNetlifyName;
   const result = vercel ? shipVercelResult : shipNetlifyResult;
-  const detectEl = vercel ? shipVercelDetect : shipNetlifyDetect;
   const token = tokenInput.value.trim();
-  if (token === "") {
-    setShipResult(result, "Paste an access token first.", "error");
-    tokenInput.focus();
-    return;
-  }
-  if (shipStatus?.project?.kind !== "static") {
-    setShipResult(result, "Only a static site can be deployed from the Studio. Export the ZIP for a server project.", "error");
-    return;
-  }
+  if (token === "") { setShipResult(result, "Paste an access token first.", "error"); tokenInput.focus(); return; }
+  if (shipStatus?.project?.kind !== "static") { setShipResult(result, "Only a static site can be deployed from the Studio. Export the ZIP for a server project.", "error"); return; }
   shipBusy = true;
   syncShipControls();
   setShipResult(result, `Deploying to ${vercel ? "Vercel" : "Netlify"}...`, "");
   try {
-    const payload = { token, name: nameInput.value.trim() };
+    const payload = { token, name: (vercel ? shipVercelName : shipNetlifyName).value.trim() };
     if (!vercel) payload.siteId = shipNetlifySite.value.trim();
-    const res = await fetch(`/api/deploy/${provider}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(body.error ?? `HTTP ${res.status}`);
-    }
-
-    // Stream: upload → state transitions → done/error.
-    const reader = res.body?.getReader();
-    if (reader === undefined) throw new Error("The Studio server closed the stream.");
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let body = null;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let boundary;
-      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-        const rawEvent = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        for (const line of rawEvent.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const payloadEvent = JSON.parse(line.slice(6));
-          if (payloadEvent.deployment !== undefined) {
-            body = payloadEvent.deployment;
-          }
-          if (payloadEvent.state !== undefined) {
-            setShipResult(result, `${vercel ? "Vercel" : "Netlify"} deploy: ${payloadEvent.state}...`, "");
-          }
-          if (payloadEvent.error !== undefined) {
-            throw new Error(payloadEvent.error);
-          }
-        }
-      }
-    }
+    const res = await fetch(`/api/deploy/${provider}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    if (!res.ok) { const body = await res.json().catch(() => ({ error: res.statusText })); throw new Error(body.error ?? `HTTP ${res.status}`); }
+    const body = await readDeployStream(res, result, vercel);
     tokenInput.value = "";
-    const state = body !== null && typeof body.state === "string" && body.state !== "" ? body.state : "ready";
-    const count = body !== null && Number.isFinite(body.files) ? `${body.files} files` : "the site";
-    const verified = body?.verified === true ? " Verified with HTTP 200." : "";
-    setShipResult(
-      result,
-      `Deployed ${count} to ${vercel ? "Vercel" : "Netlify"}. State: ${state}.${verified}`,
-      "ok",
-      body !== null && typeof body.url === "string" ? body.url : null,
-    );
+    const state = body?.state && typeof body.state === "string" ? body.state : "ready";
+    const count = Number.isFinite(body?.files) ? `${body.files} files` : "the site";
+    setShipResult(result, `Deployed ${count} to ${vercel ? "Vercel" : "Netlify"}. State: ${state}.${body?.verified === true ? " Verified with HTTP 200." : ""}`, "ok", typeof body?.url === "string" ? body.url : null);
   } catch (error) {
     setShipResult(result, errorText(error), "error");
   } finally {

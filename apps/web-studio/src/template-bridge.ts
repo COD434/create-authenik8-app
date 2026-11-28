@@ -25,7 +25,7 @@ export type TemplateSpec = {
   preset: "base" | "auth" | "auth-oauth" | "fullstack";
   frontend?: "react" | "lovable" | "next";
   oauthProviders?: Array<"google" | "github">;
-  database: "sqlite" | "postgresql";
+  database: "sqlite" | "postgresql" | "supabase";
   /**
    * Omitted by default: the CLI refuses `--runtime` without
    * `--production-ready` for Express presets (observed live), and a dev
@@ -98,7 +98,7 @@ export function packageBinPath(cliPath: string): string | null {
 const ALLOWED_PRESETS = new Set<TemplateSpec["preset"]>(["base", "auth", "auth-oauth", "fullstack"]);
 const ALLOWED_FRONTENDS = new Set<NonNullable<TemplateSpec["frontend"]>>(["react", "lovable", "next"]);
 const ALLOWED_OAUTH = new Set<NonNullable<TemplateSpec["oauthProviders"]>[number]>(["google", "github"]);
-const ALLOWED_DATABASES = new Set<TemplateSpec["database"]>(["sqlite", "postgresql"]);
+const ALLOWED_DATABASES = new Set<TemplateSpec["database"]>(["sqlite", "postgresql", "supabase"]);
 const ALLOWED_RUNTIMES = new Set<NonNullable<TemplateSpec["runtime"]>>(["node", "bun"]);
 const ALLOWED_PACKAGE_MANAGERS = new Set<TemplateSpec["packageManager"]>(["npm", "pnpm", "bun"]);
 
@@ -163,72 +163,43 @@ export type BridgeSpawnOptions = {
  * is polled at 250ms — the wire contract is the caller's business, the
  * process-tree kill is ours.
  */
-export function spawnTemplateBridge(options: BridgeSpawnOptions): Promise<BridgeSpawnResult> {
-  const argv = bridgeArgv(options.bridge, options.spec);
-  const projectDir = path.join(options.cwd, PROJECT_DIR_NAME);
+function assertBridgeArgv(argv: string[]): [string, string[]] {
+  const [command, ...args] = argv;
+  if (command !== process.execPath) throw new Error("Template bridge command must be the current Node executable.");
+  const scriptArg = args[0];
+  if (typeof scriptArg !== "string" || !path.isAbsolute(scriptArg) || !/\.(?:c|m)?js$/u.test(scriptArg)) {
+    throw new Error("Template bridge script must be an absolute JavaScript path.");
+  }
+  if (args.some((arg) => arg.includes("\0"))) throw new Error("Template bridge argument contains a null byte.");
+  return [command, args];
+}
 
+export function spawnTemplateBridge(options: BridgeSpawnOptions): Promise<BridgeSpawnResult> {
+  const [command, args] = assertBridgeArgv(bridgeArgv(options.bridge, options.spec));
+  const projectDir = path.join(options.cwd, PROJECT_DIR_NAME);
   return new Promise((resolve) => {
-    const command = argv[0];
-    const args = argv.slice(1);
-    if (command !== process.execPath) {
-      throw new Error("Template bridge command must be the current Node executable.");
-    }
-    const scriptArg = args[0];
-    if (typeof scriptArg !== "string" || !path.isAbsolute(scriptArg) || !/\.(?:c|m)?js$/u.test(scriptArg)) {
-      throw new Error("Template bridge script must be an absolute JavaScript path.");
-    }
-    for (const arg of args) {
-      if (arg.includes("\0")) throw new Error("Template bridge argument contains a null byte.");
-    }
-    const child = spawn(command, args, {
-      cwd: options.cwd,
-      windowsHide: true,
-    });
+    const child = spawn(command, args, { cwd: options.cwd, windowsHide: true });
     let settled = false;
     let cancelled = false;
-
+    const outTail = { value: "" };
+    const errTail = { value: "" };
     const drain = (chunk: string, tailOwner: { value: string }, label: "out" | "err"): void => {
       tailOwner.value += chunk;
       const lines = tailOwner.value.split(/\r?\n/);
       tailOwner.value = lines.pop() ?? "";
-      for (const line of lines) {
-        const trimmed = line.replace(/\s+$/, "");
-        if (trimmed.length > 0) options.onLine(`[${label}] ${trimmed}`);
-      }
+      for (const line of lines) { const trimmed = line.replace(/\s+$/, ""); if (trimmed.length > 0) options.onLine(`[${label}] ${trimmed}`); }
     };
-    const outTail = { value: "" };
-    const errTail = { value: "" };
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
+    child.stdout?.setEncoding("utf8"); child.stderr?.setEncoding("utf8");
     child.stdout?.on("data", (chunk: string) => drain(chunk, outTail, "out"));
     child.stderr?.on("data", (chunk: string) => drain(chunk, errTail, "err"));
-
     const finish = (finalCode: number | null, wasCancelled: boolean): void => {
-      if (settled) return;
-      settled = true;
-      clearInterval(timer);
-      for (const tail of [outTail, errTail]) {
-        const leftover = tail.value.replace(/\s+$/, "");
-        if (leftover.length > 0) options.onLine(`[tail] ${leftover}`);
-      }
+      if (settled) return; settled = true; clearInterval(timer);
+      for (const tail of [outTail, errTail]) { const leftover = tail.value.replace(/\s+$/, ""); if (leftover.length > 0) options.onLine(`[tail] ${leftover}`); }
       resolve({ code: finalCode, cancelled: wasCancelled, projectDir });
     };
-
-    const timer = setInterval(() => {
-      if (options.shouldAbort()) {
-        cancelled = true;
-        if (child.pid !== undefined) killTree(child.pid);
-      }
-    }, 250);
+    const timer = setInterval(() => { if (options.shouldAbort()) { cancelled = true; if (child.pid !== undefined) killTree(child.pid); } }, 250);
     timer.unref?.();
-
-    // Spawn-level failure (ENOENT, exec format): terminal, `close` never fires.
-    child.on("error", (error: Error) => {
-      options.onLine(`[error] ${error.message}`);
-      finish(null, false);
-    });
-
+    child.on("error", (error: Error) => { options.onLine(`[error] ${error.message}`); finish(null, false); });
     child.on("close", (code) => finish(code, cancelled));
   });
 }
@@ -244,8 +215,8 @@ export function killTree(pid: number): void {
     } else {
       spawn("kill", ["-TERM", String(pid)], { stdio: "ignore" });
     }
-  } catch {
-    // Best effort; nothing else to try.
+  } catch (error) {
+    void error; // Best effort; nothing else to try.
   }
 }
 

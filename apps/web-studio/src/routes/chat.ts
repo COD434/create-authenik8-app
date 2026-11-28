@@ -108,6 +108,10 @@ const SYSTEM_PROMPT = [
   "directory (npm start = node server.js) so the user can run it, not only preview it.",
   "Authenik8-generated projects use Express + TypeScript, rotating JWTs with stateful",
   "Redis-backed sessions, Prisma, strict cookies, CSRF, and server-side authorization.",
+  "Answer style: answer first. Open with the direct answer, key result, or recommendation in the first sentence or two. No filler like \"Great question\", \"Sure\", or restating the question.",
+  "Structure: prefer bold lead-ins for sub-points (e.g. **Definition:**, **How it works:**, **Why it matters:**, **Example:**) followed by 1-3 tight sentences. Use ## / ### headings only for genuinely long, multi-section answers.",
+  "Formatting: keep paragraphs to 2-4 sentences. Use bullet lists with a short intro, ordered steps for procedures, pipe tables for comparisons (each option as a column header), and fenced code blocks with a language tag. Use inline code for identifiers, commands, file paths, and short snippets. Bold only genuinely key terms.",
+  "End with substance, not \"In conclusion\" or \"I hope this helps\". If a closing note helps, make it one short actionable line. When you cite material, end with a Sources section as a bullet list of links. Do not emit raw HTML.",
   CANON_BUILD_PROMPT,
   "Never suggest client-held secrets, tokens in browser storage, frontend route guards",
   "as authorization, or disabling CSRF/origin checks. Prefer free-tier OpenRouter models",
@@ -215,8 +219,8 @@ async function executeBuilderCall(
       task = parsedArgs.data.task;
       directory = parsedArgs.data.directory;
     }
-  } catch {
-    // The schema error below covers invalid JSON too.
+  } catch (error) {
+    void error; // The schema error below covers invalid JSON too.
   }
   if (task === null || directory === null) {
     return {
@@ -271,8 +275,8 @@ async function executeParentCall(call: ParentToolCall, context: CallContext): Pr
   try {
     const parsedArgs = schema.safeParse(JSON.parse(call.arguments));
     if (parsedArgs.success) task = parsedArgs.data.task;
-  } catch {
-    // The schema error below covers invalid JSON too.
+  } catch (error) {
+    void error; // The schema error below covers invalid JSON too.
   }
   if (task === null) {
     return {
@@ -586,48 +590,58 @@ async function runGenerationWithFallback(
  * One streaming build turn: commit the user message, then run the model/tool
  * loop until the assistant answers, the budget ends, or the client leaves.
  */
+type ResolvedChatRequest = { key: string; model: string; mode: ChatMode; log: SessionLog; turnStart: number };
+
+async function resolveRegenerateRequest(ctx: RouteContext): Promise<ResolvedChatRequest | "handled"> {
+  const regen = await readRegenerateRequest(ctx);
+  if (regen === null) return "handled";
+  const log = sessionLog(ctx.deps, ctx.session);
+  await log.rollbackLastTurn();
+  const history = await log.history();
+  const lastUser = [...history].reverse().find((m) => m.role === "user");
+  if (lastUser === undefined || typeof lastUser.content !== "string" || lastUser.content.length === 0) {
+    sendJson(ctx.res, 400, { error: "No user message to regenerate" });
+    return "handled";
+  }
+  return { key: regen.key, model: regen.model, mode: regen.mode, log, turnStart: history.length };
+}
+
+async function resolveNewChatRequest(ctx: RouteContext): Promise<ResolvedChatRequest | "handled"> {
+  const chatReq = await readChatRequest(ctx);
+  if (chatReq === null) return "handled";
+  const committed = await commitUserTurn(ctx, chatReq.message);
+  return { key: chatReq.key, model: chatReq.model, mode: chatReq.mode, log: committed.log, turnStart: committed.turnStart };
+}
+
+function createStudioEmitter(res: import("node:http").ServerResponse): StudioEmitter {
+  const studioStream = createStudioEventStream();
+  const studioState = createLegacyChatAdapterState(
+    "local-session",
+    `turn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const emitLegacy = (payload: Record<string, unknown>): void => {
+    sseEvent(res, payload);
+    const studioEvents = fromLegacyChatSseEvent(payload, studioState, studioStream);
+    if (studioEvents.length > 0) sseEvent(res, { studio: studioEvents });
+  };
+  emitLegacy({ studioProtocol: STUDIO_EVENT_VERSION, turn: { id: studioState.turnId, sessionId: studioState.sessionId } });
+  return { emitLegacy };
+}
+
 export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
   const { deps, leases, maxToolRounds, req, res, runner, session, url } = ctx;
   const isChat = url.pathname === "/api/chat" && req.method === "POST";
   const isRegenerate = url.pathname === "/api/chat/regenerate" && req.method === "POST";
   if (!isChat && !isRegenerate) return false;
 
-  let request: { key: string; model: string; mode: ChatMode; message?: string };
-  let log: SessionLog;
-  let turnStart: number;
-
-  if (isRegenerate) {
-    const regen = await readRegenerateRequest(ctx);
-    if (regen === null) return true;
-    log = sessionLog(deps, session);
-    await log.rollbackLastTurn();
-    const history = await log.history();
-    const lastUser = [...history].reverse().find((m) => m.role === "user");
-    if (lastUser === undefined || typeof lastUser.content !== "string" || lastUser.content.length === 0) {
-      sendJson(res, 400, { error: "No user message to regenerate" });
-      return true;
-    }
-    request = { key: regen.key, model: regen.model, mode: regen.mode, message: lastUser.content };
-    turnStart = history.length;
-  } else {
-    const chatReq = await readChatRequest(ctx);
-    if (chatReq === null) return true;
-    const committed = await commitUserTurn(ctx, chatReq.message);
-    log = committed.log;
-    turnStart = committed.turnStart;
-    request = { key: chatReq.key, model: chatReq.model, mode: chatReq.mode, message: chatReq.message };
-  }
+  const resolved = isRegenerate ? await resolveRegenerateRequest(ctx) : await resolveNewChatRequest(ctx);
+  if (resolved === "handled") return true;
 
   session.chatBusy = true;
-
-  res.writeHead(200, {
-    "content-type": "text/event-stream",
-    "cache-control": "no-cache",
-    connection: "keep-alive",
-  });
-
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
   const abort = new AbortController();
   abortOnDisconnect(res, abort);
+  const studio = createStudioEmitter(res);
 
   const studioStream: StudioEventStream = createStudioEventStream();
   const studioState: LegacyChatAdapterState = createLegacyChatAdapterState(
@@ -642,27 +656,24 @@ export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
   emitLegacy({ studioProtocol: STUDIO_EVENT_VERSION, turn: { id: studioState.turnId, sessionId: studioState.sessionId } });
 
   try {
-    const gateway = deps.gatewayFor(request.key);
     const generation: GenerationContext = {
       deps,
-      gateway,
+      gateway: deps.gatewayFor(resolved.key),
       leases,
-      log,
+      log: resolved.log,
       maxToolRounds,
-      mode: request.mode,
+      mode: resolved.mode,
       res,
       runner,
       signal: abort.signal,
       compaction: { last: "" },
-      studio: { emitLegacy },
+      studio,
     };
-    await runGenerationWithFallback(generation, log, turnStart, request.model, abort.signal);
+    await runGenerationWithFallback(generation, resolved.log, resolved.turnStart, resolved.model, abort.signal);
   } catch (error) {
     // ModelsError messages are key-safe by contract in the models package.
     const message = error instanceof Error ? error.message : "stream failed";
-    if (!abort.signal.aborted) {
-      emitLegacy({ error: message });
-    }
+    if (!abort.signal.aborted) studio.emitLegacy({ error: message });
   } finally {
     session.chatBusy = false;
     res.end();
