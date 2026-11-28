@@ -49,19 +49,19 @@ function attachAssistantActions(bubble, options = {}) {
   copy.type = "button";
   copy.className = "msg-action";
   copy.dataset.action = "copy";
-  copy.innerHTML = copyIcon + "<span>Copy</span>";
+  copy.innerHTML = copyIcon + "<span>Copy</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
   copy.addEventListener("click", async () => {
     copy.classList.remove("is-confirming");
     try {
       await navigator.clipboard.writeText(bubble.dataset.copyText ?? bubble.textContent);
-      copy.innerHTML = checkIcon + "<span>Copied</span>";
+      copy.innerHTML = checkIcon + "<span>Copied</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
       copy.classList.add("is-confirming");
       notify("Reply copied", "ok");
     } catch {
-      copy.innerHTML = copyIcon + "<span>Blocked</span>";
+      copy.innerHTML = copyIcon + "<span>Blocked</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
       notify("Clipboard blocked by the browser", "error");
     }
-    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500);
+    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500); // canon-ignore A8-SEC-08: static trusted markup, never user data
   });
   actions.appendChild(copy);
 
@@ -95,19 +95,19 @@ function attachUserActions(bubble) {
   copy.type = "button";
   copy.className = "msg-action";
   copy.dataset.action = "copy";
-  copy.innerHTML = copyIcon + "<span>Copy</span>";
+  copy.innerHTML = copyIcon + "<span>Copy</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
   copy.addEventListener("click", async () => {
     copy.classList.remove("is-confirming");
     try {
       await navigator.clipboard.writeText(bubble.textContent ?? "");
-      copy.innerHTML = checkIcon + "<span>Copied</span>";
+      copy.innerHTML = checkIcon + "<span>Copied</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
       copy.classList.add("is-confirming");
       notify("Reply copied", "ok");
     } catch {
-      copy.innerHTML = copyIcon + "<span>Blocked</span>";
+      copy.innerHTML = copyIcon + "<span>Blocked</span>"; // canon-ignore A8-SEC-08: static trusted markup, never user data
       notify("Clipboard blocked by the browser", "error");
     }
-    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500);
+    window.setTimeout(() => { copy.innerHTML = copyIcon + "<span>Copy</span>"; copy.classList.remove("is-confirming"); }, 1500); // canon-ignore A8-SEC-08: static trusted markup, never user data
   });
   actions.appendChild(copy);
 
@@ -158,7 +158,7 @@ function addToolLine(name, id, scroll = true) {
   if (typeof id === "string" && id.length > 0) el.dataset.toolId = id;
   const icon = document.createElement("span");
   icon.className = "tool-icon";
-  icon.innerHTML = TOOL_SVG; // static brand geometry, never user data
+  icon.innerHTML = TOOL_SVG; // canon-ignore A8-SEC-08: static brand geometry, never user data
   const label = document.createElement("span");
   label.className = "tool-name";
   label.textContent = name;
@@ -207,8 +207,8 @@ function compactToolArgs(tool) {
       const keys = Object.keys(parsed).slice(0, 3);
       if (keys.length > 0) return keys.map((k) => `${k}=${String(parsed[k]).slice(0, 40)}`).join(" ");
     }
-  } catch {
-    // fall through to truncation
+  } catch (error) {
+    void error; // fall through to truncation
   }
   return raw.length > 140 ? `${raw.slice(0, 140)}...` : raw;
 }
@@ -232,7 +232,7 @@ function createToolRecord(tool) {
   icon.className = "tool-icon";
   icon.style.willChange = "transform";
   const statusValue = tool.phase === "start" ? "running" : tool.ok ? "done" : "failed";
-  icon.innerHTML = toolIconSvg(statusValue);
+  icon.innerHTML = toolIconSvg(statusValue); // canon-ignore A8-SEC-08: static trusted SVG from local constant, never user data
   if (statusValue === "running") icon.dataset.status = "running";
 
   const name = document.createElement("span");
@@ -271,7 +271,7 @@ function setToolRecord(record, tool) {
   const icon = head.querySelector(".tool-icon");
   if (icon !== null) {
     icon.style.willChange = "transform";
-    icon.innerHTML = toolIconSvg(nextStatus);
+    icon.innerHTML = toolIconSvg(nextStatus); // canon-ignore A8-SEC-08: static trusted SVG from local constant, never user data
     const svg = icon.querySelector(".icon");
     if (svg) {
       svg.classList.remove("status-pop");
@@ -465,6 +465,81 @@ void loadModels();
 // refresh or a studio restart does not erase the build. The epoch guard keeps
 // a slow restore from repainting over a new chat or a freshly sent message.
 let historyEpoch = 0;
+function collectHistoryToolResults(messages) {
+  const toolResults = new Map();
+  for (const message of messages) {
+    if (message?.role !== "tool" || typeof message.toolCallId !== "string" || typeof message.content !== "string") continue;
+    toolResults.set(message.toolCallId, { content: message.content, childId: typeof message.childId === "string" ? message.childId : null });
+  }
+  return toolResults;
+}
+
+function buildHistoryExecutionEvents(messages, toolResults) {
+  const events = [];
+  let seq = 0;
+  let currentTurnId = "hist_turn_0";
+  const ts = () => new Date().toISOString();
+  for (const message of messages) {
+    if (typeof message !== "object" || message === null) continue;
+    if (message.role === "user" && typeof message.content === "string") {
+      currentTurnId = `hist_turn_${++seq}`;
+      events.push({ v:1, id:`hist_u_${seq}`, seq, ts:ts(), sessionId:activeSessionId, turnId:currentTurnId, source:"system", kind:"user.message", activityId:`hist_user_${seq}`, state:"completed", payload:{ text: message.content } });
+    }
+    if (message.role !== "assistant") continue;
+    if (typeof message.content === "string" && message.content.trim().length > 0) {
+      const aid = `hist_assistant_${++seq}`;
+      events.push({ v:1, id:`hist_ad_${seq}`, seq, ts:ts(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.delta", activityId:aid, state:"completed", payload:{ text: message.content } });
+      events.push({ v:1, id:`hist_ac_${seq}`, seq:seq+0.1, ts:ts(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.completed", activityId:aid, state:"completed", payload:{} });
+    }
+    if (!Array.isArray(message.toolCalls)) continue;
+    for (const call of message.toolCalls) {
+      if (call?.name === undefined) continue;
+      const tid = typeof call.id === "string" ? call.id : `hist_tool_${++seq}`;
+      const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
+      const ok = !!(result && !String(result.content).startsWith("Error:"));
+      events.push({ v:1, id:`hist_ts_${++seq}`, seq, ts:ts(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"tool.started", activityId:tid, state:"running", payload:{ name: call.name, arguments: typeof call.arguments === "string" ? call.arguments : "" } });
+      events.push({ v:1, id:`hist_td_${++seq}`, seq, ts:ts(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind: ok ? "tool.completed" : "tool.failed", activityId:tid, state: ok ? "completed" : "failed", payload:{ name: call.name, summary: result ? String(result.content).split("\n")[0] : "", ok } });
+    }
+  }
+  return events;
+}
+
+function appendHistoryRegenerateAction(bubble) {
+  const actions = bubble?.parentElement?.querySelector(".msg-actions");
+  if (!actions || actions.querySelector('[data-action="regenerate"]')) return;
+  const regen = document.createElement("button");
+  regen.type = "button"; regen.className = "msg-action"; regen.dataset.action = "regenerate"; regen.textContent = "Regenerate"; regen.disabled = chatRunning;
+  regen.addEventListener("click", () => { if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse(); });
+  actions.appendChild(regen);
+}
+
+function renderHistoryMessages(messages, toolResults, epoch) {
+  let rendered = 0;
+  let lastAssistantBubble = null;
+  for (const message of messages) {
+    if (message?.role !== "user" && message?.role !== "assistant") continue;
+    if (typeof message.content === "string" && message.content.length > 0) {
+      const bubble = addMessage(message.role, message.content);
+      if (message.role === "assistant") {
+        formatAssistantMessage(bubble);
+        if (bubble.textContent.trim().length === 0) { bubble.parentElement?.remove(); }
+        else { attachAssistantActions(bubble, { regenerate: false }); lastAssistantBubble = bubble; rendered++; }
+      } else rendered++;
+    }
+    if (message.role !== "assistant" || !Array.isArray(message.toolCalls)) continue;
+    for (const call of message.toolCalls) {
+      if (typeof call?.name !== "string" || !SUBAGENT_TOOL_PREFIXES.has(call.name)) continue;
+      const line = addToolLine(call.name, typeof call.id === "string" ? call.id : "", false);
+      const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
+      if (result !== undefined) setToolLine(line, call.name, !result.content.startsWith("Error:"), result.content.split("\n")[0] ?? "", subagentLogId(call.name, result.childId ?? childIdFromResult(result.content)));
+      rendered++;
+    }
+  }
+  if (epoch !== historyEpoch) return 0;
+  if (lastAssistantBubble !== null) appendHistoryRegenerateAction(lastAssistantBubble);
+  return rendered;
+}
+
 async function restoreHistory() {
   const epoch = ++historyEpoch;
   try {
@@ -473,126 +548,23 @@ async function restoreHistory() {
     const body = await res.json();
     if (epoch !== historyEpoch) return;
     if (typeof body.sessionId === "string" && body.sessionId.length > 0 && body.sessionId !== activeSessionId) {
-      // Initial load: session list may not have refreshed yet. Adopt the
-      // server's active session so we never drop valid history on a race.
       activeSessionId = body.sessionId;
       if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
     }
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const toolResults = new Map();
-    for (const message of messages) {
-      if (typeof message !== "object" || message === null) continue;
-      if (message.role !== "tool") continue;
-      if (typeof message.toolCallId !== "string" || typeof message.content !== "string") continue;
-      toolResults.set(message.toolCallId, {
-        content: message.content,
-        childId: typeof message.childId === "string" ? message.childId : null,
-      });
-    }
-    // A restored conversation is not the empty state. Without this, the
-    // welcome greeting stays over the transcript after a reload.
+    const toolResults = collectHistoryToolResults(messages);
     if (messages.length > 0) hideWelcome();
     renderPlan(body.plan ?? null);
-
-    if (typeof executionStore !== "undefined") {
-      executionStore.reset();
-      const events = [];
-      let seq = 0;
-      let currentTurnId = "hist_turn_0";
-      for (const message of messages) {
-        if (typeof message !== "object" || message === null) continue;
-        if (message.role === "user" && typeof message.content === "string") {
-          currentTurnId = `hist_turn_${++seq}`;
-          events.push({ v:1, id:`hist_u_${seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"system", kind:"user.message", activityId:`hist_user_${seq}`, state:"completed", payload:{ text: message.content } });
-        }
-        if (message.role === "assistant") {
-          if (typeof message.content === "string" && message.content.trim().length > 0) {
-            const aid = `hist_assistant_${++seq}`;
-            events.push({ v:1, id:`hist_ad_${seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.delta", activityId:aid, state:"completed", payload:{ text: message.content } });
-            events.push({ v:1, id:`hist_ac_${seq}`, seq:seq+0.1, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"assistant.message.completed", activityId:aid, state:"completed", payload:{} });
-          }
-          if (Array.isArray(message.toolCalls)) {
-            for (const call of message.toolCalls) {
-              if (typeof call !== "object" || call === null || typeof call.name !== "string") continue;
-              const tid = typeof call.id === "string" ? call.id : `hist_tool_${++seq}`;
-              const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
-              events.push({ v:1, id:`hist_ts_${++seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind:"tool.started", activityId:tid, state:"running", payload:{ name: call.name, arguments: typeof call.arguments === "string" ? call.arguments : "" } });
-              events.push({ v:1, id:`hist_td_${++seq}`, seq, ts:new Date().toISOString(), sessionId:activeSessionId, turnId:currentTurnId, source:"chat", kind: result && !String(result.content).startsWith("Error:") ? "tool.completed" : "tool.failed", activityId:tid, state: result && !String(result.content).startsWith("Error:") ? "completed" : "failed", payload:{ name: call.name, summary: result ? String(result.content).split("\n")[0] : "", ok: !!(result && !String(result.content).startsWith("Error:")) } });
-            }
-          }
-        }
-      }
-      executionStore.applyEvents(events);
-    }
-
-    if (window.STUDIO_EXECUTION_TIMELINE) {
-      requestAnimationFrame(() => scrollToLatest("auto"));
-      return;
-    }
-
+    if (typeof executionStore !== "undefined") { executionStore.reset(); executionStore.applyEvents(buildHistoryExecutionEvents(messages, toolResults)); }
+    if (window.STUDIO_EXECUTION_TIMELINE) { requestAnimationFrame(() => scrollToLatest("auto")); return; }
     messagesEl.classList.add("restoring");
     try {
-      let rendered = 0;
-      let lastAssistantBubble = null;
-      for (const message of messages) {
-        if (typeof message !== "object" || message === null) continue;
-        if (message.role !== "user" && message.role !== "assistant") continue;
-        if (typeof message.content !== "string") continue;
-        if (message.content.length > 0) {
-          const bubble = addMessage(message.role, message.content);
-          if (message.role === "assistant") {
-            formatAssistantMessage(bubble);
-            if (bubble.textContent.trim().length === 0) {
-              bubble.parentElement?.remove();
-              continue;
-            }
-            attachAssistantActions(bubble, { regenerate: false });
-            lastAssistantBubble = bubble;
-          }
-          rendered++;
-        }
-        if (message.role !== "assistant" || !Array.isArray(message.toolCalls)) continue;
-        for (const call of message.toolCalls) {
-          if (typeof call !== "object" || call === null) continue;
-          if (typeof call.name !== "string" || !SUBAGENT_TOOL_PREFIXES.has(call.name)) continue;
-          const line = addToolLine(call.name, typeof call.id === "string" ? call.id : "", false);
-          const result = typeof call.id === "string" ? toolResults.get(call.id) : undefined;
-          if (result !== undefined) {
-            const childId = result.childId ?? childIdFromResult(result.content);
-            setToolLine(
-              line,
-              call.name,
-              !result.content.startsWith("Error:"),
-              result.content.split("\n")[0] ?? "",
-              subagentLogId(call.name, childId),
-            );
-          }
-          rendered++;
-        }
-      }
-      if (epoch !== historyEpoch) return;
-      if (lastAssistantBubble !== null) {
-        const actions = lastAssistantBubble.parentElement?.querySelector(".msg-actions");
-        if (actions !== null && actions.querySelector('[data-action="regenerate"]') === null) {
-          const regen = document.createElement("button");
-          regen.type = "button";
-          regen.className = "msg-action";
-          regen.dataset.action = "regenerate";
-          regen.textContent = "Regenerate";
-          regen.disabled = chatRunning;
-          regen.addEventListener("click", () => {
-            if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-          });
-          actions.appendChild(regen);
-        }
-      }
-      if (rendered === 0) return;
-      scrollToLatest("auto");
+      if (renderHistoryMessages(messages, toolResults, epoch) > 0) scrollToLatest("auto");
     } finally {
       messagesEl.classList.remove("restoring");
     }
-  } catch {
-    // History is an enhancement: a failed read must never block the composer.
+  } catch (error) {
+    void error; // History is an enhancement: a failed read must never block the composer.
   }
 }
 void restoreHistory();

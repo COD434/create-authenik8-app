@@ -34,8 +34,8 @@ export function resolveOpenCodePath(
     try {
       statSync(candidate);
       return candidate;
-    } catch {
-      // not present: try the next known layout
+    } catch (error) {
+      void error; // not present: try the next known layout
     }
   }
   // Nothing verifiable: fall back to the bare command. A PATH-based spawn

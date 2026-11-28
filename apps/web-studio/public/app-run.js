@@ -202,464 +202,228 @@ function removeLastAssistantTurnFromUI() {
   }
 }
 
-async function executeChatRequest({ endpoint, body, key, model }) {
-  chatRunning = true;
-  chatController = new AbortController();
-  syncChatControls();
-  setWorkspaceStatus("Generating", "live");
-  closeComposerOptions();
-  historyEpoch++; // the live turn owns the transcript from here
-
+function createChatRunCtx({ endpoint, body, key, model }) {
   const timelineActive = !!window.STUDIO_EXECUTION_TIMELINE;
-  let currentAssistant = timelineActive ? null : addMessage("assistant", "");
-  if (!timelineActive && currentAssistant) {
-    currentAssistant.classList.add("thinking"); // three dots until the first token
-    currentAssistant.setAttribute("aria-busy", "true");
+  const ctx = {
+    endpoint, body, key, model, timelineActive,
+    currentAssistant: timelineActive ? null : addMessage("assistant", ""),
+    streamSource: "", streamRich: false, lastStreamRender: 0, usage: null,
+    pendingDelta: "", renderFrame: 0, lastRound: 0, sawText: false, roundHasText: false,
+    sawReasoning: false, sawReasoningThisRound: false, finished: false, outcome: "ok",
+    blockSeq: 0, msgModel: null, activeTextBlock: null, activeThinkingBlock: null,
+    reasoningBlock: null, reasoningBody: null, reasoningStartedAt: 0, reasoningTimer: 0, slowFrames: 0,
+  };
+  ctx.nextBlockId = () => "b_" + Date.now().toString(36) + "_" + (++ctx.blockSeq);
+  ctx.msgModel = timelineActive ? null : { id: ctx.currentAssistant?.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
+  ctx.attachMsgModel = () => { if (!ctx.timelineActive && ctx.msgModel && ctx.currentAssistant?.parentElement) ctx.currentAssistant.parentElement._msgModel = ctx.msgModel; };
+  ctx.attachMsgModel();
+  if (!timelineActive && ctx.currentAssistant) { ctx.currentAssistant.classList.add("thinking"); ctx.currentAssistant.setAttribute("aria-busy", "true"); }
+  return ctx;
+}
+
+function finishAssistantText(ctx) {
+  if (ctx.renderFrame !== 0) { cancelAnimationFrame(ctx.renderFrame); ctx.renderFrame = 0; }
+  if (ctx.currentAssistant === null) { ctx.pendingDelta = ""; ctx.streamSource = ""; ctx.streamRich = false; return; }
+  if (ctx.pendingDelta.length > 0) { ctx.streamSource += ctx.pendingDelta; ctx.pendingDelta = ""; autoScroll(); }
+  if (ctx.timelineActive) { ctx.activeTextBlock = null; ctx.currentAssistant = null; ctx.streamSource = ""; ctx.streamRich = false; ctx.lastStreamRender = 0; return; }
+  const wasStreaming = ctx.currentAssistant.classList.contains("streaming");
+  ctx.currentAssistant.classList.remove("thinking", "streaming");
+  if (wasStreaming) { const el = ctx.currentAssistant; el.classList.add("caret-fade"); window.setTimeout(() => el.classList.remove("caret-fade"), 120); }
+  ctx.currentAssistant.removeAttribute("aria-busy");
+  const finalSource = ctx.streamSource.length > 0 ? ctx.streamSource : ctx.currentAssistant.textContent;
+  if (ctx.activeTextBlock) { ctx.activeTextBlock.status = "done"; ctx.activeTextBlock.text = finalSource; ctx.activeTextBlock = null; }
+  if (finalSource.trim().length === 0) { if (ctx.msgModel) ctx.msgModel.status = "empty"; ctx.currentAssistant.parentElement?.remove(); }
+  else { renderRichText(ctx.currentAssistant, finalSource); ctx.currentAssistant.dataset.rich = "true"; if (ctx.currentAssistant.textContent.trim().length === 0) { ctx.currentAssistant.parentElement?.remove(); } else { if (ctx.msgModel) ctx.msgModel.status = "done"; attachAssistantActions(ctx.currentAssistant, { regenerate: true }); ctx.attachMsgModel(); } }
+  ctx.currentAssistant = null; ctx.streamSource = ""; ctx.streamRich = false; ctx.lastStreamRender = 0;
+}
+
+function startAssistantBlock(ctx) {
+  ctx.currentAssistant = ctx.timelineActive ? document.createElement("div") : addMessage("assistant", "");
+  if (!ctx.timelineActive) { ctx.currentAssistant.classList.add("thinking"); ctx.currentAssistant.setAttribute("aria-busy", "true"); if (ctx.currentAssistant.style.willChange === "") ctx.currentAssistant.style.willChange = "opacity, transform"; }
+  ctx.streamSource = ""; ctx.streamRich = false; ctx.lastStreamRender = 0;
+  ctx.msgModel = ctx.timelineActive ? null : { id: ctx.currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
+  ctx.activeTextBlock = null; ctx.activeThinkingBlock = null; ctx.attachMsgModel();
+}
+
+function reasoningLabelText(ctx, final) {
+  const seconds = Math.max(1, Math.round((Date.now() - ctx.reasoningStartedAt) / 1000));
+  return final ? "Thought for " + seconds + "s" : "Thinking · " + seconds + "s";
+}
+function updateReasoningLabel(ctx, final) {
+  if (ctx.reasoningBlock === null) return;
+  const wrap = ctx.reasoningBlock.querySelector(".reasoning-label"); if (wrap === null) return;
+  const activeKey = wrap.dataset.active === "b" ? "b" : "a"; const nextKey = activeKey === "a" ? "b" : "a";
+  const active = wrap.querySelector(".rl-" + activeKey); const nextEl = wrap.querySelector(".rl-" + nextKey);
+  if (!active || !nextEl) return;
+  const next = reasoningLabelText(ctx, final); if (active.textContent === next) return;
+  if (final) { nextEl.textContent = next; wrap.dataset.active = nextKey; nextEl.style.opacity = "1"; active.style.opacity = "0"; } else { active.textContent = next; }
+}
+function stopReasoningTimer(ctx) { if (ctx.reasoningTimer !== 0) { window.clearInterval(ctx.reasoningTimer); ctx.reasoningTimer = 0; } }
+function ensureReasoningBlock(ctx) {
+  if (ctx.reasoningBlock !== null) return;
+  ctx.reasoningStartedAt = Date.now();
+  ctx.reasoningBlock = document.createElement("div"); ctx.reasoningBlock.className = "reasoning-block streaming open";
+  const toggle = document.createElement("button"); toggle.type = "button"; toggle.className = "reasoning-toggle"; toggle.setAttribute("aria-expanded", "true");
+  toggle.innerHTML = '<svg class="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reasoning-label" data-active="a"><span class="rl rl-a">Thinking · 1s</span><span class="rl rl-b" aria-hidden="true"></span></span>'; // canon-ignore A8-SEC-08: static trusted markup, never user data
+  toggle.addEventListener("click", () => { const open = ctx.reasoningBlock.classList.toggle("open"); toggle.setAttribute("aria-expanded", String(open)); });
+  const reasoningWrap = document.createElement("div"); reasoningWrap.className = "reasoning-body";
+  ctx.reasoningBody = document.createElement("div"); ctx.reasoningBody.className = "reasoning-body-inner";
+  ctx.reasoningBody.addEventListener("scroll", () => { reasoningWrap.classList.toggle("scrolled", ctx.reasoningBody.scrollTop > 4); }, { passive: true });
+  reasoningWrap.appendChild(ctx.reasoningBody); ctx.reasoningBlock.append(toggle, reasoningWrap);
+  const row = ctx.currentAssistant?.parentElement; if (row?.parentElement === messagesEl) messagesEl.insertBefore(ctx.reasoningBlock, row); else messagesEl.appendChild(ctx.reasoningBlock);
+  stopReasoningTimer(ctx); ctx.reasoningTimer = window.setInterval(() => updateReasoningLabel(ctx, false), 1000);
+  ctx.activeThinkingBlock = { id: ctx.nextBlockId(), type: "thinking", status: "streaming", text: "" }; ctx.msgModel.blocks.push(ctx.activeThinkingBlock);
+}
+function appendReasoning(ctx, text) {
+  if (chatMode !== "think" || typeof text !== "string" || text.length === 0 || ctx.roundHasText) return;
+  ctx.sawReasoning = true; ctx.sawReasoningThisRound = true; if (ctx.timelineActive) return;
+  ensureReasoningBlock(ctx);
+  if (ctx.activeThinkingBlock) ctx.activeThinkingBlock.text += text;
+  const parts = text.split("
+");
+  for (let i = 0; i < parts.length; i++) { if (i > 0) ctx.reasoningBody.appendChild(document.createTextNode("
+")); const part = parts[i]; if (!part) continue; const chunk = document.createElement("span"); chunk.className = "reasoning-chunk"; chunk.textContent = part; ctx.reasoningBody.appendChild(chunk); }
+  ctx.reasoningBody.scrollTop = ctx.reasoningBody.scrollHeight; autoScroll();
+}
+function finishReasoning(ctx) {
+  if (ctx.timelineActive) { ctx.activeThinkingBlock = null; return; }
+  if (ctx.reasoningBlock === null) return;
+  stopReasoningTimer(ctx); updateReasoningLabel(ctx, true); ctx.reasoningBlock.classList.remove("streaming", "open");
+  const toggle = ctx.reasoningBlock.querySelector(".reasoning-toggle"); if (toggle) toggle.setAttribute("aria-expanded", "false");
+  if (ctx.activeThinkingBlock) { ctx.activeThinkingBlock.status = "done"; ctx.activeThinkingBlock.durationMs = Date.now() - ctx.reasoningStartedAt; }
+  ctx.activeThinkingBlock = null; ctx.reasoningBlock = null; ctx.reasoningBody = null;
+}
+
+function flushDelta(ctx) {
+  ctx.renderFrame = 0; if (ctx.pendingDelta.length === 0 || ctx.currentAssistant === null) return;
+  ctx.streamSource += ctx.pendingDelta;
+  if (!ctx.timelineActive) {
+    if (ctx.activeTextBlock === null) { ctx.activeTextBlock = { id: ctx.nextBlockId(), type: "text", status: "streaming", text: "" }; if (ctx.msgModel) ctx.msgModel.blocks.push(ctx.activeTextBlock); }
+    ctx.activeTextBlock.text = ctx.streamSource;
+    if (ctx.currentAssistant.classList.contains("thinking")) { ctx.currentAssistant.classList.remove("thinking"); ctx.currentAssistant.classList.add("streaming"); }
   }
-  announceStatus("Response started");
-  let streamSource = "";
-  let lastStreamRender = 0;
-  let streamRich = false;
-  let usage = null;
-  let pendingDelta = "";
-  let renderFrame = 0;
-  let lastRound = 0;
-  let sawText = false;
-  let roundHasText = false;
-  let sawReasoningThisRound = false;
-  let finished = false;
-  let outcome = "ok";
-  let blockSeq = 0;
-  const nextBlockId = () => `b_${Date.now().toString(36)}_${++blockSeq}`;
-  let msgModel = timelineActive ? null : { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
-  let activeTextBlock = null;
-  let activeThinkingBlock = null;
-  const attachMsgModel = () => {
-    if (timelineActive || msgModel === null) return;
-    const row = currentAssistant?.parentElement;
-    if (row) row._msgModel = msgModel;
-  };
-  attachMsgModel();
+  ctx.pendingDelta = "";
+  if (ctx.timelineActive) { autoScroll(); return; }
+  const t0 = performance.now(); renderRichText(ctx.currentAssistant, ctx.streamSource); ctx.currentAssistant.dataset.rich = "true"; ctx.streamRich = true; autoScroll();
+  const dt = performance.now() - t0; if (dt > 12) ctx.slowFrames++; else ctx.slowFrames = Math.max(0, ctx.slowFrames - 1);
+  messagesEl.classList.toggle("perf-degraded", ctx.slowFrames >= 3);
+  if (typeof window.studioPerf === "object" && window.studioPerf !== null) window.studioPerf.record(dt);
+}
+function queueDelta(ctx, delta) {
+  ctx.sawText = true; if (ctx.currentAssistant === null) startAssistantBlock(ctx);
+  if (!ctx.timelineActive && !ctx.roundHasText && chatMode === "think" && ctx.sawReasoningThisRound) { const row = ctx.currentAssistant.parentElement; if (row?.previousElementSibling?.classList.contains("reasoning-block")) row.dataset.answerLabel = "true"; }
+  ctx.roundHasText = true;
+  if (!ctx.timelineActive && ctx.currentAssistant.classList.contains("thinking")) { ctx.currentAssistant.textContent = ""; ctx.currentAssistant.classList.remove("thinking"); ctx.currentAssistant.classList.add("streaming"); }
+  ctx.pendingDelta += delta; if (ctx.renderFrame === 0) ctx.renderFrame = requestAnimationFrame(() => flushDelta(ctx));
+}
 
-  const finishCurrentAssistant = () => {
-    if (renderFrame !== 0) {
-      cancelAnimationFrame(renderFrame);
-      renderFrame = 0;
-    }
-    if (currentAssistant === null) {
-      pendingDelta = "";
-      streamSource = "";
-      streamRich = false;
-      return;
-    }
-    if (pendingDelta.length > 0) {
-      streamSource += pendingDelta;
-      pendingDelta = "";
-      autoScroll();
-    }
-    if (timelineActive) {
-      activeTextBlock = null;
-      currentAssistant = null;
-      streamSource = "";
-      streamRich = false;
-      lastStreamRender = 0;
-      return;
-    }
-    const wasStreaming = currentAssistant.classList.contains("streaming");
-    currentAssistant.classList.remove("thinking", "streaming");
-    if (wasStreaming) {
-      const el = currentAssistant;
-      el.classList.add("caret-fade");
-      window.setTimeout(() => el.classList.remove("caret-fade"), 120);
-    }
-    currentAssistant.removeAttribute("aria-busy");
-    const finalSource = streamSource.length > 0 ? streamSource : currentAssistant.textContent;
-    if (activeTextBlock) { activeTextBlock.status = "done"; activeTextBlock.text = finalSource; activeTextBlock = null; }
-    if (finalSource.trim().length === 0) {
-      if (msgModel) msgModel.status = "empty";
-      currentAssistant.parentElement?.remove();
-    } else {
-      renderRichText(currentAssistant, finalSource);
-      currentAssistant.dataset.rich = "true";
-      if (currentAssistant.textContent.trim().length === 0) {
-        if (msgModel) msgModel.status = "empty";
-        currentAssistant.parentElement?.remove();
-      } else {
-        if (msgModel) msgModel.status = "done";
-        attachAssistantActions(currentAssistant, { regenerate: true });
-        attachMsgModel();
+function handleToolStartEvent(ev, ctx) {
+  finishAssistantText(ctx);
+  if (!window.STUDIO_EXECUTION_TIMELINE) { const record = createToolRecord(ev.tool); (document.getElementById("messages") ?? document.getElementById("tools"))?.appendChild(record); const toolsEl = document.getElementById("tools"); if (toolsEl) toolsEl.hidden = true; }
+  if (ctx.msgModel) { ctx.msgModel.blocks.push({ id: ev.tool.id || ctx.nextBlockId(), type: "tool_use", status: "running", name: ev.tool.name, arguments: ev.tool.arguments ?? "" }); ctx.attachMsgModel(); }
+}
+function handleToolEndEvent(ev, ctx) {
+  if (ctx.msgModel) { const toolBlock = ctx.msgModel.blocks.find((b) => b.type === "tool_use" && b.id === ev.tool.id); if (toolBlock) { toolBlock.status = ev.tool.ok ? "done" : "failed"; toolBlock.summary = ev.tool.summary ?? ""; } ctx.attachMsgModel(); }
+  if (ctx.timelineActive) return;
+  const toolLine = document.querySelector('[data-tool-id="' + ev.tool.id + '"]'); if (toolLine === null) return;
+  setToolRecord(toolLine, ev.tool);
+  if (ev.tool.patches && ev.tool.patches.length > 0) { const patchesSection = document.createElement("div"); patchesSection.className = "diff-view"; renderDiffs(patchesSection, ev.tool.patches); toolLine.querySelector(".tool-body").appendChild(patchesSection); }
+  if (typeof ev.tool.childId === "string") { const transcriptId = subagentLogId(ev.tool.name, ev.tool.childId); if (transcriptId !== null) { const link = document.createElement("button"); link.type = "button"; link.className = "tool-transcript-link"; link.textContent = "View transcript"; link.title = "Open transcript " + transcriptId; link.addEventListener("click", () => openSubagentTranscriptFromTool(transcriptId, link)); toolLine.querySelector(".tool-body").appendChild(link); } }
+}
+function handleErrorEvent(ev, ctx) {
+  finishAssistantText(ctx); finishReasoning(ctx); ctx.outcome = "failed"; ctx.finished = true;
+  const hasStudioError = Array.isArray(ev._payload?.studio) && ev._payload.studio.some((e) => e && e.kind === "error");
+  if (!ctx.timelineActive || !hasStudioError) addMessage("system-error", ev.message);
+}
+function handleChatRunEvent(ev, ctx) {
+  if (ev.type === "round") { if (ev.round <= ctx.lastRound || ev.round > 1) { finishReasoning(ctx); finishAssistantText(ctx); startAssistantBlock(ctx); ctx.roundHasText = false; ctx.sawReasoningThisRound = false; } ctx.lastRound = ev.round; }
+  else if (ev.type === "reasoning") appendReasoning(ctx, ev.text);
+  else if (ev.type === "delta") { finishReasoning(ctx); queueDelta(ctx, ev.text); }
+  else if (ev.type === "tool_start") handleToolStartEvent(ev, ctx);
+  else if (ev.type === "tool_end") handleToolEndEvent(ev, ctx);
+  else if (ev.type === "plan") renderPlan(ev.plan);
+  else if (ev.type === "usage") ctx.usage = ev.usage;
+  else if (ev.type === "done") { ctx.finished = true; finishAssistantText(ctx); usageLine.textContent = ctx.usage ? ctx.model + " · " + ctx.usage.totalTokens + " tokens · " + (ctx.usage.costUsd === null ? "free tier" : "$" + ctx.usage.costUsd.toFixed(6)) : ctx.model; }
+  else if (ev.type === "error") handleErrorEvent(ev, ctx);
+  else if (ev.type === "note") { finishAssistantText(ctx); if (!window.STUDIO_EXECUTION_TIMELINE) addMessage("system", ev.text); }
+  else if (ev.type === "compaction") { finishAssistantText(ctx); if (!window.STUDIO_EXECUTION_TIMELINE) addMessage("system", "Context compacted: " + ev.pruned + " older tool result" + (ev.pruned === 1 ? "" : "s") + " summarized to stay within the model budget."); }
+}
+function parseSsePayloadEvents(payload) {
+  const events = [];
+  if (typeof payload.round === "number") events.push({ type: "round", round: payload.round });
+  if (payload.reasoning !== undefined) events.push({ type: "reasoning", text: payload.reasoning });
+  if (payload.delta !== undefined) events.push({ type: "delta", text: payload.delta });
+  if (payload.tool !== undefined) events.push({ type: payload.tool.phase === "start" ? "tool_start" : "tool_end", tool: payload.tool });
+  if (payload.plan !== undefined) events.push({ type: "plan", plan: payload.plan });
+  if (payload.usage !== undefined) events.push({ type: "usage", usage: payload.usage });
+  if (payload.done === true) events.push({ type: "done" });
+  if (payload.error !== undefined) events.push({ type: "error", message: typeof payload.error === "string" ? payload.error : "Generation failed.", _payload: payload });
+  if (payload.note !== undefined) events.push({ type: "note", text: payload.note });
+  if (payload.compaction !== undefined) events.push({ type: "compaction", pruned: payload.compaction.pruned });
+  return events;
+}
+async function readChatSseStream(res, ctx) {
+  const reader = res.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read(); if (done) break;
+    buffer += decoder.decode(value, { stream: true }); let boundary;
+    while ((boundary = buffer.indexOf("
+
+")) !== -1) {
+      const rawEvent = buffer.slice(0, boundary); buffer = buffer.slice(boundary + 2);
+      for (const line of rawEvent.split("
+")) {
+        if (!line.startsWith("data: ")) continue;
+        const payload = JSON.parse(line.slice(6));
+        if (Array.isArray(payload.studio) && typeof executionStore !== "undefined") executionStore.applyEvents(payload.studio);
+        for (const ev of parseSsePayloadEvents(payload)) handleChatRunEvent(ev, ctx);
       }
-    }
-    currentAssistant = null;
-    streamSource = "";
-    streamRich = false;
-    lastStreamRender = 0;
-  };
-
-  const startAssistant = () => {
-    currentAssistant = timelineActive ? document.createElement("div") : addMessage("assistant", "");
-    if (!timelineActive) {
-      currentAssistant.classList.add("thinking");
-      currentAssistant.setAttribute("aria-busy", "true");
-      if (currentAssistant.style.willChange === "") currentAssistant.style.willChange = "opacity, transform";
-    }
-    streamSource = "";
-    streamRich = false;
-    lastStreamRender = 0;
-    msgModel = timelineActive ? null : { id: currentAssistant.parentElement?.dataset.msgId ?? nextMsgId(), role: "assistant", status: "streaming", blocks: [] };
-    activeTextBlock = null;
-    activeThinkingBlock = null;
-    attachMsgModel();
-  };
-
-  // Collapsible "Thinking" block: reasoning streams in here, collapsed by
-  // default, and is finalized (streaming dot removed) when the answer starts.
-  let reasoningBlock = null;
-  let reasoningBody = null;
-  let reasoningStartedAt = 0;
-  let reasoningTimer = 0;
-  let sawReasoning = false;
-  const reasoningLabel = () => {
-    const seconds = Math.max(1, Math.round((Date.now() - reasoningStartedAt) / 1000));
-    return `Thought for ${seconds}s`;
-  };
-  const updateReasoningLabel = (final = false) => {
-    if (reasoningBlock === null) return;
-    const wrap = reasoningBlock.querySelector(".reasoning-label");
-    if (wrap === null) return;
-    const activeKey = wrap.dataset.active === "b" ? "b" : "a";
-    const nextKey = activeKey === "a" ? "b" : "a";
-    const active = wrap.querySelector(`.rl-${activeKey}`);
-    const nextEl = wrap.querySelector(`.rl-${nextKey}`);
-    if (!active || !nextEl) return;
-    const next = final ? reasoningLabel() : `Thinking · ${Math.max(1, Math.round((Date.now() - reasoningStartedAt) / 1000))}s`;
-    if (active.textContent === next) return;
-    if (final) {
-      nextEl.textContent = next;
-      wrap.dataset.active = nextKey;
-      nextEl.style.opacity = "1";
-      active.style.opacity = "0";
-    } else {
-      active.textContent = next;
-    }
-  };
-  const stopReasoningTimer = () => {
-    if (reasoningTimer !== 0) {
-      window.clearInterval(reasoningTimer);
-      reasoningTimer = 0;
-    }
-  };
-  const appendReasoning = (text) => {
-    if (chatMode !== "think" || typeof text !== "string" || text.length === 0 || roundHasText) return;
-    sawReasoning = true;
-    sawReasoningThisRound = true;
-    if (timelineActive) return; // store already receives reasoning events via payload.studio
-    if (reasoningBlock === null) {
-      reasoningStartedAt = Date.now();
-      reasoningBlock = document.createElement("div");
-      reasoningBlock.className = "reasoning-block streaming open";
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "reasoning-toggle";
-      toggle.setAttribute("aria-expanded", "true");
-      toggle.innerHTML = '<svg class="icon chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="reasoning-label" data-active="a"><span class="rl rl-a">Thinking · 1s</span><span class="rl rl-b" aria-hidden="true"></span></span>';
-      toggle.addEventListener("click", () => {
-        const open = reasoningBlock.classList.toggle("open");
-        toggle.setAttribute("aria-expanded", String(open));
-      });
-      const reasoningWrap = document.createElement("div");
-      reasoningWrap.className = "reasoning-body";
-      reasoningBody = document.createElement("div");
-      reasoningBody.className = "reasoning-body-inner";
-      reasoningBody.addEventListener("scroll", () => {
-        reasoningWrap.classList.toggle("scrolled", reasoningBody.scrollTop > 4);
-      }, { passive: true });
-      reasoningWrap.appendChild(reasoningBody);
-      reasoningBlock.append(toggle, reasoningWrap);
-      const row = currentAssistant?.parentElement;
-      if (row?.parentElement === messagesEl) messagesEl.insertBefore(reasoningBlock, row);
-      else messagesEl.appendChild(reasoningBlock);
-      stopReasoningTimer();
-      reasoningTimer = window.setInterval(() => updateReasoningLabel(false), 1000);
-      activeThinkingBlock = { id: nextBlockId(), type: "thinking", status: "streaming", text: "" };
-      msgModel.blocks.push(activeThinkingBlock);
-    }
-    if (activeThinkingBlock) activeThinkingBlock.text += text;
-    const parts = text.split("\n");
-    for (let i = 0; i < parts.length; i++) {
-      if (i > 0) reasoningBody.appendChild(document.createTextNode("\n"));
-      const part = parts[i];
-      if (!part) continue;
-      const chunk = document.createElement("span");
-      chunk.className = "reasoning-chunk";
-      chunk.textContent = part;
-      reasoningBody.appendChild(chunk);
-    }
-    reasoningBody.scrollTop = reasoningBody.scrollHeight;
-    autoScroll();
-  };
-  const finishReasoning = () => {
-    if (timelineActive) { activeThinkingBlock = null; return; }
-    if (reasoningBlock !== null) {
-      stopReasoningTimer();
-      updateReasoningLabel(true);
-      reasoningBlock.classList.remove("streaming", "open");
-      const toggle = reasoningBlock.querySelector(".reasoning-toggle");
-      if (toggle) toggle.setAttribute("aria-expanded", "false");
-      if (activeThinkingBlock) { activeThinkingBlock.status = "done"; activeThinkingBlock.durationMs = Date.now() - reasoningStartedAt; }
-      activeThinkingBlock = null;
-      reasoningBlock = null;
-      reasoningBody = null;
-    }
-  };
-
-  let slowFrames = 0;
-  const perfTimeline = [];
-  const flushDelta = () => {
-    renderFrame = 0;
-    if (pendingDelta.length === 0 || currentAssistant === null) return;
-    streamSource += pendingDelta;
-    if (!timelineActive) {
-      if (activeTextBlock === null) {
-        activeTextBlock = { id: nextBlockId(), type: "text", status: "streaming", text: "" };
-        if (msgModel) msgModel.blocks.push(activeTextBlock);
-      }
-      activeTextBlock.text = streamSource;
-      if (currentAssistant.classList.contains("thinking")) {
-        currentAssistant.classList.remove("thinking");
-        currentAssistant.classList.add("streaming");
-      }
-    }
-    pendingDelta = "";
-    if (timelineActive) {
-      autoScroll();
-      return;
-    }
-    const t0 = performance.now();
-    renderRichText(currentAssistant, streamSource);
-    currentAssistant.dataset.rich = "true";
-    streamRich = true;
-    autoScroll();
-    const dt = performance.now() - t0;
-    if (dt > 12) slowFrames++; else slowFrames = Math.max(0, slowFrames - 1);
-    messagesEl.classList.toggle("perf-degraded", slowFrames >= 3);
-    if (typeof window.studioPerf === "object" && window.studioPerf !== null) window.studioPerf.record(dt);
-  };
-
-  const queueDelta = (delta) => {
-    sawText = true;
-    if (currentAssistant === null) startAssistant();
-    if (!timelineActive && !roundHasText && chatMode === "think" && sawReasoningThisRound) {
-      // Small distinction between reasoning and the answer, mirroring trace order.
-      const row = currentAssistant.parentElement;
-      if (row?.previousElementSibling?.classList.contains("reasoning-block")) {
-        row.dataset.answerLabel = "true";
-      }
-    }
-    roundHasText = true;
-    if (!timelineActive && currentAssistant.classList.contains("thinking")) {
-      currentAssistant.textContent = "";
-      currentAssistant.classList.remove("thinking");
-      currentAssistant.classList.add("streaming");
-    }
-    pendingDelta += delta;
-    if (renderFrame === 0) renderFrame = requestAnimationFrame(flushDelta);
-  };
-
-  try {
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json", "X-OpenRouter-Key": key },
-      body: JSON.stringify(body),
-      signal: chatController.signal,
-    });
-    if (!res.ok) {
-      const resBody = await res.json().catch(() => ({ error: res.statusText }));
-      throw new Error(resBody.error ?? `HTTP ${res.status}`);
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      let boundary;
-      while ((boundary = buffer.indexOf("\n\n")) !== -1) {
-        const rawEvent = buffer.slice(0, boundary);
-        buffer = buffer.slice(boundary + 2);
-        for (const line of rawEvent.split("\n")) {
-          if (!line.startsWith("data: ")) continue;
-          const payload = JSON.parse(line.slice(6));
-          if (Array.isArray(payload.studio) && typeof executionStore !== "undefined") {
-            executionStore.applyEvents(payload.studio);
-          }
-          const events = [];
-          if (typeof payload.round === "number") events.push({ type: "round", round: payload.round });
-          if (payload.reasoning !== undefined) events.push({ type: "reasoning", text: payload.reasoning });
-          if (payload.delta !== undefined) events.push({ type: "delta", text: payload.delta });
-          if (payload.tool !== undefined) events.push({ type: payload.tool.phase === "start" ? "tool_start" : "tool_end", tool: payload.tool });
-          if (payload.plan !== undefined) events.push({ type: "plan", plan: payload.plan });
-          if (payload.usage !== undefined) events.push({ type: "usage", usage: payload.usage });
-          if (payload.done === true) events.push({ type: "done" });
-          if (payload.error !== undefined) events.push({ type: "error", message: typeof payload.error === "string" ? payload.error : "Generation failed." });
-          if (payload.note !== undefined) events.push({ type: "note", text: payload.note });
-          if (payload.compaction !== undefined) events.push({ type: "compaction", pruned: payload.compaction.pruned });
-
-          for (const ev of events) {
-            if (ev.type === "round") {
-              // A fresh model round gets its own assistant block, so prose that
-              // follows tool output never backfills above the tool line. A retry
-              // can restart at round 1, which also starts a fresh block.
-              if (ev.round <= lastRound || ev.round > 1) {
-                finishReasoning();
-                finishCurrentAssistant();
-                startAssistant();
-                roundHasText = false;
-                sawReasoningThisRound = false;
-              }
-              lastRound = ev.round;
-            } else if (ev.type === "reasoning") {
-              appendReasoning(ev.text);
-            } else if (ev.type === "delta") {
-              finishReasoning();
-              queueDelta(ev.text);
-            } else if (ev.type === "tool_start") {
-              finishCurrentAssistant();
-              if (!window.STUDIO_EXECUTION_TIMELINE) {
-                const record = createToolRecord(ev.tool);
-                (document.getElementById("messages") ?? document.getElementById("tools"))?.appendChild(record);
-                const toolsEl = document.getElementById("tools");
-                if (toolsEl) toolsEl.hidden = true;
-              }
-              if (msgModel) {
-                msgModel.blocks.push({ id: ev.tool.id || nextBlockId(), type: "tool_use", status: "running", name: ev.tool.name, arguments: ev.tool.arguments ?? "" });
-                attachMsgModel();
-              }
-            } else if (ev.type === "tool_end") {
-              if (msgModel) {
-                const toolBlock = msgModel.blocks.find((b) => b.type === "tool_use" && b.id === ev.tool.id);
-                if (toolBlock) { toolBlock.status = ev.tool.ok ? "done" : "failed"; toolBlock.summary = ev.tool.summary ?? ""; }
-                attachMsgModel();
-              }
-              if (!timelineActive) {
-                const toolLine = document.querySelector(`[data-tool-id="${ev.tool.id}"]`);
-                if (toolLine !== null) {
-                  setToolRecord(toolLine, ev.tool);
-                  if (ev.tool.patches && ev.tool.patches.length > 0) {
-                    const patchesSection = document.createElement("div");
-                    patchesSection.className = "diff-view";
-                    renderDiffs(patchesSection, ev.tool.patches);
-                    toolLine.querySelector(".tool-body").appendChild(patchesSection);
-                  }
-                  if (typeof ev.tool.childId === "string") {
-                    const transcriptId = subagentLogId(ev.tool.name, ev.tool.childId);
-                    if (transcriptId !== null) {
-                      const link = document.createElement("button");
-                      link.type = "button";
-                      link.className = "tool-transcript-link";
-                      link.textContent = "View transcript";
-                      link.title = `Open transcript ${transcriptId}`;
-                      link.addEventListener("click", () => openSubagentTranscriptFromTool(transcriptId, link));
-                      toolLine.querySelector(".tool-body").appendChild(link);
-                    }
-                  }
-                }
-              }
-            } else if (ev.type === "plan") {
-              renderPlan(ev.plan);
-            } else if (ev.type === "usage") {
-              usage = ev.usage;
-            } else if (ev.type === "done") {
-              finished = true;
-              finishCurrentAssistant();
-              usageLine.textContent = usage
-                ? `${model} · ${usage.totalTokens} tokens · ${usage.costUsd === null ? "free tier" : `$${usage.costUsd.toFixed(6)}`}`
-                : model;
-            } else if (ev.type === "error") {
-              finishCurrentAssistant();
-              finishReasoning();
-              outcome = "failed";
-              finished = true;
-              const hasStudioError = Array.isArray(payload.studio) && payload.studio.some((e) => e && e.kind === "error");
-              if (!timelineActive || !hasStudioError) addMessage("system-error", ev.message);
-            } else if (ev.type === "note") {
-              finishCurrentAssistant();
-              if (!window.STUDIO_EXECUTION_TIMELINE) addMessage("system", ev.text);
-            } else if (ev.type === "compaction") {
-              finishCurrentAssistant();
-              if (!window.STUDIO_EXECUTION_TIMELINE) addMessage("system", `Context compacted: ${ev.pruned} older tool result${ev.pruned === 1 ? "" : "s"} summarized to stay within the model budget.`);
-            }
-          }
-        }
-      }
-    }
-
-    if (!finished) finishCurrentAssistant();
-    finishReasoning();
-    if (!finished && typeof executionStore !== "undefined") {
-      // A dropped stream must not leave a card looking live forever.
-      executionStore.settleRunning("cancelled");
-    }
-    if (!sawText && !sawReasoning) {
-      if (!timelineActive) {
-        const empty = addMessage("assistant", "(empty response)");
-        attachAssistantActions(empty, { regenerate: true });
-      }
-    } else if (!finished && outcome === "ok") {
-      addMessage("system", "Response ended before completion. You can regenerate to try again.");
-    }
-  } catch (error) {
-    finishCurrentAssistant();
-    finishReasoning();
-    if (error instanceof Error && error.name === "AbortError") {
-      outcome = "stopped";
-      if (msgModel) { msgModel.status = "stopped"; attachMsgModel(); }
-      if (typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
-      const stopped = addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");
-      if (!timelineActive) {
-        const retry = document.createElement("button");
-        retry.type = "button";
-        retry.className = "msg-inline-action";
-        retry.dataset.action = "retry";
-        retry.textContent = "Regenerate";
-        retry.addEventListener("click", () => {
-          if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse();
-        });
-        stopped.appendChild(document.createTextNode(" "));
-        stopped.appendChild(retry);
-      }
-    } else {
-      outcome = "failed";
-      if (msgModel) { msgModel.status = "failed"; attachMsgModel(); }
-      if (typeof executionStore !== "undefined") executionStore.settleRunning("failed");
-      addMessage("system-error", error.message);
-    }
-  } finally {
-    if (renderFrame !== 0) {
-      cancelAnimationFrame(renderFrame);
-      renderFrame = 0;
-    }
-    chatRunning = false;
-    chatController = null;
-    messagesEl.classList.remove("perf-degraded");
-    syncChatControls();
-    if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
-    promptEl.focus();
-    if (outcome === "stopped") {
-      setWorkspaceStatus("Stopped", "warn");
-      announceStatus("Response stopped");
-    } else if (outcome === "failed") {
-      setWorkspaceStatus("Generation failed", "error");
-      announceStatus("Response failed");
-    } else {
-      refreshIdleStatus();
-      announceStatus("Response finished");
     }
   }
 }
+function finalizeChatRun(ctx, error) {
+  finishAssistantText(ctx); finishReasoning(ctx);
+  if (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      ctx.outcome = "stopped"; if (ctx.msgModel) { ctx.msgModel.status = "stopped"; ctx.attachMsgModel(); }
+      if (typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
+      const stopped = addMessage("system", "Generation stopped. The conversation is saved up to the last received token.");
+      if (!ctx.timelineActive) { const retry = document.createElement("button"); retry.type = "button"; retry.className = "msg-inline-action"; retry.dataset.action = "retry"; retry.textContent = "Regenerate"; retry.addEventListener("click", () => { if (typeof window.regenerateLastResponse === "function") window.regenerateLastResponse(); }); stopped.appendChild(document.createTextNode(" ")); stopped.appendChild(retry); }
+    } else {
+      ctx.outcome = "failed"; if (ctx.msgModel) { ctx.msgModel.status = "failed"; ctx.attachMsgModel(); }
+      if (typeof executionStore !== "undefined") executionStore.settleRunning("failed");
+      addMessage("system-error", error.message);
+    }
+    return;
+  }
+  if (!ctx.finished && typeof executionStore !== "undefined") executionStore.settleRunning("cancelled");
+  if (!ctx.sawText && !ctx.sawReasoning) { if (!ctx.timelineActive) { const empty = addMessage("assistant", "(empty response)"); attachAssistantActions(empty, { regenerate: true }); } }
+  else if (!ctx.finished && ctx.outcome === "ok") addMessage("system", "Response ended before completion. You can regenerate to try again.");
+}
+
+async function executeChatRequest({ endpoint, body, key, model }) {
+  chatRunning = true; chatController = new AbortController(); syncChatControls(); setWorkspaceStatus("Generating", "live");
+  closeComposerOptions(); historyEpoch++;
+  const ctx = createChatRunCtx({ endpoint, body, key, model });
+  announceStatus("Response started");
+  try {
+    const res = await fetch(endpoint, { method: "POST", headers: { "content-type": "application/json", "X-OpenRouter-Key": key }, body: JSON.stringify(body), signal: chatController.signal });
+    if (!res.ok) { const resBody = await res.json().catch(() => ({ error: res.statusText })); throw new Error(resBody.error ?? "HTTP " + res.status); }
+    await readChatSseStream(res, ctx);
+    finalizeChatRun(ctx, null);
+  } catch (error) {
+    finalizeChatRun(ctx, error);
+  } finally {
+    if (ctx.renderFrame !== 0) { cancelAnimationFrame(ctx.renderFrame); ctx.renderFrame = 0; }
+    chatRunning = false; chatController = null; messagesEl.classList.remove("perf-degraded"); syncChatControls();
+    if (typeof window.refreshSessionList === "function") void window.refreshSessionList();
+    promptEl.focus();
+    if (ctx.outcome === "stopped") { setWorkspaceStatus("Stopped", "warn"); announceStatus("Response stopped"); }
+    else if (ctx.outcome === "failed") { setWorkspaceStatus("Generation failed", "error"); announceStatus("Response failed"); }
+    else { refreshIdleStatus(); announceStatus("Response finished"); }
+  }
+}
+
 
 composer.addEventListener("submit", async (event) => {
   event.preventDefault();

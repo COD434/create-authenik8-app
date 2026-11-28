@@ -543,3 +543,19 @@ describe("chat execution protocol", () => {
   });
 });
 
+describe("presentation guidance", () => {
+  it("instructs the model to structure answers for the presentation engine", async () => {
+    state.script = [textRound];
+
+    const res = await chat("how should I format this?");
+    await res.text();
+
+    const system = capturedRequests[0]!.messages.find((message) => message.role === "system");
+    expect(system?.content).toContain("Answer style: answer first");
+    expect(system?.content).toContain("bold lead-ins");
+    expect(system?.content).toContain("pipe tables");
+    expect(system?.content).toContain("Sources section");
+    expect(system?.content).toContain("Do not emit raw HTML.");
+  });
+});
+

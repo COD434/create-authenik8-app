@@ -101,8 +101,8 @@ async function presentPaths(root: string): Promise<string[]> {
     try {
       await stat(path.join(root, relative));
       present.push(relative);
-    } catch {
-      // Absent is the common case; only presence is reported.
+    } catch (error) {
+      void error; // Absent is the common case; only presence is reported.
     }
   }
   return present;

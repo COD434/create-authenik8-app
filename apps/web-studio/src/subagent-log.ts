@@ -106,8 +106,8 @@ function projectToolArguments(call: ToolCall): string {
           );
         }
       }
-    } catch {
-      // Fall through to the generic cap.
+    } catch (error) {
+      void error; // Fall through to the generic cap.
     }
   }
   return capArgumentText(call.arguments);

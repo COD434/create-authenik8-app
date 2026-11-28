@@ -106,16 +106,16 @@ function killTree(pid: number): void {
     collect(pid);
     try {
       spawnSync("taskkill", ["/F", "/T", "/PID", String(pid)], { stdio: "ignore", windowsHide: true });
-    } catch {
-      // Best effort; the sweep below still runs.
+    } catch (error) {
+      void error; // Best effort; the sweep below still runs.
     }
     const alive = new Set(windowsProcessTable().map((row) => row.pid));
     for (const straggler of descendants) {
       if (!alive.has(straggler)) continue;
       try {
         spawnSync("taskkill", ["/F", "/PID", String(straggler)], { stdio: "ignore", windowsHide: true });
-      } catch {
-        // Already dead or already gone.
+      } catch (error) {
+        void error; // Already dead or already gone.
       }
     }
   }
@@ -254,8 +254,8 @@ export function createRunner(handlers: RunnerHandlers): Runner {
         killTree(state.child.pid);
         try {
           state.child.kill();
-        } catch {
-          // Already dead.
+        } catch (error) {
+          void error; // Already dead.
         }
       }
     },

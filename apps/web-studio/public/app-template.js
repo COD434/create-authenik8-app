@@ -144,13 +144,26 @@ aiIntegrationOverlay.addEventListener("mousedown", (event) => {
 aiPatternInputs.forEach((input) => input.addEventListener("change", syncAiIntegrationFields));
 aiIntegrationForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  aiIntegrationError.hidden = true;
+  aiIntegrationError.textContent = "";
+  if (typeof chatRunning !== "undefined" && chatRunning) {
+    aiIntegrationError.textContent = "Wait for the current response to finish, or stop it before planning an AI capability.";
+    aiIntegrationError.hidden = false;
+    document.getElementById("ai-integration-start")?.focus();
+    return;
+  }
   const pattern = aiPattern();
   const goal = aiGoal.value.trim();
   const data = aiDataInput.value.trim();
   const actions = aiActionsInput.value.trim();
-  if (goal === "" || (pattern === "knowledge" && data === "") || (pattern === "actions" && actions === "")) {
+  const firstInvalid = goal === "" ? aiGoal
+    : (pattern === "knowledge" && data === "") ? aiDataInput
+    : (pattern === "actions" && actions === "") ? aiActionsInput
+    : null;
+  if (firstInvalid !== null) {
     aiIntegrationError.textContent = "Add the user task and the required knowledge source or connected action to continue.";
     aiIntegrationError.hidden = false;
+    firstInvalid.focus();
     return;
   }
 
