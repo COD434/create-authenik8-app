@@ -239,11 +239,16 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .assistant-card { max-width: 100%; padding: 12px; border: 1px solid #2e2820; border-radius: 7px; background: #181410; }
 .assistant-label { display: flex; align-items: center; gap: 6px; color: #e8a050; font-size: 8px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
 .assistant-dot { width: 6px; height: 6px; border-radius: 50%; background: #e8a050; }
-.assistant-card p { margin: 7px 0 10px; color: #b8ac9c; font-size: 9px; line-height: 1.5; }
+.assistant-card p, .assistant-lead { margin: 7px 0 10px; color: #b8ac9c; font-size: 9px; line-height: 1.5; }
+.timeline-tool { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid #2e2820; border-radius: 6px; background: #15120e; color: #b8ac9c; font-size: 8px; }
+.timeline-tool-icon { display: grid; width: 14px; height: 14px; place-items: center; border-radius: 50%; background: rgba(232, 160, 80, 0.16); color: #e8a050; font-size: 8px; font-weight: 700; flex: 0 0 auto; }
+.timeline-tool-name { color: #e0d8cc; font-family: var(--ember-font-mono); font-size: 7px; }
+.timeline-tool-path { color: #8a8070; font-family: var(--ember-font-mono); font-size: 7px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .identity-row { display: flex; min-height: 31px; align-items: center; gap: 8px; border-top: 1px solid #2e2820; color: #e0d8cc; font-size: 8px; }
 .identity-row > span:first-child { color: #8a8070; font-family: var(--ember-font-mono); font-size: 7px; }
 .identity-row b { flex: 1; font-weight: 550; }
 .row-check { color: #e8a050; font-size: 11px; }
+.assistant-note { margin-top: 10px; padding-top: 9px; border-top: 1px solid #2e2820; color: #9a8e7e; font-size: 8px; line-height: 1.5; }
 .studio-composer { display: flex; min-height: 35px; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding: 0 8px 0 10px; border: 1px solid #3a3228; border-radius: 5px; color: #8a8070; font-size: 8px; }
 .composer-send { display: grid; width: 20px; height: 20px; place-items: center; border-radius: 4px; background: var(--ember-amber); color: #1a1000; font-size: 12px; font-weight: 700; }
 .stage-foot { min-height: 27px; padding: 7px 2px 0; }
