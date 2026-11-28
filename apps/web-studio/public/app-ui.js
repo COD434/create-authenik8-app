@@ -68,6 +68,7 @@ function autoScroll(force = false) {
   }
   updateJumpLatest();
 }
+restoreDraft();
 
 if (jumpLatestBtn !== null) {
   jumpLatestBtn.addEventListener("click", () => scrollToLatest("smooth"));

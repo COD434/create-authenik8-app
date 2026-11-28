@@ -643,6 +643,18 @@ export async function handleChatRoute(ctx: RouteContext): Promise<boolean> {
   abortOnDisconnect(res, abort);
   const studio = createStudioEmitter(res);
 
+  const studioStream: StudioEventStream = createStudioEventStream();
+  const studioState: LegacyChatAdapterState = createLegacyChatAdapterState(
+    "local-session",
+    `turn_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+  );
+  const emitLegacy = (payload: Record<string, unknown>): void => {
+    sseEvent(res, payload);
+    const studioEvents = fromLegacyChatSseEvent(payload, studioState, studioStream);
+    if (studioEvents.length > 0) sseEvent(res, { studio: studioEvents });
+  };
+  emitLegacy({ studioProtocol: STUDIO_EVENT_VERSION, turn: { id: studioState.turnId, sessionId: studioState.sessionId } });
+
   try {
     const generation: GenerationContext = {
       deps,
