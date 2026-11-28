@@ -175,7 +175,7 @@ export function parseCliArguments(argv: string[]): CliArguments {
       if (parsed.database !== undefined) throw new Error("--database may only be provided once.");
       const inline = argument.startsWith("--database=");
       const value = inline ? argument.slice("--database=".length) : argv[index + 1];
-      parsed.database = parseChoice<Database>(value, databaseSchema, "--database", "sqlite or postgresql");
+      parsed.database = parseChoice<Database>(value, databaseSchema, "--database", "sqlite, postgresql, or supabase");
       if (!inline) index += 1;
       continue;
     }

@@ -23,7 +23,7 @@ const templateBodySchema = z.object({
   preset: z.enum(["base", "auth", "auth-oauth", "fullstack"]),
   frontend: z.enum(["react", "lovable", "next"]).optional(),
   oauthProviders: z.array(z.enum(["google", "github"])).optional(),
-  database: z.enum(["sqlite", "postgresql"]),
+  database: z.enum(["sqlite", "postgresql", "supabase"]),
   /** See TemplateSpec: omitted unless a production-seeding flow decides it. */
   runtime: z.enum(["node", "bun"]).optional(),
   packageManager: z.enum(["npm", "pnpm", "bun"]),

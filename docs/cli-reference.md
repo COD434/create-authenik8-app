@@ -9,7 +9,7 @@
 | `--preset base\|auth\|auth-oauth\|fullstack` | Select the deterministic preset |
 | `--frontend react\|lovable` | Keep the React reference only, or add the complete Lovable pack; fullstack only |
 | `--prisma`, `--no-prisma` | Choose Prisma for the base preset |
-| `--database sqlite\|postgresql` | Select the database for a Prisma-backed Express preset |
+| `--database sqlite\|postgresql\|supabase` | Select the database for a Prisma-backed Express preset (supabase generates PostgreSQL wiring with Supabase connection placeholders) |
 | `--oauth google,github`, `--no-oauth` | Select providers or explicitly disable them for fullstack |
 | `--git`, `--no-git` | Choose Git initialization; non-interactive mode defaults off |
 | `--runtime node\|bun` | Select the runtime for `--production-ready` Express output |

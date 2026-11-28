@@ -6,6 +6,9 @@ Use `--yes` or `--non-interactive` for deterministic scripts and CI. Security-re
 # Password API with PostgreSQL
 npx create-authenik8-app my-api --yes --preset auth --database postgresql --no-git
 
+# Password API wired for Supabase (hosted PostgreSQL connection placeholders in .env)
+npx create-authenik8-app my-api --yes --preset auth --database supabase --no-git
+
 # OAuth API with only GitHub, generated without installing
 npx create-authenik8-app my-api --yes --preset auth-oauth --database sqlite --oauth github --no-git --no-install
 

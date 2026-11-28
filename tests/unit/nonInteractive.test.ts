@@ -75,6 +75,18 @@ describe("non-interactive generation", () => {
     ])).toThrow("--frontend only applies");
   });
 
+  it("accepts the supabase database for Express presets", () => {
+    expect(resolve(["--preset", "auth", "--database", "supabase", "--no-git"])).toMatchObject({
+      authMode: "auth",
+      database: "supabase",
+    });
+    expect(resolve(["--preset", "base", "--prisma", "--database", "supabase"])).toMatchObject({
+      authMode: "base",
+      usePrisma: true,
+      database: "supabase",
+    });
+  });
+
   it.each([
     [["--preset", "base"], "requires --prisma or --no-prisma"],
     [["--preset", "base", "--prisma"], "requires --database"],
@@ -82,6 +94,7 @@ describe("non-interactive generation", () => {
     [["--preset", "auth-oauth", "--database", "sqlite", "--no-oauth"], "requires --oauth"],
     [["--preset", "fullstack"], "requires --oauth"],
     [["--preset", "fullstack", "--no-oauth", "--database", "sqlite"], "requires PostgreSQL"],
+    [["--preset", "fullstack", "--no-oauth", "--database", "supabase"], "requires PostgreSQL"],
     [["--preset", "auth", "--database", "sqlite", "--runtime", "node"], "requires --production-ready"],
     [["--preset", "auth", "--database", "sqlite", "--production-ready", "--runtime", "bun"], "not available"],
   ])("rejects incomplete or contradictory configuration %#", (args, message) => {

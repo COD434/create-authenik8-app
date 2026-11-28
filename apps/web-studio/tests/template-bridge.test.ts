@@ -90,6 +90,14 @@ describe("bridge argv", () => {
     }
   });
 
+  it("passes the supabase database through to the CLI", () => {
+    const argv = bridgeArgv(
+      { kind: "package", binPath: "bin.js" },
+      { ...baseSpec, database: "supabase" },
+    );
+    expect(argv).toContain("--database=supabase");
+  });
+
   it("omits --runtime unless a spec deliberately carries it (the CLI demands --production-ready with it)", () => {
     const argv = bridgeArgv({ kind: "package", binPath: "bin.js" }, baseSpec);
     expect(argv.some((flag) => flag.startsWith("--runtime="))).toBe(false);

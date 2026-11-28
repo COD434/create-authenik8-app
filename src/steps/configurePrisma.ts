@@ -57,6 +57,31 @@ function selectedOAuthProviders(state: CliState): OAuthProvider[] {
   return selected.length ? selected : [...oauthProviders];
 }
 
+/**
+ * Supabase is an external PostgreSQL service: the generated project keeps the
+ * Prisma/PostgreSQL wiring but ships connection placeholders instead of the
+ * local docker DATABASE_URL, so no local database container is expected.
+ */
+const SUPABASE_DATABASE_URL =
+  'DATABASE_URL="postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:6543/postgres?sslmode=require"';
+const SUPABASE_ENV_HINTS = [
+  "# Supabase: Project Settings > API for URL/keys, Database > Connection string (pooler) for DATABASE_URL",
+  'SUPABASE_URL="https://<project-ref>.supabase.co"',
+  'SUPABASE_ANON_KEY="<anon-or-publishable-key>"',
+];
+
+async function writeSupabaseEnvFiles(targetDir: string): Promise<void> {
+  for (const filename of [".env", ".env.example"]) {
+    const envPath = path.join(targetDir, filename);
+    if (!(await fs.pathExists(envPath))) continue;
+    const content = (await fs.readFile(envPath, "utf-8")).replace(/\r\n/g, "\n");
+    const lines = content.split("\n").map((line) =>
+      line.startsWith("DATABASE_URL=") ? SUPABASE_DATABASE_URL : line,
+    );
+    await fs.writeFile(envPath, `${lines.join("\n").replace(/\n*$/, "\n")}${SUPABASE_ENV_HINTS.join("\n")}\n`);
+  }
+}
+
 export async function configurePrisma(
   state: CliState,
   targetDir: string,
@@ -85,7 +110,7 @@ export async function configurePrisma(
 
   if (state.usePrisma) {
     try {
-      const dbType = state.database === "postgresql" ? "postgresql" : "sqlite";
+      const dbType = state.database === "sqlite" ? "sqlite" : "postgresql";
       const prismaTemplatePath = path.join(templateRoot, `prisma/${dbType}`);
 
       await fs.copy(
@@ -127,6 +152,10 @@ export async function configurePrisma(
         path.join(prismaTemplatePath, ".env.example"),
         path.join(targetDir, ".env.example")
       );
+
+      if (state.database === "supabase") {
+        await writeSupabaseEnvFiles(targetDir);
+      }
 
       await configureOAuthEnvironmentFiles(targetDir, selectedOAuthProviders(state));
 

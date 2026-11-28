@@ -97,6 +97,7 @@ export async function runPrompts(
       choices: [
         { name: "SQLite", value: "sqlite" },
         { name: "PostgreSQL", value: "postgresql" },
+        { name: "Supabase (hosted PostgreSQL)", value: "supabase" },
       ],
       when: (answers) => answers.authMode !== "fullstack"
         && (answers.usePrisma || ["auth", "auth-oauth"].includes(answers.authMode)),

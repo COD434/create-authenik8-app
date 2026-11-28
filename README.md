@@ -16,12 +16,12 @@ Most app starters make it easy to render a UI, but leave auth, sessions, ownersh
 
 ## What you get
 
-- **Secure auth starter CLI** : scaffold Express + TypeScript projects with JWT, refresh rotation, Redis, RBAC, OAuth, and Prisma options via `create-authenik8-app`.
-- **Authenik8 Studio** : a localhost app builder with chat, live preview, sandboxed file tools, agent runs, export, and run workflows.
-- **BYOK model access** : bring your own OpenRouter key; keys are sent per request and not stored by Studio.
-- **Local-first workflow** : Studio binds to `127.0.0.1`, works on your machine, and keeps generated project files in a real local sandbox/folder.
-- **Design and engineering guardrails** : reusable design tokens/checks and an engineering canon for safer changes.
-- **Integration-ready** : Studio includes workflows for OpenCode agent runs, GitHub sync, Supabase settings, and static deploy targets like Vercel/Netlify where configured.
+- **Secure auth starter CLI**: scaffold Express + TypeScript projects with JWT, refresh rotation, Redis, RBAC, OAuth, and Prisma options via `create-authenik8-app`.
+- **Authenik8 Studio**: a localhost app builder with chat, live preview, sandboxed file tools, agent runs, export, and run workflows.
+- **BYOK model access**: bring your own OpenRouter key; keys are sent per request and not stored by Studio.
+- **Local-first workflow**: Studio binds to `127.0.0.1`, works on your machine, and keeps generated project files in a real local sandbox/folder.
+- **Design and engineering guardrails**: reusable design tokens/checks and an engineering canon for safer changes.
+- **Integration-ready**: Studio includes workflows for OpenCode agent runs, GitHub sync, Supabase settings, and static deploy targets like Vercel/Netlify where configured.
 
 ## Quick start
 
@@ -56,11 +56,32 @@ Authenik8 Studio is designed for fast iteration without giving up control:
 
 - **Describe what you want** in chat and get real project files generated in a local sandbox.
 - **Preview instantly** in the built-in inspector/preview pane.
-- **Run agents when you choose** : build/review workflows are user-triggered, not silently spawned.
+- **Run agents when you choose**: build/review workflows are user-triggered, not silently spawned.
 - **Inspect execution** with timeline events, diffs, terminal/test output, and file metadata.
 - **Export or run** the generated project when you're ready.
 
 Studio is local-first by design: no hosted Studio account is required by this workspace, and BYOK keys are not persisted by the server.
+
+## Combining Authenik8 with Supabase
+
+Authenik8 and Supabase work well together when you split the responsibilities clearly:
+
+- **Authenik8 owns the backend and identity**: your Express/TypeScript API, auth flows, sessions, RBAC, and business logic run in code you own.
+- **Supabase provides the database**: hosted PostgreSQL with connection pooling, backups, and scaling handled for you.
+
+How to set it up:
+
+1. **Generate with the Supabase database option**:
+
+   ```bash
+   npx create-authenik8-app my-api --yes --preset auth --database supabase --no-git
+   ```
+
+   This generates the Prisma/PostgreSQL wiring and writes Supabase placeholders into `.env` and `.env.example` (`DATABASE_URL` pointing at the Supabase pooler, plus `SUPABASE_URL` and `SUPABASE_ANON_KEY`). Paste your real values from Supabase Project Settings, then run `npm run db:migrate` to push the schema.
+
+2. **Or connect from Studio**: in the Studio template dialog choose `supabase` as the database, or use **Connect > Supabase** in the ship tab to verify your project URL and keys, which writes `SUPABASE_URL`, the key, and `DATABASE_URL` into the project `.env`.
+
+Keep one source of truth for identity: let Authenik8 own auth for users of your app, and use Supabase for data (and its other platform services if you want them). Avoid enabling Supabase Auth for the same user set, or you will end up maintaining two identity systems.
 
 ## Ecosystem packages
 
@@ -79,11 +100,11 @@ This repository is a workspace containing the CLI, Studio, and supporting packag
 
 ## Security posture
 
-- **BYOK only** : provider keys are passed per call, not stored by Studio, not logged, and not embedded in errors.
-- **Localhost by default** : Studio binds to `127.0.0.1`; hosted deployment is a separate trust boundary.
-- **No silent agent execution** : agent runs are user-triggered.
-- **Sandboxed project operations** : Studio file tools and preview are scoped to the sandbox/project boundaries.
-- **Careful with secrets** : review files before publishing; Studio avoids storing GitHub/hosting tokens and skips common secret/private-key files during publish flows.
+- **BYOK only**: provider keys are passed per call, not stored by Studio, not logged, and not embedded in errors.
+- **Localhost by default**: Studio binds to `127.0.0.1`; hosted deployment is a separate trust boundary.
+- **No silent agent execution**: agent runs are user-triggered.
+- **Sandboxed project operations**: Studio file tools and preview are scoped to the sandbox/project boundaries.
+- **Careful with secrets**: review files before publishing; Studio avoids storing GitHub/hosting tokens and skips common secret/private-key files during publish flows.
 
 See [`docs/m5-web-studio.md`](./docs/m5-web-studio.md) for Studio trust-boundary details and implementation notes.
 

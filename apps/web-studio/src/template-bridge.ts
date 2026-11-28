@@ -25,7 +25,7 @@ export type TemplateSpec = {
   preset: "base" | "auth" | "auth-oauth" | "fullstack";
   frontend?: "react" | "lovable" | "next";
   oauthProviders?: Array<"google" | "github">;
-  database: "sqlite" | "postgresql";
+  database: "sqlite" | "postgresql" | "supabase";
   /**
    * Omitted by default: the CLI refuses `--runtime` without
    * `--production-ready` for Express presets (observed live), and a dev
@@ -98,7 +98,7 @@ export function packageBinPath(cliPath: string): string | null {
 const ALLOWED_PRESETS = new Set<TemplateSpec["preset"]>(["base", "auth", "auth-oauth", "fullstack"]);
 const ALLOWED_FRONTENDS = new Set<NonNullable<TemplateSpec["frontend"]>>(["react", "lovable", "next"]);
 const ALLOWED_OAUTH = new Set<NonNullable<TemplateSpec["oauthProviders"]>[number]>(["google", "github"]);
-const ALLOWED_DATABASES = new Set<TemplateSpec["database"]>(["sqlite", "postgresql"]);
+const ALLOWED_DATABASES = new Set<TemplateSpec["database"]>(["sqlite", "postgresql", "supabase"]);
 const ALLOWED_RUNTIMES = new Set<NonNullable<TemplateSpec["runtime"]>>(["node", "bun"]);
 const ALLOWED_PACKAGE_MANAGERS = new Set<TemplateSpec["packageManager"]>(["npm", "pnpm", "bun"]);
 

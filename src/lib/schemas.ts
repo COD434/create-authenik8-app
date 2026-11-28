@@ -35,7 +35,7 @@ export const stepNameSchema = z.enum([
 
 export const authModeSchema = z.enum(["base", "auth", "auth-oauth", "fullstack"]);
 export const frontendModeSchema = z.enum(["react", "lovable"]);
-export const databaseSchema = z.enum(["sqlite", "postgresql"]);
+export const databaseSchema = z.enum(["sqlite", "postgresql", "supabase"]);
 export const runtimeSchema = z.enum(["node", "bun"]);
 export const oauthProviderSchema = z.enum(["google", "github"]);
 export const authMethodSchema = z.enum(["password", "google", "github"]);

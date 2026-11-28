@@ -54,7 +54,7 @@ export function resolveNonInteractiveAnswers(
     rejectFrontendOption(options);
     rejectOAuthOption(options);
     if (options.usePrisma === undefined) fail("the base preset requires --prisma or --no-prisma");
-    if (options.usePrisma && !options.database) fail("--prisma requires --database sqlite or postgresql");
+    if (options.usePrisma && !options.database) fail("--prisma requires --database sqlite, postgresql, or supabase");
     if (!options.usePrisma && options.database) fail("--database cannot be used with --no-prisma");
     const runtime = productionRuntime(options, environment);
     raw = {
@@ -69,7 +69,7 @@ export function resolveNonInteractiveAnswers(
     rejectFrontendOption(options);
     rejectOAuthOption(options);
     if (options.usePrisma === false) fail("the auth preset requires Prisma");
-    if (!options.database) fail("the auth preset requires --database sqlite or postgresql");
+    if (!options.database) fail("the auth preset requires --database sqlite, postgresql, or supabase");
     const runtime = productionRuntime(options, environment);
     raw = {
       framework: "Express",
@@ -82,7 +82,7 @@ export function resolveNonInteractiveAnswers(
   } else if (authMode === "auth-oauth") {
     rejectFrontendOption(options);
     if (options.usePrisma === false) fail("the auth-oauth preset requires Prisma");
-    if (!options.database) fail("the auth-oauth preset requires --database sqlite or postgresql");
+    if (!options.database) fail("the auth-oauth preset requires --database sqlite, postgresql, or supabase");
     const oauthProviders = options.oauthProviders;
     if (!oauthProviders?.length) fail("the auth-oauth preset requires --oauth google, github, or google,github");
     const runtime = productionRuntime(options, environment);
